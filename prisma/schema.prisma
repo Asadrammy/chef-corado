@@ -23,8 +23,8 @@ model User {
   updatedAt         DateTime       @updatedAt
   bookings          Booking[]      @relation("ClientBookings")
   chefProfile       ChefProfile?
-  receivedMessages  Message[]      @relation("MessageReceiver")
   sentMessages      Message[]      @relation("MessageSender")
+  receivedMessages  Message[]      @relation("MessageReceiver")
   notifications     Notification[]
   requests          Request[]      @relation("ClientRequests")
   reviews           Review[]       @relation("ClientReviews")
@@ -132,11 +132,11 @@ model Proposal {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   booking   Booking?
-  menu      Menu?       @relation(fields: [menuId], references: [id])
-  chef      ChefProfile @relation(fields: [chefId], references: [id])
   request   Request     @relation(fields: [requestId], references: [id])
+  chef      ChefProfile @relation(fields: [chefId], references: [id])
+  menu      Menu?       @relation(fields: [menuId], references: [id])
 
-  @@unique([chefId, requestId]) // Prevent duplicate proposals
+  @@unique([chefId, requestId])
 }
 
 model Booking {
@@ -156,10 +156,10 @@ model Booking {
   specialRequests String?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
-  experience      Experience? @relation(fields: [experienceId], references: [id])
-  proposal        Proposal?   @relation(fields: [proposalId], references: [id])
-  chef            ChefProfile @relation("ChefBookings", fields: [chefId], references: [id])
   client          User        @relation("ClientBookings", fields: [clientId], references: [id])
+  chef            ChefProfile @relation("ChefBookings", fields: [chefId], references: [id])
+  proposal        Proposal?   @relation(fields: [proposalId], references: [id])
+  experience      Experience? @relation(fields: [experienceId], references: [id])
   payments        Payment?
   review          Review?
 }
@@ -188,9 +188,9 @@ model Review {
   bookingId String      @unique
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
-  booking   Booking     @relation(fields: [bookingId], references: [id])
-  chef      ChefProfile @relation(fields: [chefId], references: [id])
   client    User        @relation("ClientReviews", fields: [clientId], references: [id])
+  chef      ChefProfile @relation(fields: [chefId], references: [id])
+  booking   Booking     @relation(fields: [bookingId], references: [id])
 }
 
 model Notification {
@@ -211,8 +211,8 @@ model Message {
   createdAt  DateTime @default(now())
   bookingId  String?
   offerId    String?
-  receiver   User     @relation("MessageReceiver", fields: [receiverId], references: [id])
   sender     User     @relation("MessageSender", fields: [senderId], references: [id])
+  receiver   User     @relation("MessageReceiver", fields: [receiverId], references: [id])
 }
 
 model Availability {
@@ -244,16 +244,16 @@ model Payout {
 }
 
 model WebhookLog {
-  id           String   @id @default(cuid())
-  stripeEventId String  @unique
-  eventType    String
-  status       String   @default("PENDING")
-  payload      String
-  processedAt  DateTime?
-  errorMessage String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  
+  id            String    @id @default(cuid())
+  stripeEventId String    @unique
+  eventType     String
+  status        String    @default("PENDING")
+  payload       String
+  processedAt   DateTime?
+  errorMessage  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
   @@index([stripeEventId])
   @@index([status])
   @@index([eventType])

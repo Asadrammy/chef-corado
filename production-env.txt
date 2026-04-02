@@ -1,0 +1,67 @@
+# ===========================================
+# PRODUCTION ENVIRONMENT VARIABLES FOR RENDER
+# ===========================================
+
+# Database (Render PostgreSQL)
+DATABASE_URL=postgresql://user:password@host:5432/database_name
+
+# NextAuth Configuration
+NEXTAUTH_URL=https://your-app-name.onrender.com
+NEXTAUTH_SECRET=4WQYmU86W++f:&A9UN+v@0?1!p+ucSR]
+
+# Environment
+NODE_ENV=production
+ENVIRONMENT=production
+
+# Stripe (Payments) - REPLACE WITH YOUR LIVE KEYS
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
+STRIPE_SECRET_KEY=sk_live_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Cloudinary (File Storage) - REPLACE WITH YOUR CLOUDINARY CREDENTIALS
+CLOUDINARY_CLOUD_NAME=your_cloud_name
+CLOUDINARY_API_KEY=your_api_key
+CLOUDINARY_API_SECRET=your_api_secret
+
+# API Configuration
+API_TIMEOUT_MS=30000
+MAX_REQUEST_SIZE=10mb
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# Security
+CORS_ORIGIN=https://your-app-name.onrender.com
+ALLOWED_ORIGINS=https://your-app-name.onrender.com
+
+# Monitoring
+HEALTH_CHECK_ENABLED=true
+METRICS_ENABLED=true
+
+# ===========================================
+# SETUP INSTRUCTIONS:
+# ===========================================
+
+# 1. DATABASE_URL:
+#    - Create a PostgreSQL database on Render
+#    - Copy the connection URL from Render dashboard
+#    - Replace the placeholder above
+
+# 2. NEXTAUTH_URL:
+#    - Replace "your-app-name" with your actual Render app name
+#    - Example: https://chef-marketplace.onrender.com
+
+# 3. STRIPE_KEYS:
+#    - Get your live API keys from Stripe dashboard
+#    - Set up webhook endpoint: https://your-app-name.onrender.com/api/payments/webhook
+
+# 4. CLOUDINARY:
+#    - Create a free Cloudinary account
+#    - Get your cloud name, API key, and API secret
+#    - Replace the placeholders above
+
+# 5. COPY & PASTE:
+#    - Copy all variables above (without comments)
+#    - Paste into Render Environment Variables section
+#    - Make sure to replace all placeholder values
