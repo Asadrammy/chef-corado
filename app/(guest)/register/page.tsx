@@ -1,53 +1,137 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { generateMeta } from "@/lib/utils";
-import { GithubIcon } from "lucide-react";
-import { Metadata } from "next";
+"use client"
 
-export async function generateMetadata(): Promise<Metadata> {
-  return generateMeta({
-    title: "Register Page",
-    description:
-      "A login form with email and password. There's an option to login with Google and a link to sign up if you don't have an account.",
-  });
-}
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Code } from "lucide-react"
+import { Role } from "@/types"
 
-export default function LoginPageV1() {
+export default function RegisterPage() {
+  const router = useRouter()
+  const [formData, setFormData] = useState<{
+    name: string
+    email: string
+    password: string
+    role: Role
+  }>({
+    name: "",
+    email: "",
+    password: "",
+    role: Role.CLIENT,
+  })
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState(false)
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleRoleChange = (value: string) => {
+    setFormData(prev => ({ ...prev, role: value as Role }))
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError("")
+
+    try {
+      const response = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        if (data.details) {
+          setError(data.details.map((d: any) => d.message).join(", "))
+        } else {
+          setError(data.error || "Registration failed")
+        }
+        return
+      }
+
+      setSuccess(true)
+      setTimeout(() => {
+        router.push("/login")
+      }, 2000)
+    } catch (err) {
+      setError("Network error. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (success) {
+    return (
+      <div className="flex pb-8 lg:h-screen lg:pb-0">
+        <div className="hidden w-1/2 bg-muted lg:block">
+          <img src={`/images/cover.png`} alt="Login visual" className="h-full w-full object-cover" />
+        </div>
+        <div className="flex w-full items-center justify-center lg:w-1/2">
+          <div className="w-full max-w-md space-y-8 px-4">
+            <Alert className="border-green-600 bg-green-50 dark:bg-green-950/20">
+              <AlertDescription className="text-green-800 dark:text-green-200">
+                Registration successful! Redirecting to login...
+              </AlertDescription>
+            </Alert>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex pb-8 lg:h-screen lg:pb-0">
-      <div className="hidden w-1/2 bg-gray-100 lg:block">
+      <div className="hidden w-1/2 bg-muted lg:block">
         <img src={`/images/cover.png`} alt="Login visual" className="h-full w-full object-cover" />
       </div>
 
       <div className="flex w-full items-center justify-center lg:w-1/2">
         <div className="w-full max-w-md space-y-8 px-4">
           <div className="text-center">
-            <h2 className="mt-6 text-3xl font-bold text-gray-900">Register</h2>
-            <p className="mt-2 text-sm text-gray-600">
+            <h2 className="mt-6 text-3xl font-bold text-foreground">Register</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
               Create a new account to access the dashboard.
             </p>
           </div>
 
-          <form className="mt-8 space-y-6">
+          {error && (
+            <Alert className="border-destructive bg-destructive/10">
+              <AlertDescription className="text-destructive">
+                {error}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="name" className="sr-only">
-                  Name
-                </Label>
+                <Label htmlFor="name">Name</Label>
                 <Input
                   id="name"
                   name="name"
                   type="text"
                   required
                   className="w-full"
-                  placeholder="Name"
+                  placeholder="Enter your name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  disabled={loading}
                 />
               </div>
               <div>
-                <Label htmlFor="email" className="sr-only">
-                  Email address
-                </Label>
+                <Label htmlFor="email">Email address</Label>
                 <Input
                   id="email"
                   name="email"
@@ -55,28 +139,44 @@ export default function LoginPageV1() {
                   autoComplete="email"
                   required
                   className="w-full"
-                  placeholder="Email address"
+                  placeholder="Enter your email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  disabled={loading}
                 />
               </div>
               <div>
-                <Label htmlFor="password" className="sr-only">
-                  Password
-                </Label>
+                <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
                   name="password"
                   type="password"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                   required
                   className="w-full"
-                  placeholder="Password"
+                  placeholder="Create a password"
+                  value={formData.password}
+                  onChange={handleChange}
+                  disabled={loading}
                 />
+              </div>
+              <div>
+                <Label htmlFor="role">I want to register as</Label>
+                <Select value={formData.role} onValueChange={handleRoleChange} disabled={loading}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select your role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={Role.CLIENT}>Client - Looking for chefs</SelectItem>
+                    <SelectItem value={Role.CHEF}>Chef - Offering services</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
             <div>
-              <Button type="submit" className="w-full">
-                Sign in
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Creating account..." : "Create account"}
               </Button>
             </div>
           </form>
@@ -92,7 +192,7 @@ export default function LoginPageV1() {
             </div>
 
             <div className="mt-6 grid grid-cols-2 gap-3">
-              <Button variant="outline" className="w-full">
+              <Button variant="outline" className="w-full" type="button" disabled>
                 <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
                   <path
                     fill="currentColor"
@@ -113,8 +213,8 @@ export default function LoginPageV1() {
                 </svg>
                 Google
               </Button>
-              <Button variant="outline" className="w-full">
-                <GithubIcon className="mr-2 h-4 w-4" />
+              <Button variant="outline" className="w-full" type="button" disabled>
+                <Code className="mr-2 h-4 w-4" />
                 GitHub
               </Button>
             </div>
@@ -129,5 +229,5 @@ export default function LoginPageV1() {
         </div>
       </div>
     </div>
-  );
+  )
 }

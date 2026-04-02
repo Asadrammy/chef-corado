@@ -1,0 +1,274 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id                String         @id @default(cuid())
+  name              String
+  email             String         @unique
+  password          String
+  role              String         @default("CLIENT")
+  isBanned          Boolean        @default(false)
+  verified          Boolean        @default(false)
+  profileCompletion Int            @default(0)
+  experienceLevel   String         @default("BEGINNER")
+  resetToken        String?        @unique
+  resetTokenExpires DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  bookings          Booking[]      @relation("ClientBookings")
+  chefProfile       ChefProfile?
+  receivedMessages  Message[]      @relation("MessageReceiver")
+  sentMessages      Message[]      @relation("MessageSender")
+  notifications     Notification[]
+  requests          Request[]      @relation("ClientRequests")
+  reviews           Review[]       @relation("ClientReviews")
+}
+
+model ChefProfile {
+  id                String         @id @default(cuid())
+  userId            String         @unique
+  bio               String?
+  experience        Int?
+  location          String
+  latitude          Float?
+  longitude         Float?
+  radius            Float
+  isApproved        Boolean        @default(false)
+  isBanned          Boolean        @default(false)
+  verified          Boolean        @default(false)
+  profileCompletion Int            @default(0)
+  experienceLevel   String         @default("BEGINNER")
+  cuisineType       String?
+  profileImage      String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  availability      Availability[]
+  bookings          Booking[]      @relation("ChefBookings")
+  user              User           @relation(fields: [userId], references: [id])
+  experiences       Experience[]
+  menus             Menu[]
+  payouts           Payout[]
+  proposals         Proposal[]
+  reviews           Review[]
+}
+
+model Menu {
+  id          String      @id @default(cuid())
+  chefId      String
+  title       String
+  description String?
+  price       Float
+  menuImage   String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  cuisineType String?
+  eventType   String?
+  chef        ChefProfile @relation(fields: [chefId], references: [id])
+  proposals   Proposal[]
+}
+
+model Experience {
+  id               String      @id @default(cuid())
+  title            String
+  description      String
+  price            Float
+  duration         Int
+  includedServices String
+  eventType        String?
+  cuisineType      String?
+  maxGuests        Int?
+  minGuests        Int?
+  difficulty       String      @default("EASY")
+  tags             String?
+  experienceImage  String?
+  chefId           String
+  isActive         Boolean     @default(true)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  bookings         Booking[]
+  chef             ChefProfile @relation(fields: [chefId], references: [id])
+
+  @@index([title])
+  @@index([price])
+  @@index([chefId])
+  @@index([createdAt])
+  @@index([isActive])
+  @@index([cuisineType])
+  @@index([eventType])
+  @@index([difficulty])
+  @@index([isActive, createdAt])
+}
+
+model Request {
+  id          String     @id @default(cuid())
+  clientId    String
+  title       String
+  description String?
+  eventDate   DateTime
+  location    String
+  latitude    Float?
+  longitude   Float?
+  budget      Float
+  details     String?
+  createdAt   DateTime   @default(now())
+  proposals   Proposal[]
+  client      User       @relation("ClientRequests", fields: [clientId], references: [id])
+}
+
+model Proposal {
+  id        String      @id @default(cuid())
+  requestId String
+  chefId    String
+  menuId    String?
+  price     Float
+  message   String?
+  status    String      @default("PENDING")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  booking   Booking?
+  menu      Menu?       @relation(fields: [menuId], references: [id])
+  chef      ChefProfile @relation(fields: [chefId], references: [id])
+  request   Request     @relation(fields: [requestId], references: [id])
+
+  @@unique([chefId, requestId]) // Prevent duplicate proposals
+}
+
+model Booking {
+  id              String      @id @default(cuid())
+  clientId        String
+  chefId          String
+  proposalId      String?     @unique
+  experienceId    String?
+  eventDate       DateTime
+  location        String
+  latitude        Float?
+  longitude       Float?
+  guestCount      Int
+  totalPrice      Float
+  bookingType     String      @default("PROPOSAL")
+  status          String      @default("PENDING")
+  specialRequests String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  experience      Experience? @relation(fields: [experienceId], references: [id])
+  proposal        Proposal?   @relation(fields: [proposalId], references: [id])
+  chef            ChefProfile @relation("ChefBookings", fields: [chefId], references: [id])
+  client          User        @relation("ClientBookings", fields: [clientId], references: [id])
+  payments        Payment?
+  review          Review?
+}
+
+model Payment {
+  id                    String    @id @default(cuid())
+  bookingId             String    @unique(map: "sqlite_autoindex_Payment_2")
+  totalAmount           Float     @default(0)
+  commissionAmount      Float     @default(0)
+  chefAmount            Float     @default(0)
+  status                String    @default("HELD")
+  stripePaymentIntentId String?   @unique(map: "sqlite_autoindex_Payment_3")
+  releasedAt            DateTime?
+  releasedBy            String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @default(now()) @updatedAt
+  booking               Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model Review {
+  id        String      @id @default(cuid())
+  rating    Int
+  comment   String?
+  clientId  String
+  chefId    String
+  bookingId String      @unique
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  booking   Booking     @relation(fields: [bookingId], references: [id])
+  chef      ChefProfile @relation(fields: [chefId], references: [id])
+  client    User        @relation("ClientReviews", fields: [clientId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  content    String
+  createdAt  DateTime @default(now())
+  bookingId  String?
+  offerId    String?
+  receiver   User     @relation("MessageReceiver", fields: [receiverId], references: [id])
+  sender     User     @relation("MessageSender", fields: [senderId], references: [id])
+}
+
+model Availability {
+  id               String      @id @default(cuid())
+  chefId           String
+  date             DateTime
+  startTime        String
+  endTime          String
+  isAvailable      Boolean     @default(true)
+  recurringPattern String?
+  maxBookings      Int         @default(1)
+  currentBookings  Int         @default(0)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  chef             ChefProfile @relation(fields: [chefId], references: [id])
+}
+
+model Payout {
+  id               String      @id @default(cuid())
+  chefId           String
+  amount           Float
+  status           String      @default("PENDING")
+  stripeTransferId String?     @unique
+  processedAt      DateTime?
+  processedBy      String?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  chef             ChefProfile @relation(fields: [chefId], references: [id])
+}
+
+model WebhookLog {
+  id           String   @id @default(cuid())
+  stripeEventId String  @unique
+  eventType    String
+  status       String   @default("PENDING")
+  payload      String
+  processedAt  DateTime?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  @@index([stripeEventId])
+  @@index([status])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model Payment_backup {
+  id         String?
+  bookingId  String?
+  amount     Float?
+  commission Float?
+  status     String?
+  createdAt  Unsupported("num")?
+  updatedAt  Unsupported("num")?
+
+  @@ignore
+}

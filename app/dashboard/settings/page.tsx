@@ -1,17 +1,26 @@
-import { Separator } from "@/components/ui/separator";
-import { ProfileForm } from "./profile-form";
+import { Metadata } from "next"
+import { cookies } from "next/headers"
+import { getServerSession } from "next-auth"
+import { redirect } from "next/navigation"
 
-export default function SettingsProfilePage() {
+import { authOptions } from "@/lib/auth"
+import { generateMeta } from "@/lib/utils"
+import { SettingsDashboard } from "@/components/settings-dashboard"
+
+export const metadata: Metadata = generateMeta({
+  title: "Settings",
+  description: "Manage your account, profile, and preferences.",
+})
+
+export default async function SettingsPage() {
+  const session = await getServerSession(authOptions)
+  if (!session) {
+    redirect("/login")
+  }
+
+  cookies()
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-lg font-medium">Profile</h3>
-        <p className="text-sm text-muted-foreground">
-          This is how others will see you on the site.
-        </p>
-      </div>
-      <Separator />
-      <ProfileForm />
-    </div>
-  );
+    <SettingsDashboard />
+  )
 }

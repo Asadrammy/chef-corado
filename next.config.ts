@@ -12,6 +12,10 @@ const nextConfig: NextConfig = {
         hostname: "**"
       }
     ]
+  },
+  webpack: (config) => {
+    config.resolve.symlinks = false;
+    return config;
   }
 };
 

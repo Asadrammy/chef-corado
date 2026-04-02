@@ -20,9 +20,9 @@ export function SidebarNav({ className, items, ...props }: SidebarNavProps) {
     <nav
       className={cn("flex space-x-2 lg:flex-col lg:space-x-0 lg:space-y-1", className)}
       {...props}>
-      {items.map((item) => (
+      {items.map((item, index) => (
         <Link
-          key={item.href}
+          key={`${item.title}-${index}`}
           href={item.href}
           className={cn(
             buttonVariants({ variant: "ghost" }),

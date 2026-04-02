@@ -1,0 +1,40 @@
+/* Modal visibility fixes */
+/* Ensure modals can break out of any parent container constraints */
+
+/* Portal container should be at the root */
+[data-radix-popper-content-wrapper],
+[data-radix-dialog-content-wrapper] {
+  z-index: 9999 !important;
+  position: fixed !important;
+}
+
+/* Dialog overlay and content */
+[data-radix-dialog-overlay] {
+  z-index: 40 !important;
+  background: rgba(0, 0, 0, 0.8) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+[data-radix-dialog-content] {
+  z-index: 50 !important;
+  position: fixed !important;
+  max-height: 90vh !important;
+  overflow-y: auto !important;
+}
+
+/* Dashboard specific fixes - ensure modal can escape containers */
+.dashboard-shell,
+.sidebar-inset,
+.main-content {
+  /* These containers should not constrain modal positioning */
+  overflow: visible !important;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 640px) {
+  [data-radix-dialog-content] {
+    width: 95vw !important;
+    max-width: 95vw !important;
+    margin: 2.5vh auto !important;
+  }
+}
