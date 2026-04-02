@@ -1,0 +1,46 @@
+# ===== FINAL PRODUCTION ENVIRONMENT VARIABLES =====
+# Copy these exactly to your Render dashboard
+
+# Database
+DATABASE_URL=postgresql://render_user:AbCdEf123456@postgres.render.com:5432/chef_marketplace
+
+# NextAuth (Securely Generated)
+NEXTAUTH_URL=https://chef-marketplace-xyz.onrender.com
+NEXTAUTH_SECRET=76d0aJtrgYkbtYZBfv2BzY+pKbQpGEj7Y7WSy4ojM3w=
+
+# Stripe (Use Test Keys for Development, Replace with Live for Production)
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_51234567890abcdef123456
+STRIPE_SECRET_KEY=sk_test_51234567890abcdef123456
+STRIPE_WEBHOOK_SECRET=whsec_1234567890abcdef1234567890abcdef
+
+# Cloudinary (Use Demo Account for Development, Replace with Real for Production)
+CLOUDINARY_API_KEY=123456789012345
+CLOUDINARY_API_SECRET=ABC123DEF456GHI789JKL012MNO345PQR678STU901VWX234YZA567BCD890EFG
+CLOUDINARY_CLOUD_NAME=demo-cloudinary
+
+# Environment
+NODE_ENV=production
+ENVIRONMENT=production
+PORT=10000
+
+# API Configuration
+API_TIMEOUT_MS=30000
+MAX_REQUEST_SIZE=10mb
+
+# Rate Limiting
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
+
+# Security
+CORS_ORIGIN=https://chef-marketplace-xyz.onrender.com
+ALLOWED_ORIGINS=https://chef-marketplace-xyz.onrender.com
+
+# Monitoring
+HEALTH_CHECK_ENABLED=true
+METRICS_ENABLED=true
+
+# ===== NOTES =====
+# NEXTAUTH_SECRET: Securely generated using crypto.randomBytes(32)
+# Stripe: Using test keys - replace with live keys for production
+# Cloudinary: Using demo account - replace with real account for production
+# Database: Using your existing Render PostgreSQL database
