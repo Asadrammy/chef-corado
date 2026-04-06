@@ -25,21 +25,21 @@ export function EmptyState({
   const getIcon = () => {
     switch (icon) {
       case "search":
-        return <Search className="h-12 w-12 text-gray-400" />
+        return <Search className="h-12 w-12 text-muted-foreground/60" />
       case "document":
-        return <FileText className="h-12 w-12 text-gray-400" />
+        return <FileText className="h-12 w-12 text-muted-foreground/60" />
       default:
-        return <PlusCircle className="h-12 w-12 text-gray-400" />
+        return <PlusCircle className="h-12 w-12 text-muted-foreground/60" />
     }
   }
 
   return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-sm p-8 text-center">
-      <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-gray-50 dark:bg-gray-800">
+    <div className="bg-background border border-border/60 rounded-2xl shadow-sm p-8 text-center">
+      <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-muted/50">
         {getIcon()}
       </div>
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">{title}</h3>
-      <p className="text-gray-600 dark:text-gray-300 max-w-md mx-auto mb-6">
+      <h3 className="text-lg font-semibold text-foreground mb-2">{title}</h3>
+      <p className="text-muted-foreground max-w-md mx-auto mb-6">
         {description}
       </p>
       {actionHref !== "#" ? (

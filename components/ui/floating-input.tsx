@@ -26,10 +26,6 @@ const FloatingInput = React.forwardRef<HTMLInputElement, FloatingInputProps>(
                 ? "text-xs -top-2 px-1"
                 : "text-sm top-3"
             )}
-            style={{
-              backgroundColor: className?.includes('bg-white') ? 'white' : 'transparent',
-              color: isFocused || hasValue ? 'inherit' : 'inherit'
-            }}
           >
             {label}
           </label>

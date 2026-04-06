@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
+import { authOptions } from '@/lib/auth';
+import { Role } from '@/types';
 import { z } from 'zod';
 
 const createReviewSchema = z.object({
@@ -10,6 +13,12 @@ const createReviewSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id || session.user.role !== Role.CLIENT) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { rating, comment, bookingId } = createReviewSchema.parse(body);
 
@@ -26,8 +35,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
 
+    if (booking.clientId !== session.user.id) {
+      return NextResponse.json({ error: 'You can only review your own completed bookings' }, { status: 403 });
+    }
+
     // Check if review already exists
-    const existingReview = await (prisma as any).review.findFirst({
+    const existingReview = await prisma.review.findUnique({
       where: { bookingId },
     });
 
@@ -40,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create the review
-    const review = await (prisma as any).review.create({
+    const review = await prisma.review.create({
       data: {
         rating,
         comment,
@@ -69,13 +82,25 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const chefId = searchParams.get('chefId');
+    const userId = searchParams.get('userId');
 
-    if (!chefId) {
-      return NextResponse.json({ error: 'Chef ID is required' }, { status: 400 });
+    let resolvedChefId = chefId;
+
+    if (!resolvedChefId && userId) {
+      const chefProfile = await prisma.chefProfile.findUnique({
+        where: { userId },
+        select: { id: true },
+      });
+
+      resolvedChefId = chefProfile?.id ?? null;
     }
 
-    const reviews = await (prisma as any).review.findMany({
-      where: { chefId },
+    if (!resolvedChefId) {
+      return NextResponse.json({ error: 'Chef ID or user ID is required' }, { status: 400 });
+    }
+
+    const reviews = await prisma.review.findMany({
+      where: { chefId: resolvedChefId },
       include: {
         client: {
           select: {
@@ -97,7 +122,7 @@ export async function GET(request: NextRequest) {
 
     // Calculate average rating
     const averageRating = reviews.length > 0 
-      ? reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / reviews.length 
+      ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length 
       : 0;
 
     return NextResponse.json({

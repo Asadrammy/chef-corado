@@ -11,6 +11,8 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  SidebarGroupLabel,
+  SidebarSeparator,
 } from "@/components/ui/sidebar"
 import { 
   IconChefHat, 
@@ -24,96 +26,83 @@ import {
   type Icon 
 } from "@tabler/icons-react"
 
-const getClientNavItems = (pathname: string) => [
+type NavItem = {
+  title: string
+  url: string
+  icon: Icon
+  isActive: boolean
+}
+
+type NavGroup = {
+  label: string
+  items: NavItem[]
+}
+
+const createNavItem = (
+  title: string,
+  url: string,
+  icon: Icon,
+  pathname: string,
+  exact = false
+): NavItem => ({
+  title,
+  url,
+  icon,
+  isActive: exact ? pathname === url : pathname === url || pathname.startsWith(`${url}/`),
+})
+
+const getClientNavGroups = (pathname: string): NavGroup[] => [
   {
-    title: "Dashboard",
-    url: "/dashboard/client",
-    icon: IconHome,
-    isActive: pathname === "/dashboard/client" || pathname === "/dashboard/client",
+    label: "Overview",
+    items: [createNavItem("Dashboard", "/dashboard/client", IconHome, pathname, true)],
   },
   {
-    title: "Create Request",
-    url: "/dashboard/client/create-request",
-    icon: IconFileText,
-    isActive: pathname === "/dashboard/client/create-request",
+    label: "Planning",
+    items: [
+      createNavItem("Create Request", "/dashboard/client/create-request", IconFileText, pathname),
+      createNavItem("My Requests", "/dashboard/client/requests", IconFileText, pathname),
+    ],
   },
   {
-    title: "My Requests",
-    url: "/dashboard/client/requests",
-    icon: IconFileText,
-    isActive: pathname === "/dashboard/client/requests",
-  },
-  {
-    title: "Proposals",
-    url: "/dashboard/client/proposals",
-    icon: IconUsers,
-    isActive: pathname === "/dashboard/client/proposals",
-  },
-  {
-    title: "Bookings",
-    url: "/dashboard/client/bookings",
-    icon: IconCalendar,
-    isActive: pathname === "/dashboard/client/bookings",
+    label: "Hiring",
+    items: [
+      createNavItem("Proposals", "/dashboard/client/proposals", IconUsers, pathname),
+      createNavItem("Bookings", "/dashboard/client/bookings", IconCalendar, pathname),
+    ],
   },
 ]
 
-const getChefNavItems = (pathname: string) => [
+const getChefNavGroups = (pathname: string): NavGroup[] => [
   {
-    title: "Dashboard",
-    url: "/dashboard/chef",
-    icon: IconHome,
-    isActive: pathname === "/dashboard/chef" || pathname === "/dashboard/chef",
+    label: "Overview",
+    items: [createNavItem("Dashboard", "/dashboard/chef", IconHome, pathname, true)],
   },
   {
-    title: "Profile",
-    url: "/dashboard/chef/profile",
-    icon: IconChefHat,
-    isActive: pathname === "/dashboard/chef/profile",
+    label: "Operations",
+    items: [
+      createNavItem("Requests", "/dashboard/chef/requests", IconUsers, pathname),
+      createNavItem("Bookings", "/dashboard/chef/bookings", IconCalendar, pathname),
+      createNavItem("Menus", "/dashboard/chef/menus", IconFileText, pathname),
+    ],
   },
   {
-    title: "Menus",
-    url: "/dashboard/chef/menus",
-    icon: IconFileText,
-    isActive: pathname === "/dashboard/chef/menus",
-  },
-  {
-    title: "Requests",
-    url: "/dashboard/chef/requests",
-    icon: IconUsers,
-    isActive: pathname === "/dashboard/chef/requests",
-  },
-  {
-    title: "Bookings",
-    url: "/dashboard/chef/bookings",
-    icon: IconCalendar,
-    isActive: pathname === "/dashboard/chef/bookings",
+    label: "Account",
+    items: [createNavItem("Profile", "/dashboard/chef/profile", IconChefHat, pathname)],
   },
 ]
 
-const getAdminNavItems = (pathname: string) => [
+const getAdminNavGroups = (pathname: string): NavGroup[] => [
   {
-    title: "Dashboard",
-    url: "/dashboard/admin",
-    icon: IconHome,
-    isActive: pathname === "/dashboard/admin" || pathname === "/dashboard/admin",
+    label: "Overview",
+    items: [createNavItem("Dashboard", "/dashboard/admin", IconHome, pathname, true)],
   },
   {
-    title: "Chefs",
-    url: "/dashboard/admin/chefs",
-    icon: IconChefHat,
-    isActive: pathname === "/dashboard/admin/chefs",
-  },
-  {
-    title: "Bookings",
-    url: "/dashboard/admin/bookings",
-    icon: IconCalendar,
-    isActive: pathname === "/dashboard/admin/bookings",
-  },
-  {
-    title: "Payments",
-    url: "/dashboard/admin/payments",
-    icon: IconCurrencyDollar,
-    isActive: pathname === "/dashboard/admin/payments",
+    label: "Operations",
+    items: [
+      createNavItem("Chefs", "/dashboard/admin/chefs", IconChefHat, pathname),
+      createNavItem("Bookings", "/dashboard/admin/bookings", IconCalendar, pathname),
+      createNavItem("Payments", "/dashboard/admin/payments", IconCurrencyDollar, pathname),
+    ],
   },
 ]
 
@@ -122,62 +111,76 @@ export function MarketplaceSidebar() {
   const userRole = session?.user?.role
   const pathname = usePathname()
 
-  const getNavItems = () => {
+  const navGroups = (() => {
     switch (userRole) {
       case Role.CLIENT:
-        return getClientNavItems(pathname)
+        return getClientNavGroups(pathname)
       case Role.CHEF:
-        return getChefNavItems(pathname)
+        return getChefNavGroups(pathname)
       case Role.ADMIN:
-        return getAdminNavItems(pathname)
+        return getAdminNavGroups(pathname)
       default:
         return []
     }
-  }
+  })()
 
   const navSecondary = [
     {
       title: "Settings",
       url: "/dashboard/settings",
       icon: IconSettings,
-      isActive: pathname === "/dashboard/settings",
+      isActive: pathname === "/dashboard/settings" || pathname.startsWith("/dashboard/settings/"),
     },
     {
       title: "Logout",
       url: "/api/auth/signout",
-      icon: IconSettings,
+      icon: IconMenu2,
       isActive: false,
+      tone: "destructive" as const,
     },
   ]
 
   return (
-    <SidebarContent className="h-screen">
-      <SidebarHeader className="border-b border-border/50 pb-4">
-        <div className="flex items-center gap-3">
-          <IconChefHat className="size-6 rounded-sm text-foreground" />
-          <span className="text-base font-medium text-foreground">Chef Marketplace</span>
+    <SidebarContent className="flex h-full min-h-0 flex-col bg-transparent">
+      <SidebarHeader className="border-b border-border/50 px-3 py-4">
+        <div className="rounded-2xl border border-border/60 bg-muted/40 p-3 shadow-sm shadow-black/5">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl border border-border/60 bg-background/90 shadow-sm">
+              <IconChefHat className="size-5 text-foreground" />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold tracking-tight text-foreground">Chef Marketplace</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {userRole === Role.ADMIN ? "Admin Console" : userRole === Role.CHEF ? "Chef Workspace" : "Client Workspace"}
+              </p>
+            </div>
+          </div>
         </div>
       </SidebarHeader>
-      
-      <div className="flex-1 overflow-y-auto py-4">
-        <nav className="space-y-6">
-          <div>
-            <h2 className="mb-4 text-xs uppercase tracking-wider text-muted-foreground">
-              Menu
-            </h2>
-            <NavMain items={getNavItems()} />
-          </div>
 
-          <div>
-            <h2 className="mb-4 text-xs uppercase tracking-wider text-muted-foreground">
-              Others
-            </h2>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+        <nav className="space-y-6">
+          {navGroups.map((group) => (
+            <div key={group.label} className="space-y-2">
+              <SidebarGroupLabel className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/80 select-none">
+                {group.label}
+              </SidebarGroupLabel>
+              <NavMain items={group.items} />
+            </div>
+          ))}
+
+          <SidebarSeparator className="mx-1" />
+
+          <div className="space-y-2">
+            <SidebarGroupLabel className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/80 select-none">
+              Settings
+            </SidebarGroupLabel>
             <NavSecondary items={navSecondary} />
           </div>
         </nav>
       </div>
-      
-      <SidebarFooter className="border-t border-border/50 pt-4">
+
+      <SidebarFooter className="border-t border-border/50 px-3 py-4">
         <NavUser user={{
           name: session?.user?.name || "User",
           email: session?.user?.email || "user@example.com",

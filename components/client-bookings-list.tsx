@@ -254,8 +254,8 @@ export function ClientBookingsList() {
   }
 
   return (
-    <div className="space-y-8">
-      <section className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="w-full space-y-8">
+      <section className="w-full grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-white to-blue-50 p-5 shadow-sm transition-all hover:scale-[1.01] hover:shadow-md">
           <div className="mb-3 flex items-start justify-between">
             <p className="text-sm font-medium text-slate-600">Upcoming Bookings</p>
@@ -339,7 +339,7 @@ export function ClientBookingsList() {
       </section>
 
       {!bookings.length ? (
-        <section className="grid gap-6 rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm lg:grid-cols-2 lg:p-8">
+        <section className="grid gap-6 rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm md:grid-cols-2 md:p-8">
           <div className="space-y-6">
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
@@ -394,7 +394,7 @@ export function ClientBookingsList() {
           <p className="mt-1 text-sm text-slate-500">Try adjusting your keywords, status, or sorting options.</p>
         </div>
       ) : (
-        <section className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <section className="w-full grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {filteredBookings.map((booking) => {
             const status = bookingStatusMeta[booking.status]
             const eventType = booking.proposal?.request?.title?.trim() || "Private Event"

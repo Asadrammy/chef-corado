@@ -2,13 +2,11 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { z } from "zod"
 import { useRouter } from "next/navigation"
-import { Calendar, MapPin, DollarSign, FileText } from "lucide-react"
+import { ArrowRight, CalendarDays, CheckCircle2, CircleAlert, MapPin, Wallet } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { FormFieldWrapper } from "@/components/form-field-wrapper"
 import { FormError } from "@/components/form-error"
@@ -28,34 +26,20 @@ export function RequestForm() {
   const [loading, setLoading] = React.useState(false)
   const [validationErrors, setValidationErrors] = React.useState<Array<{ field: string; message: string }>>([])
   const [submitError, setSubmitError] = React.useState<string | null>(null)
-  const [success, setSuccess] = React.useState<string | null>(null)
 
-  const resetForm = () => {
-    setTitle("")
-    setEventDate("")
-    setLocation("")
-    setBudget("")
-    setDetails("")
-    setValidationErrors([])
-    setSubmitError(null)
-    setSuccess(null)
-  }
-
-  const validateFormData = () => {
+  const validateFormData = React.useCallback(() => {
     const formData = {
       title,
       eventDate,
       location,
       budget: budget ? Number(budget) : undefined,
-      description: details, // Optional description
-      details, // Required details field (min 10 chars)
+      description: details,
+      details,
     }
 
-    console.log("Validating form data:", formData)
     const result = validateForm(requestSchema, formData)
-    
+
     if (!result.valid) {
-      console.log("Validation errors:", result.errors)
       setValidationErrors(result.errors)
       logger.warn('Form validation failed', { errors: result.errors })
       return false
@@ -63,22 +47,61 @@ export function RequestForm() {
 
     setValidationErrors([])
     return true
+  }, [budget, details, eventDate, location, title])
+
+  const fieldIds = {
+    title: "request-title",
+    eventDate: "request-event-date",
+    location: "request-location",
+    budget: "request-budget",
+    details: "request-details",
   }
+
+  const fieldErrors = React.useMemo(
+    () => ({
+      title: getFieldError(validationErrors, "title"),
+      eventDate: getFieldError(validationErrors, "eventDate"),
+      location: getFieldError(validationErrors, "location"),
+      budget: getFieldError(validationErrors, "budget"),
+      details: getFieldError(validationErrors, "details"),
+    }),
+    [validationErrors]
+  )
+
+  const fields = React.useMemo(
+    () => [
+      { key: "title", label: "Title", value: title },
+      { key: "eventDate", label: "Event date", value: eventDate },
+      { key: "location", label: "Location", value: location },
+      { key: "budget", label: "Budget", value: budget },
+      { key: "details", label: "Details", value: details },
+    ],
+    [budget, details, eventDate, location, title]
+  )
+
+  const completionCount = fields.filter((field) => field.value.trim().length > 0).length
+  const completionPercentage = Math.round((completionCount / fields.length) * 100)
+  const missingFields = fields.filter((field) => field.value.trim().length === 0)
+
+  const isFormComplete = fields.every((field) => field.value.trim().length > 0)
+  const formattedDate = eventDate
+    ? new Date(eventDate).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "Not set"
+  const formattedBudget = budget ? `$${Number(budget).toLocaleString()}` : "Not set"
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    console.log("Form submission started")
     setSubmitError(null)
-    setSuccess(null)
 
-    // Validate form data
     if (!validateFormData()) {
-      console.log("Form validation failed")
       toast.error("Please fix the errors below")
       return
     }
 
-    console.log("Submitting form data:", { title, eventDate, location, budget, details })
     setLoading(true)
 
     try {
@@ -89,15 +112,11 @@ export function RequestForm() {
         eventDate,
         location,
         budget: Number(budget),
-        description: details, // Optional description
-        details: details, // Required details field (min 10 chars)
+        description: details,
+        details,
       })
 
-      console.log("API response:", response)
-
       if (response.error) {
-        console.log("API Error Response:", response.error)
-        // Handle validation errors (array) vs simple error messages (string)
         const errorMessage = Array.isArray(response.error) 
           ? response.error.map(err => err.message || err).join(', ')
           : response.error
@@ -105,14 +124,10 @@ export function RequestForm() {
       }
 
       logger.info('Request created successfully')
-      console.log("Request created successfully, redirecting to requests page")
-      
-      // Redirect to My Requests page
+      toast.success("Request created successfully")
       router.push("/dashboard/client/requests")
-      
     } catch (submissionError) {
       const message = submissionError instanceof Error ? submissionError.message : "Failed to create request. Please try again."
-      console.error("Request submission failed:", submissionError)
       logger.error('Request submission failed', submissionError)
       setSubmitError(message)
       toast.error(message)
@@ -121,192 +136,260 @@ export function RequestForm() {
     }
   }
 
-  const isFormComplete = () => {
-    return title && eventDate && location && budget && details && validationErrors.length === 0
+  const handleFieldBlur = () => {
+    if (validationErrors.length > 0) {
+      validateFormData()
+    }
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-      <form onSubmit={handleSubmit} className="lg:col-span-12 space-y-8">
-        {/* LEFT COLUMN - Premium Form */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-8 space-y-8">
-            {/* Event Basics Card */}
-            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 hover:shadow-lg transition-all duration-200">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="bg-gray-100 rounded-lg p-3">
-                  <Calendar className="w-5 h-5 text-indigo-500" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900">Event Basics</h2>
-              </div>
-              <div className="grid gap-6 md:grid-cols-2">
-                <FormFieldWrapper
-                  label="Event Date"
-                  error={getFieldError(validationErrors, 'eventDate')}
-                  required
-                >
-                  <Input
-                    id="eventDate"
-                    type="date"
-                    value={eventDate}
-                    onChange={(event) => setEventDate(event.target.value)}
-                    className="h-12 rounded-xl border-gray-200 bg-white px-4 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200"
-                    disabled={loading}
-                    min={new Date().toISOString().split('T')[0]}
-                  />
-                </FormFieldWrapper>
-                <FormFieldWrapper
-                  label="Location"
-                  error={getFieldError(validationErrors, 'location')}
-                  required
-                >
-                  <Input
-                    id="location"
-                    placeholder="Venue or city"
-                    value={location}
-                    onChange={(event) => setLocation(event.target.value)}
-                    className="h-12 rounded-xl border-gray-200 bg-white px-4 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200"
-                    disabled={loading}
-                  />
-                </FormFieldWrapper>
-              </div>
-            </section>
-
-            {/* Budget Card */}
-            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 hover:shadow-lg transition-all duration-200">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="bg-gray-100 rounded-lg p-3">
-                  <DollarSign className="w-5 h-5 text-indigo-500" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900">Budget</h2>
-              </div>
-              <FormFieldWrapper
-                label="Total Budget"
-                error={getFieldError(validationErrors, 'budget')}
-                required
-              >
-                <Input
-                  id="budget"
-                  type="number"
-                  min={1}
-                  step="0.01"
-                  placeholder="Enter amount"
-                  value={budget}
-                  onChange={(event) => setBudget(event.target.value)}
-                  className="h-12 rounded-xl border-gray-200 bg-white px-4 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200"
-                  disabled={loading}
-                />
-              </FormFieldWrapper>
-            </section>
-
-            {/* Event Details Card */}
-            <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 hover:shadow-lg transition-all duration-200">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="bg-gray-100 rounded-lg p-3">
-                  <FileText className="w-5 h-5 text-indigo-500" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900">Event Details</h2>
-              </div>
-              <div className="space-y-6">
-                <FormFieldWrapper
-                  label="Request Title"
-                  error={getFieldError(validationErrors, 'title')}
-                  required
-                >
-                  <Input
-                    id="title"
-                    placeholder="E.g. Intimate birthday dinner for 12"
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                    className="h-12 rounded-xl border-gray-200 bg-white px-4 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200"
-                    disabled={loading}
-                  />
-                </FormFieldWrapper>
-                <FormFieldWrapper
-                  label="Details"
-                  error={getFieldError(validationErrors, 'details')}
-                  required
-                >
-                  <Textarea
-                    id="details"
-                    placeholder="Describe your vision, guest count, dietary needs, cuisine preferences..."
-                    value={details}
-                    onChange={(event) => setDetails(event.target.value)}
-                    className="min-h-[140px] rounded-xl p-4 border-gray-200 bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all duration-200 resize-none"
-                    disabled={loading}
-                  />
-                </FormFieldWrapper>
-              </div>
-            </section>
-          </div>
-
-          {/* RIGHT COLUMN - Premium Summary */}
-          <div className="lg:col-span-4 space-y-8">
-            <div className="sticky top-8 space-y-8">
-              {/* Enhanced Summary Card */}
-              <section className="bg-white rounded-2xl border border-gray-100 shadow-md p-8 divide-y divide-gray-100">
-                <h2 className="text-lg font-semibold text-gray-900 mb-6">Request Summary</h2>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between py-4">
-                    <span className="text-sm text-gray-500">Date</span>
-                    <span className="text-sm font-medium text-gray-900">
-                      {eventDate ? new Date(eventDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : "Not set"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between py-4">
-                    <span className="text-sm text-gray-500">Location</span>
-                    <span className="text-sm font-medium text-gray-900 truncate max-w-[120px]">
-                      {location || "Not set"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between py-4">
-                    <span className="text-sm text-gray-500">Budget</span>
-                    <span className="text-sm font-medium text-gray-900">
-                      {budget ? `$${Number(budget).toLocaleString()}` : "Not set"}
-                    </span>
-                  </div>
-                </div>
-              </section>
-
-              {/* Premium CTA Card */}
-              <section className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
-                {submitError && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                    <FormError message={submitError} />
-                  </div>
-                )}
-
-                {success && (
-                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                    <p className="text-sm text-green-700">{success}</p>
-                  </div>
-                )}
-
-                <Button
-                  type="submit"
-                  disabled={loading || validationErrors.length > 0 || !isFormComplete()}
-                  className="w-full h-12 bg-black text-white rounded-xl font-semibold hover:scale-[1.03] hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-                >
-                  {loading ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <LoadingSpinner size="sm" />
-                      <span>Posting...</span>
-                    </div>
-                  ) : (
-                    "Get proposals"
-                  )}
-                </Button>
-
-                {validationErrors.length > 0 && (
-                  <p className="mt-3 text-xs text-red-600">
-                    Please fix {validationErrors.length} error{validationErrors.length !== 1 ? 's' : ''} above
-                  </p>
-                )}
-              </section>
+    <form onSubmit={handleSubmit} className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+      <div className="space-y-8">
+        <section className="space-y-6 rounded-2xl border border-border bg-background p-5 md:p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold text-foreground md:text-lg">Event details</h2>
+              <p className="text-sm leading-6 text-muted-foreground">
+                Start with the essentials so chefs can quickly understand the event and respond with relevant proposals.
+              </p>
+            </div>
+            <div className="hidden rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground sm:inline-flex">
+              Required fields
             </div>
           </div>
+
+          <div className="space-y-5">
+            <FormFieldWrapper
+              label="Title"
+              error={fieldErrors.title}
+              required
+              helperText="Make it specific so chefs immediately understand the kind of event you are planning."
+            >
+              <Input
+                id={fieldIds.title}
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                onBlur={handleFieldBlur}
+                placeholder="Birthday dinner for 10 at home"
+                disabled={loading}
+                aria-invalid={Boolean(fieldErrors.title)}
+                className="h-11 rounded-xl border-border bg-background"
+              />
+            </FormFieldWrapper>
+
+            <div className="grid gap-5 md:grid-cols-2">
+              <FormFieldWrapper
+                label="Event date"
+                error={fieldErrors.eventDate}
+                required
+                helperText="Choose the preferred service date. Past dates are not allowed."
+              >
+                <Input
+                  id={fieldIds.eventDate}
+                  type="date"
+                  value={eventDate}
+                  onChange={(event) => setEventDate(event.target.value)}
+                  onBlur={handleFieldBlur}
+                  disabled={loading}
+                  min={new Date().toISOString().split("T")[0]}
+                  aria-invalid={Boolean(fieldErrors.eventDate)}
+                  className="h-11 rounded-xl border-border bg-background"
+                />
+              </FormFieldWrapper>
+
+              <FormFieldWrapper
+                label="Location"
+                error={fieldErrors.location}
+                required
+                helperText="Share the city, neighborhood, or venue so chefs can decide if they can serve the event."
+              >
+                <Input
+                  id={fieldIds.location}
+                  value={location}
+                  onChange={(event) => setLocation(event.target.value)}
+                  onBlur={handleFieldBlur}
+                  placeholder="Brooklyn, NY or your venue name"
+                  disabled={loading}
+                  aria-invalid={Boolean(fieldErrors.location)}
+                  className="h-11 rounded-xl border-border bg-background"
+                />
+              </FormFieldWrapper>
+            </div>
+
+            <FormFieldWrapper
+              label="Budget"
+              error={fieldErrors.budget}
+              required
+              helperText="Enter your total estimated budget so chefs can propose the right format and menu."
+            >
+              <Input
+                id={fieldIds.budget}
+                type="number"
+                min={1}
+                step="0.01"
+                value={budget}
+                onChange={(event) => setBudget(event.target.value)}
+                onBlur={handleFieldBlur}
+                placeholder="1200"
+                disabled={loading}
+                aria-invalid={Boolean(fieldErrors.budget)}
+                className="h-11 rounded-xl border-border bg-background"
+              />
+            </FormFieldWrapper>
+
+            <FormFieldWrapper
+              label="Details"
+              error={fieldErrors.details}
+              required
+              helperText="Include guest count, cuisine direction, dietary restrictions, service style, and anything chefs should know."
+            >
+              <Textarea
+                id={fieldIds.details}
+                value={details}
+                onChange={(event) => setDetails(event.target.value)}
+                onBlur={handleFieldBlur}
+                placeholder="We’re hosting a seated dinner for 10 guests. Looking for a seasonal menu with vegetarian-friendly options, plated service, and a warm celebratory atmosphere."
+                disabled={loading}
+                aria-invalid={Boolean(fieldErrors.details)}
+                className="min-h-[160px] rounded-xl border-border bg-background"
+              />
+            </FormFieldWrapper>
+          </div>
+        </section>
+
+        <section className="flex flex-col gap-4 rounded-2xl border border-border bg-background p-5 md:p-6">
+          {submitError && (
+            <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3">
+              <FormError message={submitError} />
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <h3 className="text-sm font-medium text-foreground">Ready to publish?</h3>
+              <p className="text-sm text-muted-foreground">
+                Your request will be posted to the real marketplace and visible to matching chefs.
+              </p>
+            </div>
+            <Button
+              type="submit"
+              size="lg"
+              disabled={loading || !isFormComplete}
+              className="h-11 rounded-xl px-5"
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <LoadingSpinner size="sm" />
+                  <span>Publishing request...</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <span>Publish request</span>
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              )}
+            </Button>
+          </div>
+
+          {!isFormComplete && (
+            <p className="text-sm text-muted-foreground">
+              Complete all required fields before publishing.
+            </p>
+          )}
+        </section>
+      </div>
+
+      <aside className="lg:sticky lg:top-24">
+        <div className="space-y-6 rounded-2xl border border-border bg-background p-5 md:p-6">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Summary
+              </h2>
+              <span className="text-sm font-medium text-foreground">{completionCount}/{fields.length}</span>
+            </div>
+
+            <div className="space-y-2">
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary transition-all"
+                  style={{ width: `${completionPercentage}%` }}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {completionPercentage}% complete
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4 border-y border-border py-5">
+            <div className="space-y-1">
+              <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Title</p>
+              <p className="text-sm font-medium text-foreground">{title || "Not set"}</p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="flex items-start gap-3">
+                <CalendarDays className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                <div className="space-y-1">
+                  <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Date</p>
+                  <p className="text-sm text-foreground">{formattedDate}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <MapPin className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                <div className="space-y-1 min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Location</p>
+                  <p className="truncate text-sm text-foreground">{location || "Not set"}</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 sm:col-span-2 lg:col-span-1">
+                <Wallet className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                <div className="space-y-1">
+                  <p className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">Budget</p>
+                  <p className="text-sm text-foreground">{formattedBudget}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              {missingFields.length === 0 ? (
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+              ) : (
+                <CircleAlert className="h-4 w-4 text-muted-foreground" />
+              )}
+              <h3 className="text-sm font-medium text-foreground">
+                {missingFields.length === 0 ? "Ready to publish" : "Still missing"}
+              </h3>
+            </div>
+
+            {missingFields.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Everything is filled in. Publish now to start receiving proposals.
+              </p>
+            ) : (
+              <ul className="space-y-2 text-sm text-muted-foreground">
+                {missingFields.map((field) => (
+                  <li key={field.key} className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
+                    <span>{field.label}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {validationErrors.length > 0 && (
+              <p className="text-sm text-destructive">
+                Fix {validationErrors.length} validation error{validationErrors.length !== 1 ? "s" : ""} before publishing.
+              </p>
+            )}
+          </div>
         </div>
-      </form>
-    </div>
+      </aside>
+    </form>
   )
 }

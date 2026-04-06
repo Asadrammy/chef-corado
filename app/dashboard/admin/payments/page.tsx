@@ -1,12 +1,23 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Loader2, DollarSign, Calendar, User, ChefHat } from "lucide-react"
+import {
+  Loader2,
+  DollarSign,
+  Calendar,
+  User,
+  ChefHat,
+  ArrowUpRight,
+  Wallet,
+  Landmark,
+  CreditCard,
+  CheckCircle2,
+} from "lucide-react"
 
 interface Payment {
   id: string
@@ -91,14 +102,20 @@ export default function AdminPaymentsPage() {
 
   const getStatusBadge = (status: string) => {
     const variants = {
-      PENDING: "bg-yellow-100 text-yellow-800",
-      HELD: "bg-orange-100 text-orange-800",
-      RELEASED: "bg-green-100 text-green-800",
-      COMPLETED: "bg-blue-100 text-blue-800",
+      PENDING: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+      HELD: "border-orange-500/20 bg-orange-500/10 text-orange-700 dark:text-orange-300",
+      RELEASED: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
+      COMPLETED: "border-sky-500/20 bg-sky-500/10 text-sky-700 dark:text-sky-300",
     } as const
 
     return (
-      <Badge variant="secondary" className={variants[status as keyof typeof variants]}>
+      <Badge
+        variant="outline"
+        className={cn(
+          "rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] shadow-sm",
+          variants[status as keyof typeof variants]
+        )}
+      >
         {status}
       </Badge>
     )
@@ -108,195 +125,367 @@ export default function AdminPaymentsPage() {
     return payment.status === "HELD" || payment.status === "PENDING"
   }
 
+  const heldPayments = payments.filter((payment) => payment.status === "HELD" || payment.status === "PENDING")
+  const releasedPayments = payments.filter((payment) => payment.status === "RELEASED" || payment.status === "COMPLETED")
+  const heldTotal = heldPayments.reduce((sum, payment) => sum + payment.totalAmount, 0)
+  const releasedTotal = releasedPayments.reduce((sum, payment) => sum + payment.totalAmount, 0)
+  const commissionTotal = payments.reduce((sum, payment) => sum + payment.commissionAmount, 0)
+  const totalVolume = payments.reduce((sum, payment) => sum + payment.totalAmount, 0)
+
+  const stats = [
+    {
+      title: "Funds on hold",
+      value: heldTotal,
+      meta: `${heldPayments.length} payments awaiting release`,
+      icon: Wallet,
+      accent: "from-amber-500/15 via-orange-500/10 to-transparent",
+      iconClassName: "text-amber-600 dark:text-amber-300",
+      valueClassName: "text-foreground",
+    },
+    {
+      title: "Released payouts",
+      value: releasedTotal,
+      meta: `${releasedPayments.length} payments processed`,
+      icon: Landmark,
+      accent: "from-emerald-500/15 via-emerald-500/10 to-transparent",
+      iconClassName: "text-emerald-600 dark:text-emerald-300",
+      valueClassName: "text-foreground",
+    },
+    {
+      title: "Commission earned",
+      value: commissionTotal,
+      meta: `Across ${payments.length} total bookings`,
+      icon: CreditCard,
+      accent: "from-sky-500/15 via-indigo-500/10 to-transparent",
+      iconClassName: "text-sky-600 dark:text-sky-300",
+      valueClassName: "text-sky-600 dark:text-sky-300",
+    },
+  ]
+
+  const getInitials = (name: string) => {
+    return (
+      name
+        .split(" ")
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase())
+        .join("") || "U"
+    )
+  }
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex h-[60vh] items-center justify-center">
+        <div className="flex items-center gap-3 rounded-2xl border border-border/60 bg-background/80 px-5 py-4 shadow-sm shadow-black/5 backdrop-blur-xl">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <span className="text-sm font-medium text-muted-foreground">Loading payments</span>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Payment Management</h1>
-        <p className="text-muted-foreground">
-          Monitor and release payments to chefs
-        </p>
-      </div>
+    <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-8 pb-10">
+      <section className="relative overflow-hidden rounded-[28px] border border-border/60 bg-gradient-to-br from-background via-background to-muted/40 shadow-sm shadow-black/5">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.10),transparent_28%),radial-gradient(circle_at_left,rgba(16,185,129,0.08),transparent_24%)]" />
+        <div className="relative flex flex-col gap-6 px-6 py-7 md:px-8 lg:flex-row lg:items-end lg:justify-between lg:py-8">
+          <div className="max-w-3xl space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <Badge
+                variant="outline"
+                className="rounded-full border-border/70 bg-background/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground shadow-sm"
+              >
+                Admin finance
+              </Badge>
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/15 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Live payment monitoring
+              </div>
+            </div>
+            <div className="space-y-2">
+              <h1 className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
+                Payment Management
+              </h1>
+              <p className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
+                Track held funds, released payouts, and chef payment actions from a single premium operations workspace.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:w-[360px] lg:grid-cols-1">
+            <div className="rounded-2xl border border-border/60 bg-background/80 p-4 shadow-sm shadow-black/5 backdrop-blur-xl">
+              <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                Total volume
+              </div>
+              <div className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                ${totalVolume.toFixed(2)}
+              </div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Across {payments.length} tracked payment records
+              </div>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm shadow-black/5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Action queue
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-foreground">
+                    {heldPayments.length} awaiting review
+                  </div>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/60 bg-muted/60 text-foreground shadow-sm">
+                  <ArrowUpRight className="h-5 w-5" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {success && (
-        <Alert className="bg-green-50 border-green-200">
-          <AlertDescription className="text-green-800">
+        <Alert className="rounded-2xl border-emerald-500/20 bg-emerald-500/10 shadow-sm">
+          <AlertDescription className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
             {success}
           </AlertDescription>
         </Alert>
       )}
 
       {error && (
-        <Alert className="bg-red-50 border-red-200">
-          <AlertDescription className="text-red-800">
+        <Alert className="rounded-2xl border-destructive/20 bg-destructive/10 shadow-sm">
+          <AlertDescription className="text-sm font-medium text-destructive">
             {error}
           </AlertDescription>
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Held</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${payments
-                .filter(p => p.status === "HELD" || p.status === "PENDING")
-                .reduce((sum, p) => sum + p.totalAmount, 0)
-                .toFixed(2)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {payments.filter(p => p.status === "HELD" || p.status === "PENDING").length} payments
-            </p>
-          </CardContent>
-        </Card>
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        {stats.map((stat) => {
+          const Icon = stat.icon
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Released</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${payments
-                .filter(p => p.status === "RELEASED" || p.status === "COMPLETED")
-                .reduce((sum, p) => sum + p.totalAmount, 0)
-                .toFixed(2)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {payments.filter(p => p.status === "RELEASED" || p.status === "COMPLETED").length} payments
-            </p>
-          </CardContent>
-        </Card>
+          return (
+            <Card
+              key={stat.title}
+              className="group relative overflow-hidden rounded-[24px] border border-border/60 bg-background/90 py-0 shadow-sm shadow-black/5 transition-all duration-300 hover:-translate-y-1 hover:border-border hover:shadow-xl hover:shadow-black/10"
+            >
+              <div className={cn("absolute inset-0 bg-gradient-to-br", stat.accent)} />
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-foreground/10 to-transparent" />
+              <CardHeader className="relative px-6 pt-6 pb-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2">
+                    <CardDescription className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      {stat.title}
+                    </CardDescription>
+                    <CardTitle className={cn("text-3xl font-semibold tracking-tight", stat.valueClassName)}>
+                      ${stat.value.toFixed(2)}
+                    </CardTitle>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/60 bg-background/80 shadow-sm shadow-black/5 transition-transform duration-300 group-hover:scale-105">
+                    <Icon className={cn("h-5 w-5", stat.iconClassName)} />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="relative px-6 pb-6">
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-background/70 px-4 py-3 shadow-sm shadow-black/5">
+                  <p className="text-sm text-muted-foreground">{stat.meta}</p>
+                  <DollarSign className="h-4 w-4 text-muted-foreground/70" />
+                </div>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </section>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Commission Earned</CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              ${payments.reduce((sum, p) => sum + p.commissionAmount, 0).toFixed(2)}
+      <Card className="overflow-hidden rounded-[28px] border border-border/60 bg-background/95 py-0 shadow-sm shadow-black/5">
+        <CardHeader className="border-b border-border/50 px-6 py-6 md:px-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="space-y-2">
+              <CardDescription className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                Operations overview
+              </CardDescription>
+              <CardTitle className="text-2xl font-semibold tracking-tight text-foreground">
+                All payments
+              </CardTitle>
+              <CardDescription className="max-w-2xl text-sm leading-6 text-muted-foreground">
+                Review booking transactions, payout progress, and commission performance without leaving the admin workspace.
+              </CardDescription>
             </div>
-            <p className="text-xs text-muted-foreground">
-              From {payments.length} total bookings
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>All Payments</CardTitle>
-          <CardDescription>
-            Manage payment status and release funds to chefs
-          </CardDescription>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="rounded-2xl border border-border/60 bg-muted/40 px-4 py-3 text-sm shadow-sm shadow-black/5">
+                <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Total rows
+                </div>
+                <div className="mt-1 font-semibold text-foreground">{payments.length}</div>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/40 px-4 py-3 text-sm shadow-sm shadow-black/5">
+                <div className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  Pending action
+                </div>
+                <div className="mt-1 font-semibold text-foreground">{heldPayments.length}</div>
+              </div>
+            </div>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="px-0 py-0">
           {payments.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No payments found</p>
+            <div className="px-6 py-16 text-center md:px-8">
+              <div className="mx-auto flex max-w-md flex-col items-center gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border/60 bg-muted/50 shadow-sm">
+                  <Wallet className="h-6 w-6 text-muted-foreground" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-lg font-semibold text-foreground">No payments found</p>
+                  <p className="text-sm text-muted-foreground">
+                    Payment records will appear here once bookings start moving through the payout workflow.
+                  </p>
+                </div>
+              </div>
             </div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Booking</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Chef</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Commission</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {payments.map((payment) => (
-                  <TableRow key={payment.id}>
-                    <TableCell>
-                      <div className="font-medium">#{payment.booking.id.slice(-8)}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {new Date(payment.booking.createdAt).toLocaleDateString()}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">{payment.booking.client.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {payment.booking.client.email}
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <ChefHat className="h-4 w-4 mr-2 text-muted-foreground" />
-                        <div>
-                          <div className="font-medium">{payment.booking.chef.user.name}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {payment.booking.chef.user.email}
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">
-                        ${payment.totalAmount?.toFixed(2) || '0.00'}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Total: ${payment.booking?.totalPrice?.toFixed(2) || '0.00'}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium text-blue-600">
-                        ${payment.commissionAmount?.toFixed(2) || '0.00'}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        {payment.booking?.totalPrice ? 
-                          ((payment.commissionAmount || 0) / payment.booking.totalPrice * 100).toFixed(1) 
-                          : '0.0'}%
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {getStatusBadge(payment.status)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-1 text-muted-foreground" />
-                        {new Date(payment.createdAt).toLocaleDateString()}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {canRelease(payment) && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleReleasePayment(payment.id)}
-                          disabled={actionLoading === payment.id}
+            <div className="overflow-x-auto px-4 py-4 md:px-6 md:py-6">
+              <div className="min-w-[1080px] rounded-[24px] border border-border/60 bg-muted/20 p-2 shadow-inner shadow-black/[0.02]">
+                <table className="w-full border-separate border-spacing-0 text-sm">
+                  <thead>
+                    <tr>
+                      {[
+                        "Booking",
+                        "Client",
+                        "Chef",
+                        "Amount",
+                        "Commission",
+                        "Status",
+                        "Date",
+                        "Actions",
+                      ].map((heading) => (
+                        <th
+                          key={heading}
+                          className="px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground first:pl-5 last:pr-5"
                         >
-                          {actionLoading === payment.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            "Release"
-                          )}
-                        </Button>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((payment) => {
+                      const clientName = payment.booking.client.name || "Client"
+                      const chefName = payment.booking.chef.user.name || "Chef"
+                      const releaseAllowed = canRelease(payment)
+
+                      return (
+                        <tr key={payment.id} className="group">
+                          <td colSpan={8} className="p-0 pt-2 first:pt-0">
+                            <div className="rounded-[20px] border border-border/60 bg-background/90 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-border group-hover:bg-background group-hover:shadow-lg group-hover:shadow-black/[0.06]">
+                              <div className="grid grid-cols-[1.1fr_1.35fr_1.35fr_1fr_1fr_0.9fr_0.95fr_0.85fr] items-center gap-3 px-5 py-4">
+                                <div className="min-w-0">
+                                  <div className="inline-flex items-center rounded-full border border-border/60 bg-muted/50 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-foreground shadow-sm">
+                                    #{payment.booking.id.slice(-8)}
+                                  </div>
+                                  <div className="mt-3 text-sm font-medium text-foreground">
+                                    Booking payment
+                                  </div>
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    {new Date(payment.booking.createdAt).toLocaleDateString()}
+                                  </div>
+                                </div>
+
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/60 bg-muted/40 text-sm font-semibold text-foreground shadow-sm">
+                                      {getInitials(clientName)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                                        <User className="h-4 w-4 text-muted-foreground" />
+                                        <span className="truncate">{clientName}</span>
+                                      </div>
+                                      <div className="truncate text-xs text-muted-foreground">
+                                        {payment.booking.client.email}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-border/60 bg-muted/40 text-sm font-semibold text-foreground shadow-sm">
+                                      {getInitials(chefName)}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                                        <ChefHat className="h-4 w-4 text-muted-foreground" />
+                                        <span className="truncate">{chefName}</span>
+                                      </div>
+                                      <div className="truncate text-xs text-muted-foreground">
+                                        {payment.booking.chef.user.email}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="text-lg font-semibold tracking-tight text-foreground">
+                                    ${payment.totalAmount?.toFixed(2) || "0.00"}
+                                  </div>
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    Booking total ${payment.booking?.totalPrice?.toFixed(2) || "0.00"}
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="text-base font-semibold text-sky-600 dark:text-sky-300">
+                                    ${payment.commissionAmount?.toFixed(2) || "0.00"}
+                                  </div>
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    {payment.booking?.totalPrice
+                                      ? ((payment.commissionAmount || 0) / payment.booking.totalPrice * 100).toFixed(1)
+                                      : "0.0"}
+                                    % platform fee
+                                  </div>
+                                </div>
+
+                                <div>{getStatusBadge(payment.status)}</div>
+
+                                <div>
+                                  <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm">
+                                    <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                                    {new Date(payment.createdAt).toLocaleDateString()}
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-end">
+                                  {releaseAllowed ? (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleReleasePayment(payment.id)}
+                                      disabled={actionLoading === payment.id}
+                                      className="h-9 rounded-xl px-4 shadow-sm shadow-black/5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                                    >
+                                      {actionLoading === payment.id ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <ArrowUpRight className="h-4 w-4" />
+                                          Release
+                                        </>
+                                      )}
+                                    </Button>
+                                  ) : (
+                                    <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                                      <CheckCircle2 className="h-3.5 w-3.5" />
+                                      Settled
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

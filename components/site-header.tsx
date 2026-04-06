@@ -1,29 +1,41 @@
 "use client"
-import { Button } from "@/components/ui/button"
-import { SidebarTrigger } from "@/components/ui/sidebar"
 import Link from "next/link"
-import { useState, useRef, useEffect } from "react"
-import { useSidebar } from "@/context/SidebarContext"
+import { usePathname } from "next/navigation"
+import { useMemo, useRef, useEffect } from "react"
+import { Search, Command, Slash } from "lucide-react"
+
+import { SidebarTrigger } from "@/components/ui/sidebar"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import ThemeToggleButton from "@/components/common/ThemeToggleButton"
 import NotificationDropdown from "@/components/header/NotificationDropdown"
 import UserDropdown from "@/components/header/UserDropdown"
 
 export function SiteHeader() {
-  const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false)
-  const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar()
+  const pathname = usePathname()
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const handleToggle = () => {
-    if (window.innerWidth >= 1024) {
-      toggleSidebar()
-    } else {
-      toggleMobileSidebar()
-    }
-  }
+  const pathSegments = useMemo(() => {
+    return pathname
+      .split("/")
+      .filter(Boolean)
+      .map((segment, index, segments) => ({
+        label: segment
+          .replace(/-/g, " ")
+          .replace(/\b\w/g, (char) => char.toUpperCase()),
+        href: `/${segments.slice(0, index + 1).join("/")}`,
+      }))
+  }, [pathname])
 
-  const toggleApplicationMenu = () => {
-    setApplicationMenuOpen(!isApplicationMenuOpen)
-  }
+  const currentPage = pathSegments[pathSegments.length - 1]?.label ?? "Dashboard"
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -40,117 +52,74 @@ export function SiteHeader() {
   }, [])
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto max-w-7xl px-6">
-        <div className="flex h-16 items-center justify-between">
-          {/* Left side - Logo and Sidebar Trigger */}
-          <div className="flex items-center gap-4">
-            <SidebarTrigger 
-              className="h-9 w-9 rounded-xl hover:bg-accent transition-all duration-200"
-              aria-label="Toggle Sidebar"
-            />
-            
-            <Link href="/dashboard" className="hidden lg:block">
-              <span className="text-lg font-semibold text-foreground">
-                Chef Marketplace
+    <header className="sticky top-0 z-40">
+      <div className="w-full items-center justify-between gap-4 rounded-2xl border border-border/60 bg-background/85 px-3 py-3 shadow-sm shadow-black/5 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 md:px-4 flex">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <SidebarTrigger
+            className="size-10 rounded-xl border border-border/60 bg-background/80 text-muted-foreground shadow-sm transition-all duration-200 hover:bg-accent hover:text-foreground"
+            aria-label="Toggle Sidebar"
+          />
+
+          <div className="min-w-0">
+            <Breadcrumb className="hidden md:block">
+              <BreadcrumbList>
+                {pathSegments.slice(0, -1).map((item) => (
+                  <BreadcrumbItem key={item.href}>
+                    <BreadcrumbLink asChild>
+                      <Link href={item.href}>{item.label}</Link>
+                    </BreadcrumbLink>
+                    <BreadcrumbSeparator />
+                  </BreadcrumbItem>
+                ))}
+                <BreadcrumbItem>
+                  <BreadcrumbPage>{currentPage}</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-base font-semibold tracking-tight text-foreground md:text-lg">
+                {currentPage}
+              </h1>
+              <span className="hidden rounded-full border border-border/60 bg-muted/60 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-muted-foreground lg:inline-flex">
+                Workspace
               </span>
-            </Link>
-            
-            <Link href="/dashboard" className="lg:hidden">
-              <span className="text-lg font-semibold text-foreground">
-                Chef Marketplace
-              </span>
-            </Link>
+            </div>
           </div>
 
-          {/* Center - Search (desktop only) */}
-          <div className="hidden lg:flex flex-1 max-w-md mx-8">
-            <div className="relative w-full">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-              </span>
-              <input
+          <div className="hidden max-w-xl flex-1 lg:flex">
+            <div className="group relative w-full">
+              <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-foreground" />
+              <Input
                 ref={inputRef}
                 type="text"
                 placeholder="Search or type command..."
-                className="w-full h-10 pl-10 pr-4 text-sm bg-background border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-200"
+                className="h-11 rounded-xl border-border/60 bg-muted/30 pr-24 pl-10 text-sm shadow-sm transition-all duration-200 placeholder:text-muted-foreground/80 focus-visible:bg-background focus-visible:border-border focus-visible:shadow-md focus-visible:shadow-black/5"
               />
+              <div className="pointer-events-none absolute top-1/2 right-3 flex -translate-y-1/2 items-center gap-1 rounded-lg border border-border/60 bg-background/95 px-2 py-1 text-[11px] font-medium text-muted-foreground shadow-sm shadow-black/5">
+                <Command className="size-3" />
+                <Slash className="size-3" />
+                <span>K</span>
+              </div>
             </div>
           </div>
 
-          {/* Right side - Actions */}
           <div className="flex items-center gap-2">
-            {/* Mobile menu toggle */}
-            <button
-              onClick={toggleApplicationMenu}
-              className="lg:hidden h-9 w-9 flex items-center justify-center rounded-xl hover:bg-accent transition-all duration-200"
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden h-10 rounded-xl border-border/60 bg-background/80 px-3 text-muted-foreground shadow-sm transition-all duration-200 hover:border-border hover:bg-muted/70 hover:text-foreground hover:shadow-md hover:-translate-y-0.5 md:inline-flex"
+              onClick={() => inputRef.current?.focus()}
             >
-              <svg
-                width="20"
-                height="20"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  fillRule="evenodd"
-                  clipRule="evenodd"
-                  d="M5.99902 10.4951C6.82745 10.4951 7.49902 11.1667 7.49902 11.9951V12.0051C7.49902 12.8335 6.82745 13.5051 5.99902 13.5051C5.1706 13.5051 4.49902 12.8335 4.49902 12.0051V11.9951C4.49902 11.1667 5.1706 10.4951 5.99902 10.4951ZM17.999 10.4951C18.8275 10.4951 19.499 11.1667 19.499 11.9951V12.0051C19.499 12.8335 18.8275 13.5051 17.999 13.5051C17.1706 13.5051 16.499 12.8335 16.499 12.0051V11.9951C16.499 11.1667 17.1706 10.4951 17.999 10.4951ZM13.499 11.9951C13.499 11.1667 12.8275 10.4951 11.999 10.4951C11.1706 10.4951 10.499 11.1667 10.499 11.9951V12.0051C10.499 12.8335 11.1706 13.5051 11.999 13.5051C12.8275 13.5051 13.499 12.8335 13.499 12.5051V11.9951Z"
-                  fill="currentColor"
-                />
-              </svg>
-            </button>
+              <Search className="size-4" />
+              <span>Quick search</span>
+            </Button>
 
-            {/* Theme toggle */}
             <ThemeToggleButton />
-            
-            {/* Notifications */}
             <NotificationDropdown />
-            
-            {/* User menu */}
             <UserDropdown />
           </div>
         </div>
-
-        {/* Mobile menu */}
-        {isApplicationMenuOpen && (
-          <div className="lg:hidden py-4 border-t border-border">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                <svg
-                  className="h-4 w-4"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-              </span>
-              <input
-                type="text"
-                placeholder="Search or type command..."
-                className="w-full h-10 pl-10 pr-4 text-sm bg-background border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent transition-all duration-200"
-              />
-            </div>
-          </div>
-        )}
       </div>
     </header>
   )

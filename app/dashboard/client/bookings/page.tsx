@@ -23,12 +23,12 @@ export default async function ClientBookingsPage() {
   cookies()
 
   return (
-    <div className="space-y-10 py-2">
+    <div className="w-full space-y-10">
       <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
           <p className="text-xs font-medium uppercase tracking-[0.35em] text-slate-500">Client Workspace</p>
           <h1 className="text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">Your Bookings</h1>
-          <p className="max-w-2xl text-base text-slate-600">
+          <p className="text-base text-slate-600">
             Manage upcoming events, track status, and stay in control.
           </p>
         </div>

@@ -27,7 +27,7 @@ export default async function ChefRequestsPage() {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
-    if (errorData.needsProfile) {
+    if (errorData.needsProfile || errorData.needsLocation || errorData.needsRadius) {
       redirect("/dashboard/chef/profile")
     }
     redirect("/dashboard")
@@ -36,9 +36,5 @@ export default async function ChefRequestsPage() {
   const payload = await response.json().catch(() => ({ requests: [] }))
   const requests = payload.requests ?? []
 
-  return (
-    <div className="bg-gray-50 min-h-screen">
-      <ChefRequestsMarketplace requests={requests} />
-    </div>
-  )
+  return <ChefRequestsMarketplace requests={requests} />
 }

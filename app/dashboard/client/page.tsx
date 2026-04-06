@@ -77,42 +77,41 @@ export default async function ClientDashboardPage() {
   const activeBookings = bookings.filter(b => b.status !== "CANCELLED").length
 
   return (
-    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900">
-      <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 space-y-10">
+    <div className="space-y-10">
       {/* Hero Section - Premium SaaS Style */}
-      <header className="relative bg-gradient-to-br from-slate-50 via-white to-blue-50/30 dark:from-slate-900 dark:via-gray-900 dark:to-blue-900/20 rounded-3xl border border-gray-200/60 dark:border-gray-700/60 shadow-2xl overflow-hidden">
+      <header className="relative bg-gradient-to-br from-slate-50 via-white to-blue-50/20 dark:from-slate-900 dark:via-gray-900 dark:to-blue-900/10 rounded-3xl border border-border/60 shadow-lg shadow-black/5 overflow-hidden">
         {/* Decorative background element */}
-        <div className="absolute right-0 top-0 w-1/2 h-full opacity-10 dark:opacity-20">
+        <div className="absolute right-0 top-0 w-1/2 h-full opacity-5 dark:opacity-10">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 blur-3xl"></div>
         </div>
         
-        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 p-10 lg:p-12">
+        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 p-8 lg:p-12">
           {/* Left Content */}
           <div className="space-y-6">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 text-sm text-blue-700 dark:text-blue-300 w-fit">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-sm text-primary font-medium w-fit">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/50"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
               </span>
               Welcome to your workspace
             </div>
             
             <div className="space-y-4">
-              <h1 className="text-4xl lg:text-5xl font-bold tracking-tight text-gray-900 dark:text-white leading-tight">
+              <h1 className="text-4xl lg:text-5xl font-bold tracking-tight text-foreground leading-tight">
                 Plan your
-                <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent"> next event</span>
+                <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent"> next event</span>
               </h1>
-              <p className="text-lg text-gray-600 dark:text-gray-300 leading-relaxed max-w-lg">
+              <p className="text-lg text-muted-foreground leading-relaxed max-w-lg">
                 Submit event requests, collect proposals from talented chefs, and manage your bookings—all in one beautiful workspace.
               </p>
             </div>
             
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <Button size="lg" className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl transition-all duration-200 text-white px-8 py-3">
+              <Button size="lg" className="bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-200 text-white px-8 py-3">
                 <ArrowRight className="mr-2 h-5 w-5" />
                 Create Request
               </Button>
-              <Button variant="outline" size="lg" className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 px-8 py-3">
+              <Button variant="outline" size="lg" className="border-border hover:bg-muted/50 hover:border-border/80 px-8 py-3">
                 <Search className="mr-2 h-5 w-5" />
                 Browse Chefs
               </Button>
@@ -152,11 +151,11 @@ export default async function ClientDashboardPage() {
 
       {/* Stats Overview - Premium Analytics Cards */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="group bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-800/30 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-800/30 shadow-sm flex items-center justify-center">
-                <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+        <div className="group bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-800/30 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+          <div className="p-7">
+            <div className="flex items-center justify-between mb-5">
+              <div className="w-13 h-13 rounded-xl bg-blue-100 dark:bg-blue-800/30 shadow-sm flex items-center justify-center">
+                <FileText className="h-7 w-7 text-blue-600 dark:text-blue-400" />
               </div>
               <div className="flex items-center gap-1">
                 <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">+{totalRequests}</span>
@@ -164,17 +163,17 @@ export default async function ClientDashboardPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <h3 className="text-3xl font-bold text-gray-900 dark:text-white">{totalRequests}</h3>
+              <h3 className="text-4xl font-bold text-gray-900 dark:text-white">{totalRequests}</h3>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Total Requests</p>
             </div>
           </div>
         </div>
         
-        <div className="group bg-orange-50 dark:bg-orange-900/10 rounded-2xl border border-orange-100 dark:border-orange-800/30 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl bg-orange-100 dark:bg-orange-800/30 shadow-sm flex items-center justify-center">
-                <Users className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+        <div className="group bg-orange-50 dark:bg-orange-900/10 rounded-2xl border border-orange-100 dark:border-orange-800/30 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+          <div className="p-7">
+            <div className="flex items-center justify-between mb-5">
+              <div className="w-13 h-13 rounded-xl bg-orange-100 dark:bg-orange-800/30 shadow-sm flex items-center justify-center">
+                <Users className="h-7 w-7 text-orange-600 dark:text-orange-400" />
               </div>
               <div className="flex items-center gap-1">
                 <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">+{pendingProposals}</span>
@@ -182,24 +181,24 @@ export default async function ClientDashboardPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <h3 className="text-3xl font-bold text-gray-900 dark:text-white">{pendingProposals}</h3>
+              <h3 className="text-4xl font-bold text-gray-900 dark:text-white">{pendingProposals}</h3>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Pending Proposals</p>
             </div>
           </div>
         </div>
         
-        <div className="group bg-green-50 dark:bg-green-900/10 rounded-2xl border border-green-100 dark:border-green-800/30 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden">
-          <div className="p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 rounded-xl bg-green-100 dark:bg-green-800/30 shadow-sm flex items-center justify-center">
-                <Calendar className="h-6 w-6 text-green-600 dark:text-green-400" />
+        <div className="group bg-green-50 dark:bg-green-900/10 rounded-2xl border border-green-100 dark:border-green-800/30 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+          <div className="p-7">
+            <div className="flex items-center justify-between mb-5">
+              <div className="w-13 h-13 rounded-xl bg-green-100 dark:bg-green-800/30 shadow-sm flex items-center justify-center">
+                <Calendar className="h-7 w-7 text-green-600 dark:text-green-400" />
               </div>
               <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300">
                 {activeBookings} active
               </Badge>
             </div>
             <div className="space-y-2">
-              <h3 className="text-3xl font-bold text-gray-900 dark:text-white">{activeBookings}</h3>
+              <h3 className="text-4xl font-bold text-gray-900 dark:text-white">{activeBookings}</h3>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Active Bookings</p>
             </div>
           </div>
@@ -489,7 +488,6 @@ export default async function ClientDashboardPage() {
           <RecentBookings />
         </div>
       </section>
-      </div>
     </div>
   )
 }

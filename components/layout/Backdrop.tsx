@@ -1,15 +1,15 @@
 "use client";
-import { useSidebar } from "@/context/SidebarContext";
+import { useSidebar } from "@/components/ui/sidebar";
 
 export default function Backdrop() {
-  const { isMobileOpen, toggleMobileSidebar } = useSidebar();
+  const { openMobile, setOpenMobile } = useSidebar();
 
   return (
     <>
-      {isMobileOpen && (
+      {openMobile && (
         <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={toggleMobileSidebar}
+          onClick={() => setOpenMobile(false)}
         />
       )}
     </>

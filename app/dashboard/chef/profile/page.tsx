@@ -201,8 +201,7 @@ export default function ChefProfilePage() {
   }
 
   return (
-    <div className="w-full flex-1 overflow-auto bg-gray-50 dark:bg-gray-950">
-      <div className="w-full max-w-6xl mx-auto px-6 py-8 space-y-8">
+    <div className="space-y-8">
         {/* Page Header */}
         <div className="space-y-2">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Profile Settings</h1>
@@ -517,7 +516,6 @@ export default function ChefProfilePage() {
             )}
           </div>
         </div>
-      </div>
     </div>
   )
 }

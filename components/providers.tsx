@@ -1,7 +1,6 @@
 "use client";
 
 import { SessionProvider } from "next-auth/react";
-import { SidebarProvider } from "@/context/SidebarContext";
 import { ThemeProvider as CustomThemeProvider } from "@/context/ThemeContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
@@ -23,11 +22,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <CustomThemeProvider>
-        <SidebarProvider>
-          <SessionProvider>
-            {children}
-          </SessionProvider>
-        </SidebarProvider>
+        <SessionProvider>
+          {children}
+        </SessionProvider>
       </CustomThemeProvider>
       <ReactQueryDevtools initialIsOpen={false} />
     </QueryClientProvider>

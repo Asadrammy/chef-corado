@@ -23,9 +23,8 @@ export default async function ClientProposalsPage() {
   cookies()
 
   return (
-    <div className="bg-gradient-to-br from-gray-50 to-white">
-      <div className="max-w-6xl mx-auto py-10">
-        <header className="flex justify-between items-center mb-8 gap-6">
+    <div className="space-y-10">
+      <header className="flex justify-between items-center mb-8 gap-6">
           <div className="space-y-2">
             <p className="text-sm uppercase tracking-[0.4em] text-muted-foreground">Client Workspace</p>
             <h1 className="text-4xl font-semibold tracking-tight">Compare Proposals</h1>
@@ -49,7 +48,6 @@ export default async function ClientProposalsPage() {
             <ClientProposalsList />
           </div>
         </div>
-      </div>
     </div>
   )
 }

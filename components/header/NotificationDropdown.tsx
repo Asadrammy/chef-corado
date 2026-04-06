@@ -2,6 +2,16 @@
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import { BellIcon } from "@heroicons/react/24/outline";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 
 interface Notification {
   id: string;
@@ -12,7 +22,6 @@ interface Notification {
 }
 
 export default function NotificationDropdown() {
-  const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const { data: session } = useSession();
@@ -53,59 +62,75 @@ export default function NotificationDropdown() {
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
-    <div className="relative">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center justify-center w-10 h-10 text-gray-500 rounded-lg hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800 transition-colors relative"
-        aria-label="Notifications"
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10 rounded-xl border border-border/60 bg-background/80 shadow-sm transition-all duration-200 hover:border-border hover:bg-muted/70 hover:shadow-md hover:-translate-y-0.5 relative"
+          aria-label="Notifications"
+        >
+          <BellIcon className="h-5 w-5" />
+          {unreadCount > 0 && (
+            <Badge 
+              variant="destructive" 
+              className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
+            >
+              {unreadCount}
+            </Badge>
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        sideOffset={8}
+        className="w-80 rounded-2xl border-border/60 bg-popover/95 p-1.5 shadow-xl shadow-black/10 backdrop-blur-xl"
       >
-        <BellIcon className="w-5 h-5" />
-        {unreadCount > 0 && (
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-        )}
-      </button>
-
-      {isOpen && (
-        <>
-          <div
-            className="fixed inset-0 z-10"
-            onClick={() => setIsOpen(false)}
-          />
-          <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700 z-20">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="font-semibold text-gray-900 dark:text-white">Notifications</h3>
+        <DropdownMenuLabel className="px-3 py-2">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-foreground">Notifications</span>
+            {unreadCount > 0 && (
+              <Badge variant="secondary" className="text-xs">
+                {unreadCount} unread
+              </Badge>
+            )}
+          </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <div className="max-h-96 overflow-y-auto">
+          {loading ? (
+            <div className="px-3 py-4 text-center text-muted-foreground text-sm">
+              Loading...
             </div>
-            <div className="max-h-96 overflow-y-auto">
-              {loading ? (
-                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  Loading...
-                </div>
-              ) : notifications.length === 0 ? (
-                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  No notifications
-                </div>
-              ) : (
-                notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
-                      !notification.isRead ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                    }`}
-                    onClick={() => !notification.isRead && markAsRead(notification.id)}
-                  >
-                    <p className="text-sm text-gray-900 dark:text-white">
+          ) : notifications.length === 0 ? (
+            <div className="px-3 py-4 text-center text-muted-foreground text-sm">
+              No notifications
+            </div>
+          ) : (
+            notifications.map((notification) => (
+              <DropdownMenuItem
+                key={notification.id}
+                className="flex flex-col items-start p-3 cursor-pointer hover:bg-muted/50"
+                onClick={() => !notification.isRead && markAsRead(notification.id)}
+              >
+                <div className="flex items-start gap-2 w-full">
+                  <div className="flex-1">
+                    <p className="text-sm text-foreground leading-relaxed">
                       {notification.message}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="text-xs text-muted-foreground mt-1">
                       {new Date(notification.createdAt).toLocaleDateString()}
                     </p>
                   </div>
-                ))
-              )}
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+                  {!notification.isRead && (
+                    <div className="w-2 h-2 rounded-full bg-primary mt-1" />
+                  )}
+                </div>
+              </DropdownMenuItem>
+            ))
+          )}
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

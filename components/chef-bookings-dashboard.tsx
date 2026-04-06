@@ -1,34 +1,15 @@
 "use client"
 
 import * as React from "react"
-import { Search, Filter, ArrowUpDown, Calendar, MapPin, DollarSign, Users, CheckCircle, Clock, XCircle, MessageSquare, Eye } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import Link from "next/link"
+import { CalendarDays, CheckCircle2, DollarSign, Search, Sparkles, Users } from "lucide-react"
 
-type BookingStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED"
-
-type ChefBookingPayload = {
-  id: string
-  totalPrice: string
-  status: BookingStatus
-  eventDate: string
-  location: string
-  createdAt: string
-  client: {
-    name: string | null
-  }
-  proposal?: {
-    request?: {
-      eventDate: string
-      details: string | null
-      location: string
-    }
-  }
-}
+import { ChefBookingCard, type ChefBookingPayload } from "@/components/dashboard/chef/chef-booking-card"
+import { ChefBookingsControlPanel } from "@/components/dashboard/chef/chef-bookings-control-panel"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { DashboardStatCard } from "@/components/ui/dashboard-stat-card"
 
 export function ChefBookingsDashboard() {
   const [bookings, setBookings] = React.useState<ChefBookingPayload[]>([])
@@ -115,57 +96,38 @@ export function ChefBookingsDashboard() {
     return sorted
   }, [bookings, searchQuery, statusFilter, sortBy])
 
-  const getStatusBadge = (status: BookingStatus) => {
-    const statusConfig = {
-      PENDING: { label: "Pending", className: "bg-blue-100 text-blue-700 border-blue-200" },
-      CONFIRMED: { label: "Upcoming", className: "bg-blue-100 text-blue-700 border-blue-200" },
-      COMPLETED: { label: "Completed", className: "bg-green-100 text-green-700 border-green-200" },
-      CANCELLED: { label: "Cancelled", className: "bg-red-100 text-red-700 border-red-200" }
-    }
-    
-    const config = statusConfig[status]
-    return (
-      <Badge className={config.className}>
-        {config.label}
-      </Badge>
-    )
-  }
-
-  const formatDate = (value: string) => {
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) {
-      return value
-    }
-    return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-  }
-
-  const formatPrice = (value: string) => {
-    const parsed = Number(value)
-    if (Number.isNaN(parsed)) {
-      return value
-    }
-    return `$${parsed.toFixed(2)}`
-  }
-
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading bookings...</p>
-        </div>
-      </div>
+      <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
+        <CardContent className="py-16">
+          <div className="flex min-h-[260px] items-center justify-center">
+            <div className="text-center">
+              <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-primary/20 border-b-primary" />
+              <p className="text-foreground text-base font-medium tracking-tight">Loading bookings...</p>
+              <p className="text-muted-foreground mt-2 text-sm">Preparing your booking workspace and live event data.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center max-w-md">
-          <p className="text-red-600 mb-2">{error}</p>
-          <p className="text-gray-500 text-sm">Please try reloading the page or checking your connection.</p>
-        </div>
-      </div>
+      <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
+        <CardContent className="py-16">
+          <div className="mx-auto flex max-w-xl flex-col items-center text-center">
+            <div className="from-destructive/15 to-background text-destructive mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br shadow-sm">
+              <Search className="h-9 w-9" />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-foreground text-2xl font-semibold tracking-tight">Unable to load bookings</h3>
+              <p className="text-muted-foreground text-sm leading-6">{error}</p>
+              <p className="text-muted-foreground text-sm leading-6">Please try refreshing the page or checking your connection.</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     )
   }
 
@@ -177,233 +139,128 @@ export function ChefBookingsDashboard() {
     .reduce((sum, booking) => sum + Number(booking.totalPrice || 0), 0)
 
   return (
-    <div className="p-6 space-y-8">
-      {/* PAGE HEADER */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-semibold text-gray-900">Bookings</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage your confirmed events and track status</p>
-        </div>
-        <div className="flex gap-3">
-          <Button variant="outline" className="flex items-center gap-2">
-            <Filter className="h-4 w-4" />
-            Filters
-          </Button>
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="confirmed">Upcoming</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+    <div className="space-y-6">
+      <Card className="overflow-hidden rounded-[28px] border border-background/20 bg-background/95 shadow-xl shadow-black/5 backdrop-blur dark:border-background/10 dark:bg-background/90">
+        <CardContent className="relative overflow-hidden p-0">
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.18),transparent_45%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.14),transparent_40%)]" />
+          <div className="relative flex flex-col gap-6 p-6 md:p-7 xl:flex-row xl:items-center xl:justify-between">
+            <div className="space-y-4">
+              <Badge variant="secondary" className="w-fit rounded-full border border-background/20 bg-background/70 px-3.5 py-1 text-xs font-medium shadow-sm backdrop-blur dark:border-background/10 dark:bg-background/10">
+                <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                Active workspace
+              </Badge>
+              <div className="space-y-2">
+                <h1 className="text-foreground text-3xl font-semibold tracking-tight lg:text-4xl">Bookings</h1>
+                <p className="text-muted-foreground max-w-2xl text-sm leading-6 md:text-[15px]">
+                  Manage confirmed work, keep upcoming events organized, and stay close to client communication from one premium operations view.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3 text-sm">
+                <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1.5 text-primary shadow-sm">
+                  <CalendarDays className="h-4 w-4" />
+                  {upcomingEvents} live events in motion
+                </div>
+                <div className="text-muted-foreground inline-flex items-center gap-2 rounded-full border border-white/70 bg-background/70 px-3 py-1.5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                  Confirmed work synced in real time
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:min-w-[420px] xl:max-w-[460px]">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-white/60 bg-background/75 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
+                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-[0.18em]">Total</p>
+                  <p className="text-foreground mt-2 text-2xl font-semibold tracking-tight">{totalBookings}</p>
+                  <p className="text-muted-foreground mt-1 text-xs">Confirmed bookings tracked</p>
+                </div>
+                <div className="rounded-2xl border border-white/60 bg-background/75 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
+                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-[0.18em]">Upcoming</p>
+                  <p className="text-foreground mt-2 text-2xl font-semibold tracking-tight">{upcomingEvents}</p>
+                  <p className="text-muted-foreground mt-1 text-xs">Events needing attention</p>
+                </div>
+                <div className="rounded-2xl border border-white/60 bg-background/75 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
+                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-[0.18em]">Revenue</p>
+                  <p className="text-foreground mt-2 text-2xl font-semibold tracking-tight">${totalEarnings.toLocaleString()}</p>
+                  <p className="text-muted-foreground mt-1 text-xs">Completed booking value</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <DashboardStatCard
+          label="Total bookings"
+          value={totalBookings}
+          description="All accepted and confirmed bookings in your workspace"
+          icon={<Users className="h-5 w-5" />}
+          trend={totalBookings > 0 ? "Your confirmed workload is active and visible here." : "Accepted proposals will appear here once booked."}
+        />
+        <DashboardStatCard
+          label="Upcoming events"
+          value={upcomingEvents}
+          description="Pending and confirmed bookings that still need execution"
+          icon={<CalendarDays className="h-5 w-5" />}
+          trend={upcomingEvents > 0 ? "Upcoming events should stay organized and client-ready." : "No upcoming events are scheduled right now."}
+        />
+        <DashboardStatCard
+          label="Completed events"
+          value={completedEvents}
+          description="Bookings marked complete and delivered successfully"
+          icon={<CheckCircle2 className="h-5 w-5" />}
+          trend={completedEvents > 0 ? "Completed work strengthens trust and repeat business." : "Completed event insights will appear here over time."}
+        />
+        <DashboardStatCard
+          label="Earnings"
+          value={`$${totalEarnings.toLocaleString()}`}
+          description="Revenue represented by completed booking totals"
+          icon={<DollarSign className="h-5 w-5" />}
+          trend={totalEarnings > 0 ? "Completed bookings are translating into visible revenue." : "Complete bookings to unlock revenue momentum."}
+        />
       </div>
 
-      {/* STATS BAR */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-white rounded-xl border p-4 shadow-sm">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-gray-500">Total Bookings</p>
-              <p className="text-2xl font-semibold text-gray-900">{totalBookings}</p>
-            </div>
-            <div className="h-12 w-12 bg-blue-50 rounded-lg flex items-center justify-center">
-              <Users className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="bg-white rounded-xl border p-4 shadow-sm">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-gray-500">Upcoming Events</p>
-              <p className="text-2xl font-semibold text-gray-900">{upcomingEvents}</p>
-            </div>
-            <div className="h-12 w-12 bg-orange-50 rounded-lg flex items-center justify-center">
-              <Clock className="h-6 w-6 text-orange-600" />
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="bg-white rounded-xl border p-4 shadow-sm">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-gray-500">Completed Events</p>
-              <p className="text-2xl font-semibold text-gray-900">{completedEvents}</p>
-            </div>
-            <div className="h-12 w-12 bg-green-50 rounded-lg flex items-center justify-center">
-              <CheckCircle className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="bg-white rounded-xl border p-4 shadow-sm">
-          <div className="flex justify-between items-center">
-            <div>
-              <p className="text-sm text-gray-500">Earnings</p>
-              <p className="text-2xl font-semibold text-gray-900">${totalEarnings.toLocaleString()}</p>
-            </div>
-            <div className="h-12 w-12 bg-purple-50 rounded-lg flex items-center justify-center">
-              <DollarSign className="h-6 w-6 text-purple-600" />
-            </div>
-          </div>
-        </Card>
-      </div>
+      <ChefBookingsControlPanel
+        searchQuery={searchQuery}
+        onSearchQueryChange={setSearchQuery}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        sortBy={sortBy}
+        onSortByChange={setSortBy}
+      />
 
-      {/* SEARCH + FILTER BAR */}
-      <div className="flex flex-col md:flex-row gap-4 items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <Input
-            placeholder="Search bookings..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Select value={sortBy} onValueChange={setSortBy}>
-          <SelectTrigger className="w-[180px]">
-            <ArrowUpDown className="h-4 w-4 mr-2" />
-            <SelectValue placeholder="Sort by" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="newest">Newest First</SelectItem>
-            <SelectItem value="price-high">Price: High to Low</SelectItem>
-            <SelectItem value="price-low">Price: Low to High</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* BOOKINGS LIST */}
       {filteredBookings.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
           {filteredBookings.map((booking) => (
-            <BookingCard key={booking.id} booking={booking} />
+            <ChefBookingCard key={booking.id} booking={booking} />
           ))}
         </div>
       ) : (
-        /* EMPTY STATE */
-        <div className="text-center py-16">
-          <div className="h-24 w-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <Calendar className="h-12 w-12 text-gray-400" />
-          </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No bookings yet</h3>
-          <p className="text-gray-500 mb-6 max-w-md mx-auto">
-            Start by browsing incoming requests and sending proposals. Once a client accepts your proposal, your booking will appear here.
-          </p>
-          <div className="space-y-3 mb-6">
-            <div className="text-sm text-gray-600">
-              <strong>Next steps:</strong>
-              <ol className="mt-2 space-y-1 text-left inline-block">
-                <li>1. Browse available requests in your area</li>
-                <li>2. Send a proposal with your pricing</li>
-                <li>3. Wait for client acceptance</li>
-              </ol>
+        <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
+          <CardContent className="py-12">
+            <div className="mx-auto flex max-w-xl flex-col items-center text-center">
+              <div className="from-primary/15 to-background text-primary mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br shadow-sm">
+                <CalendarDays className="h-9 w-9" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-foreground text-2xl font-semibold tracking-tight">No bookings yet</h3>
+                <p className="text-muted-foreground text-sm leading-6">
+                  Confirmed bookings will appear here once a client accepts your proposal. Use this workspace to monitor upcoming service, completed events, and revenue as activity grows.
+                </p>
+              </div>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <Button className="h-11 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25" asChild>
+                  <Link href="/dashboard/chef/requests">Browse Requests</Link>
+                </Button>
+                <Button variant="outline" className="h-11 rounded-2xl border-white/70 bg-background/70 px-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-background dark:border-white/10 dark:bg-background/10 dark:hover:bg-background/15" asChild>
+                  <Link href="/dashboard/chef/profile">Update Profile</Link>
+                </Button>
+              </div>
             </div>
-          </div>
-          <div className="flex gap-4 justify-center">
-            <Link href="/dashboard/chef/requests">
-              <Button>Browse Requests</Button>
-            </Link>
-            <Link href="/dashboard/chef/profile">
-              <Button variant="outline">Update Profile</Button>
-            </Link>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
     </div>
   )
-}
-
-function BookingCard({ booking }: { booking: ChefBookingPayload }) {
-  const [isHovered, setIsHovered] = React.useState(false)
-
-  return (
-    <Card 
-      className="bg-white rounded-2xl border p-5 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <CardContent className="p-0 space-y-4">
-        {/* Header */}
-        <div className="flex justify-between items-start">
-          <div>
-            <h3 className="font-semibold text-gray-900 line-clamp-1">
-              {booking.proposal?.request?.location || booking.location}
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">
-              {booking.client?.name || "Client"}
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="font-semibold text-green-600">${Number(booking.totalPrice).toFixed(2)}</p>
-          </div>
-        </div>
-
-        {/* Event Details */}
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <Calendar className="h-4 w-4" />
-            <span>{formatDate(booking.proposal?.request?.eventDate || booking.eventDate)}</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-500">
-            <MapPin className="h-4 w-4" />
-            <span className="line-clamp-1">{booking.proposal?.request?.location || booking.location}</span>
-          </div>
-        </div>
-
-        {/* Status Badge */}
-        <div>
-          {getStatusBadge(booking.status)}
-        </div>
-
-        {/* Description */}
-        {booking.proposal?.request?.details && (
-          <p className="text-sm text-gray-600 line-clamp-2">
-            {booking.proposal.request.details}
-          </p>
-        )}
-
-        {/* CTA Buttons */}
-        <div className="flex gap-2 pt-2">
-          <Button variant="outline" size="sm" className="flex-1">
-            <Eye className="h-4 w-4 mr-2" />
-            View Details
-          </Button>
-          <Button variant="outline" size="sm" className="flex-1">
-            <MessageSquare className="h-4 w-4 mr-2" />
-            Message
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function getStatusBadge(status: BookingStatus) {
-  const statusConfig = {
-    PENDING: { label: "Pending", className: "bg-blue-100 text-blue-700 border-blue-200" },
-    CONFIRMED: { label: "Upcoming", className: "bg-blue-100 text-blue-700 border-blue-200" },
-    COMPLETED: { label: "Completed", className: "bg-green-100 text-green-700 border-green-200" },
-    CANCELLED: { label: "Cancelled", className: "bg-red-100 text-red-700 border-red-200" }
-  }
-  
-  const config = statusConfig[status]
-  return (
-    <Badge className={config.className}>
-      {config.label}
-    </Badge>
-  )
-}
-
-function formatDate(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
 }

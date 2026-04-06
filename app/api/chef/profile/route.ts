@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { geocodeAddress } from "@/lib/geo"
 import { z } from "zod"
 
 const profileSchema = z.object({
@@ -66,10 +67,15 @@ export async function PUT(request: NextRequest) {
 
     const body = await request.json()
     const validatedData = profileSchema.parse(body)
+    const coordinates = await geocodeAddress(validatedData.location)
 
     const updatedProfile = await prisma.chefProfile.update({
       where: { userId: session.user.id },
-      data: validatedData,
+      data: {
+        ...validatedData,
+        latitude: coordinates?.latitude ?? null,
+        longitude: coordinates?.longitude ?? null,
+      },
       include: {
         user: {
           select: {

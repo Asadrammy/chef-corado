@@ -25,29 +25,32 @@ export function NavMain({
   return (
     <SidebarGroup>
       <SidebarGroupContent>
-        <SidebarMenu>
+        <SidebarMenu className="gap-1.5">
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton 
-                tooltip={item.title} 
+              <SidebarMenuButton
+                tooltip={item.title}
+                isActive={item.isActive}
                 asChild
                 className={cn(
-                  "menu-item group relative rounded-lg transition-all duration-150",
-                  item.isActive 
-                    ? "menu-item-active bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-medium" 
-                    : "menu-item-inactive text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800"
+                  "group h-11 rounded-xl border border-transparent px-3 text-[0.95rem] shadow-none transition-all duration-200 relative",
+                  item.isActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground border-sidebar-border shadow-sm shadow-black/5 before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-0.5 before:h-5 before:bg-primary before:rounded-r-full"
+                    : "text-muted-foreground hover:border-border/70 hover:bg-muted/70 hover:text-foreground hover:shadow-sm hover:shadow-black/5"
                 )}
               >
                 <Link href={item.url}>
-                  <span className={cn(
-                    "menu-item-icon transition-transform duration-150",
-                    item.isActive 
-                      ? "menu-item-icon-active text-indigo-600 dark:text-indigo-400" 
-                      : "menu-item-icon-inactive text-gray-600 dark:text-gray-300"
-                  )}>
+                  <span
+                    className={cn(
+                      "flex size-8 items-center justify-center rounded-lg border border-transparent transition-all duration-200",
+                      item.isActive
+                        ? "bg-background/90 text-foreground shadow-sm border-border/40"
+                        : "text-muted-foreground group-hover:bg-background/80 group-hover:text-foreground group-hover:border-border/30"
+                    )}
+                  >
                     {item.icon && <item.icon />}
                   </span>
-                  <span className="menu-item-text">{item.title}</span>
+                  <span className="truncate font-medium">{item.title}</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>

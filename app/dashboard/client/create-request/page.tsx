@@ -5,7 +5,6 @@ import { redirect } from "next/navigation"
 
 import { authOptions } from "@/lib/auth"
 import { RequestForm } from "@/components/request-form"
-import { Calendar, MapPin, DollarSign, FileText } from "lucide-react"
 
 export const metadata: Metadata = generateMeta({
   title: "Plan Your Perfect Dining Experience",
@@ -19,30 +18,19 @@ export default async function CreateRequestPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-6 lg:px-10 py-16">
-        {/* Premium Hero Section */}
-        <div className="bg-gradient-to-b from-white to-gray-50 rounded-3xl p-12 mb-16">
-          <div className="text-center space-y-6">
-            <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-gray-900">
-              Plan your perfect dining experience
-            </h1>
-            <p className="text-gray-600 max-w-2xl mx-auto text-lg leading-relaxed">
-              Tell us a few details and get matched with top private chefs who'll create unforgettable moments for your special event.
-            </p>
-          </div>
-        </div>
-
-        {/* 2-Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          <div className="lg:col-span-8">
-            <RequestForm />
-          </div>
-          <div className="lg:col-span-4">
-            {/* Right panel content will be moved to RequestForm component */}
-          </div>
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-1 py-2 md:px-2 md:py-4">
+      <div className="flex flex-col gap-3 border-b border-border pb-6">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground md:text-3xl">
+            Create request
+          </h1>
+          <p className="max-w-2xl text-sm leading-6 text-muted-foreground md:text-base">
+            Share the essentials of your event and receive tailored proposals from chefs who match your date, location, and budget.
+          </p>
         </div>
       </div>
+
+      <RequestForm />
     </div>
   )
 }

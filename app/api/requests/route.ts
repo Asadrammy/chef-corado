@@ -143,36 +143,58 @@ export async function GET() {
     }
 
     // If chef doesn't have location coordinates or invalid radius, return empty array
-    if (!chefProfile.latitude || !chefProfile.longitude || chefProfile.radius <= 0) {
+    if (chefProfile.latitude == null || chefProfile.longitude == null || chefProfile.radius <= 0) {
       return NextResponse.json({ 
         error: "Chef location or radius not properly set. Please update your profile.",
-        needsLocation: !chefProfile.latitude || !chefProfile.longitude,
+        needsLocation: chefProfile.latitude == null || chefProfile.longitude == null,
         needsRadius: chefProfile.radius <= 0,
         requests: []
       }, { status: 400 })
     }
+
+    const chefLatitude = chefProfile.latitude
+    const chefLongitude = chefProfile.longitude
 
     // Get all requests with coordinates - limit to recent requests for performance
     const allRequests = await prisma.request.findMany({
       where: {
         latitude: { not: null },
         longitude: { not: null },
-        eventDate: { gte: new Date() } // Only future events
+        eventDate: { gte: new Date() },
+        proposals: {
+          none: {
+            chefId: chefProfile.id,
+          },
+        },
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
       orderBy: { eventDate: "desc" },
-      take: 100 // Limit to 100 most recent requests for performance
+      take: 100
     })
 
     // Filter requests by real distance calculation using Haversine formula
-    const filteredRequests = allRequests.filter((request: any) => {
-      const distance = calculateDistance(
-        chefProfile.latitude!,
-        chefProfile.longitude!,
-        request.latitude!,
-        request.longitude!
-      )
-      return distance <= chefProfile.radius
-    })
+    const filteredRequests = allRequests
+      .map((request) => {
+        const distance = calculateDistance(
+          chefLatitude,
+          chefLongitude,
+          request.latitude as number,
+          request.longitude as number
+        )
+
+        return {
+          ...request,
+          distanceKm: Math.round(distance * 10) / 10,
+        }
+      })
+      .filter((request) => request.distanceKm <= chefProfile.radius)
 
     return NextResponse.json({ requests: filteredRequests })
   }

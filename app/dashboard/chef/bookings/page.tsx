@@ -21,7 +21,7 @@ export default async function ChefBookingsPage() {
   cookies()
 
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="space-y-6 lg:space-y-7">
       <ChefBookingsDashboard />
     </div>
   )
