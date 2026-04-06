@@ -13,7 +13,13 @@ export async function GET(request: NextRequest) {
     const dashboardData = await getChefDashboardData(session.user.id)
 
     if (!dashboardData) {
-      return NextResponse.json({ error: "Chef profile not found" }, { status: 404 })
+      return NextResponse.json(
+        {
+          error: "Chef profile not found. Please create your chef profile first.",
+          needsProfile: true,
+        },
+        { status: 404 }
+      )
     }
 
     return NextResponse.json(dashboardData)

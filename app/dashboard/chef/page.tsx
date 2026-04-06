@@ -41,6 +41,9 @@ export default async function ChefDashboardPage() {
     }
 
     const errorPayload = await response.json().catch(() => ({}))
+    if (errorPayload.needsProfile) {
+      redirect("/dashboard/chef/profile")
+    }
     return (
       <DashboardError error={errorPayload.error || "Chef profile not found or dashboard data could not be loaded."} />
     )
