@@ -1,7 +1,6 @@
 import { Metadata } from "next"
 import { generateMeta } from "@/lib/utils"
 import { getServerSession } from "next-auth"
-import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 import { authOptions } from "@/lib/auth"
@@ -11,7 +10,7 @@ import { ChefOpportunities } from "@/components/dashboard/chef/chef-opportunitie
 import { ChefPerformance } from "@/components/dashboard/chef/chef-performance"
 import { ChefStats } from "@/components/dashboard/chef/chef-stats"
 import { DashboardError } from "@/components/dashboard/chef/dashboard-error"
-import { ChefDashboardData } from "@/lib/chef-dashboard"
+import { getChefDashboardData } from "@/lib/chef-dashboard"
 
 export const metadata: Metadata = generateMeta({
   title: "Chef Dashboard",
@@ -28,28 +27,17 @@ export default async function ChefDashboardPage() {
     redirect("/dashboard")
   }
 
-  const cookieHeader = (await cookies()).toString()
-  const baseUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"
-  const response = await fetch(`${baseUrl}/api/chef/dashboard`, {
-    cache: "no-store",
-    headers: { cookie: cookieHeader },
-  })
+  let dashboardData
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      redirect("/dashboard")
-    }
-
-    const errorPayload = await response.json().catch(() => ({}))
-    if (errorPayload.needsProfile) {
-      redirect("/dashboard/chef/profile")
-    }
-    return (
-      <DashboardError error={errorPayload.error || "Chef profile not found or dashboard data could not be loaded."} />
-    )
+  try {
+    dashboardData = await getChefDashboardData(session.user.id)
+  } catch (error) {
+    return <DashboardError error="Chef profile not found or dashboard data could not be loaded." />
   }
 
-  const dashboardData = (await response.json()) as ChefDashboardData
+  if (!dashboardData) {
+    redirect("/dashboard/chef/profile")
+  }
 
   const {
     totalEarnings = 0,
