@@ -2,10 +2,11 @@ import { Metadata } from "next"
 import { generateMeta } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
 
 import { authOptions } from "@/lib/auth"
 import { ChefRequestsMarketplace } from "@/components/chef-requests-marketplace"
+import { prisma } from "@/lib/prisma"
+import { calculateDistance } from "@/lib/geo"
 
 export const metadata: Metadata = generateMeta({
   title: "Incoming Requests",
@@ -18,23 +19,46 @@ export default async function ChefRequestsPage() {
     redirect("/dashboard")
   }
 
-  const cookieHeader = (await cookies()).toString()
-  const baseUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"
-  const response = await fetch(`${baseUrl}/api/requests`, {
-    cache: "no-store",
-    headers: { cookie: cookieHeader },
+  const chefProfile = await prisma.chefProfile.findUnique({
+    where: { userId: session.user.id },
   })
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    if (errorData.needsProfile || errorData.needsLocation || errorData.needsRadius) {
-      redirect("/dashboard/chef/profile")
-    }
-    redirect("/dashboard")
+  if (!chefProfile) {
+    redirect("/dashboard/chef/profile")
   }
 
-  const payload = await response.json().catch(() => ({ requests: [] }))
-  const requests = payload.requests ?? []
+  if (chefProfile.latitude == null || chefProfile.longitude == null || chefProfile.radius <= 0) {
+    redirect("/dashboard/chef/profile")
+  }
+
+  const allRequests = await prisma.request.findMany({
+    where: {
+      latitude: { not: null },
+      longitude: { not: null },
+      eventDate: { gte: new Date() },
+      proposals: {
+        none: {
+          chefId: chefProfile.id,
+        },
+      },
+    },
+    orderBy: { eventDate: "desc" },
+    take: 100,
+  })
+
+  const requests = allRequests
+    .map((request) => ({
+      ...request,
+      distanceKm: Math.round(
+        calculateDistance(
+          chefProfile.latitude as number,
+          chefProfile.longitude as number,
+          request.latitude as number,
+          request.longitude as number
+        ) * 10
+      ) / 10,
+    }))
+    .filter((request) => request.distanceKm <= chefProfile.radius)
 
   return <ChefRequestsMarketplace requests={requests} />
 }
