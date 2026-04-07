@@ -133,10 +133,11 @@ export function MarketplaceSidebar() {
     },
     {
       title: "Logout",
-      url: "/api/auth/signout",
+      url: "/login",
       icon: IconMenu2,
       isActive: false,
       tone: "destructive" as const,
+      action: "signOut" as const,
     },
   ]
 
