@@ -20,9 +20,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Only chefs can request payouts' }, { status: 403 });
     }
 
+    const userId = session.user.id;
+
     // Get chef profile
     const chefProfile = await prisma.chefProfile.findUnique({
-      where: { userId: session.user.id },
+      where: { userId },
       include: {
         user: {
           select: {

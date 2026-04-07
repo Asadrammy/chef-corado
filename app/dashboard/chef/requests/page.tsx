@@ -19,8 +19,13 @@ export default async function ChefRequestsPage() {
     redirect("/dashboard")
   }
 
+  const userId = session.user?.id
+  if (!userId) {
+    redirect("/dashboard")
+  }
+
   const chefProfile = await prisma.chefProfile.findUnique({
-    where: { userId: session.user.id },
+    where: { userId },
   })
 
   if (!chefProfile) {
@@ -48,7 +53,11 @@ export default async function ChefRequestsPage() {
 
   const requests = allRequests
     .map((request) => ({
-      ...request,
+      id: request.id,
+      eventDate: request.eventDate.toISOString(),
+      location: request.location,
+      budget: request.budget,
+      details: request.details,
       distanceKm: Math.round(
         calculateDistance(
           chefProfile.latitude as number,

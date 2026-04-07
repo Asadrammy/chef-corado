@@ -13,6 +13,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const userId = session.user.id;
+
     const body = await request.json();
     const {
       receiverId,
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     // Check if user is a chef (only chefs can send offers)
     const chefProfile = await prisma.chefProfile.findUnique({
-      where: { userId: session.user.id },
+      where: { userId },
     });
 
     if (!chefProfile) {
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest) {
     // Create the message first
     const message = await prisma.message.create({
       data: {
-        senderId: session.user.id,
+        senderId: userId,
         receiverId,
         content: `Custom Offer: ${title}`,
       },
@@ -143,6 +145,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const userId = session.user.id;
+
     const { searchParams } = new URL(request.url);
     const offerId = searchParams.get('offerId');
 
@@ -173,8 +177,8 @@ export async function GET(request: NextRequest) {
     }
 
     if (
-      offer.clientId !== session.user.id &&
-      offer.chefId !== session.user.id
+      offer.clientId !== userId &&
+      offer.chefId !== userId
     ) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

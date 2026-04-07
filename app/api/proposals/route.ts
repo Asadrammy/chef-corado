@@ -43,9 +43,11 @@ export async function POST(request: Request) {
     return response
   }
 
+  const userId = session.user.id
+
   // Get chef profile
   const chefProfile = await prisma.chefProfile.findUnique({
-    where: { userId: session.user.id },
+    where: { userId },
   })
 
   if (!chefProfile) {

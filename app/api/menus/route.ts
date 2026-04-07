@@ -24,8 +24,10 @@ export async function GET() {
       return NextResponse.json({ error: "Only chefs can access menus" }, { status: 403 })
     }
 
+    const userId = session.user.id
+
     const chefProfile = await prisma.chefProfile.findUnique({
-      where: { userId: session.user.id },
+      where: { userId },
     })
 
     if (!chefProfile) {
@@ -60,8 +62,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Only chefs can create menus" }, { status: 403 })
     }
 
+    const userId = session.user.id
+
     const chefProfile = await prisma.chefProfile.findUnique({
-      where: { userId: session.user.id },
+      where: { userId },
     })
 
     if (!chefProfile) {
