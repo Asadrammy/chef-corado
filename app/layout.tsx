@@ -19,8 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
-      <body className={inter.className}>
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" className="h-full overflow-hidden">
+      <body className={`${inter.className} h-full overflow-hidden`}>
         <Providers>
           {children}
         </Providers>
