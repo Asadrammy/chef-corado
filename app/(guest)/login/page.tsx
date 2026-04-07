@@ -3,7 +3,6 @@
 import { useState } from "react"
 import Image from "next/image"
 import { ArrowRight, Sparkles } from "lucide-react"
-import loginBackgroundImage from "@/ChatGPT Image Apr 8, 2026, 01_17_26 AM.png"
 
 import { LoginForm } from "@/components/auth/LoginForm"
 import { RegisterForm } from "@/components/auth/RegisterForm"
@@ -15,7 +14,7 @@ export default function LoginPage() {
     <main className="min-h-screen overflow-y-auto bg-[#0d1320]">
       <div className="relative min-h-screen">
         <Image
-          src={loginBackgroundImage}
+          src="/images/ChatGPT%20Image%20Apr%208,%202026,%2001_17_26%20AM.png"
           alt=""
           fill
           priority
