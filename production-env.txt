@@ -6,7 +6,7 @@
 DATABASE_URL=postgresql://user:password@host:5432/database_name
 
 # NextAuth Configuration
-NEXTAUTH_URL=https://your-app-name.onrender.com
+NEXTAUTH_URL=https://chef-marketplace.onrender.com
 NEXTAUTH_SECRET=4WQYmU86W++f:&A9UN+v@0?1!p+ucSR]
 
 # Environment
@@ -32,8 +32,8 @@ RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 
 # Security
-CORS_ORIGIN=https://your-app-name.onrender.com
-ALLOWED_ORIGINS=https://your-app-name.onrender.com
+CORS_ORIGIN=https://chef-marketplace.onrender.com
+ALLOWED_ORIGINS=https://chef-marketplace.onrender.com
 
 # Monitoring
 HEALTH_CHECK_ENABLED=true
@@ -54,7 +54,7 @@ METRICS_ENABLED=true
 
 # 3. STRIPE_KEYS:
 #    - Get your live API keys from Stripe dashboard
-#    - Set up webhook endpoint: https://your-app-name.onrender.com/api/payments/webhook
+#    - Set up webhook endpoint: https://chef-marketplace.onrender.com/api/payments/webhook
 
 # 4. CLOUDINARY:
 #    - Create a free Cloudinary account
