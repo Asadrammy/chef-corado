@@ -19,7 +19,7 @@ export default function UserDropdown() {
   const { data: session } = useSession();
 
   const handleSignOut = () => {
-    signOut({ callbackUrl: "/login" });
+    signOut({ callbackUrl: `${window.location.origin}/login` });
   };
 
   const userInitial = session?.user?.name?.slice(0, 1).toUpperCase() || "U";

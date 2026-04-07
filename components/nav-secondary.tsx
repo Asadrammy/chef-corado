@@ -26,6 +26,10 @@ export function NavSecondary({
     action?: "signOut"
   }[]
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
+  const handleSignOut = () => {
+    signOut({ callbackUrl: `${window.location.origin}/login` })
+  }
+
   return (
     <SidebarGroup {...props}>
       <SidebarGroupContent>
@@ -43,7 +47,7 @@ export function NavSecondary({
                         ? "border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground shadow-sm shadow-black/5 before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-0.5 before:h-5 before:bg-primary before:rounded-r-full"
                         : "text-muted-foreground hover:border-border/70 hover:bg-muted/70 hover:text-foreground hover:shadow-sm hover:shadow-black/5"
                   )}
-                  onClick={() => signOut({ callbackUrl: "/login" })}
+                  onClick={handleSignOut}
                 >
                   <span
                     className={cn(
