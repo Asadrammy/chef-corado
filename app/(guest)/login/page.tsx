@@ -14,7 +14,7 @@ export default function LoginPage() {
     <main className="min-h-screen overflow-y-auto bg-[#0d1320]">
       <div className="relative min-h-screen">
         <Image
-          src="/images/ChatGPT%20Image%20Apr%208,%202026,%2001_17_26%20AM.png"
+          src="/images/login-bg.png"
           alt=""
           fill
           priority
