@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getToken } from 'next-auth/jwt'
 
+const getAppBaseUrl = () => process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000'
+
 export default async function proxy(request: NextRequest) {
   const token = await getToken({ req: request })
   const { pathname } = request.nextUrl
+  const appBaseUrl = getAppBaseUrl()
 
   // Public paths that don't require authentication
   const publicPaths = ["/", "/login", "/register", "/api/auth"]
@@ -15,7 +18,7 @@ export default async function proxy(request: NextRequest) {
 
   // If user is not authenticated and trying to access protected routes
   if (!token && !isPublicPath) {
-    return NextResponse.redirect(new URL("/login", request.url))
+    return NextResponse.redirect(new URL("/login", appBaseUrl))
   }
 
   // If user is authenticated and trying to access auth pages
@@ -28,7 +31,7 @@ export default async function proxy(request: NextRequest) {
       ADMIN: "/dashboard/admin"
     }[role] || "/dashboard"
     
-    return NextResponse.redirect(new URL(dashboardPath, request.url))
+    return NextResponse.redirect(new URL(dashboardPath, appBaseUrl))
   }
 
   // Role-based access control for dashboard routes
@@ -37,17 +40,17 @@ export default async function proxy(request: NextRequest) {
     
     // Admin routes
     if (pathname.startsWith("/dashboard/admin") && role !== "ADMIN") {
-      return NextResponse.redirect(new URL("/dashboard", request.url))
+      return NextResponse.redirect(new URL("/dashboard", appBaseUrl))
     }
     
     // Chef routes
     if (pathname.startsWith("/dashboard/chef") && role !== "CHEF") {
-      return NextResponse.redirect(new URL("/dashboard", request.url))
+      return NextResponse.redirect(new URL("/dashboard", appBaseUrl))
     }
     
     // Client routes
     if (pathname.startsWith("/dashboard/client") && role !== "CLIENT") {
-      return NextResponse.redirect(new URL("/dashboard", request.url))
+      return NextResponse.redirect(new URL("/dashboard", appBaseUrl))
     }
   }
 
