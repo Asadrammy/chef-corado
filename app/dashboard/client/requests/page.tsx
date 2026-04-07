@@ -7,22 +7,19 @@ import Link from "next/link"
 import { format } from "date-fns"
 import {
   ClipboardList,
-  ArrowRight,
   Calendar,
   MapPin,
   DollarSign,
-  FilePlus2,
-  MessageSquareText,
-  CalendarCheck2,
 } from "lucide-react"
 
 import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 
 type RequestRow = {
   id: string
-  eventDate: string
+  eventDate: Date
   location: string
   budget: number
   status?: string
@@ -39,21 +36,18 @@ export default async function ClientRequestsPage() {
     redirect("/dashboard")
   }
 
-  const cookieHeader = (await cookies()).toString()
-  const baseUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"
-  const response = await fetch(`${baseUrl}/api/requests`, {
-    cache: "no-store",
-    headers: {
-      cookie: cookieHeader,
+  cookies()
+
+  const requests: RequestRow[] = await prisma.request.findMany({
+    where: { clientId: session.user.id as string },
+    orderBy: { eventDate: "desc" },
+    select: {
+      id: true,
+      eventDate: true,
+      location: true,
+      budget: true,
     },
   })
-
-  if (!response.ok) {
-    redirect("/dashboard")
-  }
-
-  const payload: { requests: RequestRow[] } = await response.json().catch(() => ({ requests: [] }))
-  const requests = payload.requests ?? []
 
   return (
     <div className="bg-gray-50">
