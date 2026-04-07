@@ -94,6 +94,26 @@ export const authOptions: AuthOptions = {
       session.user.id = token.sub
       return session
     },
+    async redirect({ url, baseUrl }) {
+      const configuredBaseUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? baseUrl
+
+      if (url.startsWith("/")) {
+        return `${configuredBaseUrl}${url}`
+      }
+
+      try {
+        const redirectUrl = new URL(url)
+        const allowedBaseUrl = new URL(configuredBaseUrl)
+
+        if (redirectUrl.origin === allowedBaseUrl.origin) {
+          return url
+        }
+      } catch {
+        return configuredBaseUrl
+      }
+
+      return configuredBaseUrl
+    },
   },
   secret: process.env.NEXTAUTH_SECRET,
   debug: false,
