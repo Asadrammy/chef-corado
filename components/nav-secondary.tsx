@@ -27,6 +27,8 @@ export function NavSecondary({
   }[]
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
   const handleSignOut = () => {
+    document.cookie = `__Secure-next-auth.callback-url=; Path=/; Max-Age=0; SameSite=Lax; Secure`
+    document.cookie = `next-auth.callback-url=; Path=/; Max-Age=0; SameSite=Lax`
     signOut({ callbackUrl: `${window.location.origin}/login` })
   }
 

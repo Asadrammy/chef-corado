@@ -19,6 +19,8 @@ export default function UserDropdown() {
   const { data: session } = useSession();
 
   const handleSignOut = () => {
+    document.cookie = `__Secure-next-auth.callback-url=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
+    document.cookie = `next-auth.callback-url=; Path=/; Max-Age=0; SameSite=Lax`;
     signOut({ callbackUrl: `${window.location.origin}/login` });
   };
 
