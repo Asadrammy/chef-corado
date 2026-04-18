@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+
+import { getRequiredSession } from "@/lib/auth-helpers"
+import { handleApiError } from "@/lib/error-handler"
+import { adminChefService } from "@/lib/services/admin-chef-service"
+import { Role } from "@/types"
 
 // POST reject a chef (delete their profile)
 export async function POST(
@@ -9,36 +11,16 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions)
+    await getRequiredSession(Role.ADMIN)
     const { id } = await params
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const result = await adminChefService.rejectChef(id)
 
-    if (session.user.role !== "ADMIN") {
-      return NextResponse.json({ error: "Admin access required" }, { status: 403 })
-    }
-
-    // First check if chef exists
-    const chef = await prisma.chefProfile.findUnique({
-      where: { id },
-    })
-
-    if (!chef) {
+    return NextResponse.json(result)
+  } catch (error) {
+    if (error instanceof Error && error.message === "CHEF_NOT_FOUND") {
       return NextResponse.json({ error: "Chef not found" }, { status: 404 })
     }
 
-    // Delete the chef profile (this will cascade delete menus, proposals, etc.)
-    await prisma.chefProfile.delete({
-      where: { id },
-    })
-
-    return NextResponse.json({ 
-      message: "Chef rejected and profile removed successfully"
-    })
-  } catch (error) {
-    console.error("Error rejecting chef:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error, "Admin Chef Reject POST")
   }
 }

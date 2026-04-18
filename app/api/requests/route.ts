@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
-import { prisma } from "@/lib/prisma"
-import { authOptions } from "@/lib/auth"
-import { getServerSession } from "next-auth"
-import { Prisma } from "@prisma/client"
+import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
+import { handleApiError } from "@/lib/error-handler"
+import { requestService } from "@/lib/services/request-service"
 import { Role } from "@/types"
-import { calculateDistance } from "@/lib/geo"
-import { sendEmail, emailTemplates } from "@/lib/email"
 
 const requestSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters"),
@@ -23,8 +20,10 @@ const requestSchema = z.object({
 })
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id || session.user.role !== Role.CLIENT) {
+  let session
+  try {
+    session = await getRequiredSession(Role.CLIENT)
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -40,169 +39,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   }
 
-  const created = await prisma.request.create({
-    data: {
-      clientId: session.user.id,
-      title: body.title,
-      description: body.description || null,
-      eventDate: new Date(body.eventDate),
-      location: body.location,
-      latitude: body.latitude || null,
-      longitude: body.longitude || null,
-      budget: body.budget,
-      details: body.details || null,
-    },
-  })
-
-  // Send email notifications to matching chefs
-  if (created.latitude && created.longitude) {
-    const matchingChefs = await prisma.chefProfile.findMany({
-      where: {
-        isApproved: true,
-        isBanned: false,
-        latitude: { not: null },
-        longitude: { not: null },
-        radius: { gt: 0 }, // Ensure radius is greater than 0
-      },
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
-      },
-    })
-
-    // Filter chefs within radius and send emails
-    const eligibleChefs = matchingChefs.filter(chef => {
-      if (!chef.latitude || !chef.longitude || chef.radius <= 0) return false
-      const distance = calculateDistance(
-        created.latitude!,
-        created.longitude!,
-        chef.latitude,
-        chef.longitude
-      )
-      return distance <= chef.radius
-    })
-
-    // Send emails to eligible chefs
-    const emailPromises = eligibleChefs.map(chef =>
-      sendEmail({
-        to: chef.user.email,
-        subject: `New Service Request: ${created.title}`,
-        html: emailTemplates.newRequest(
-          chef.user.name,
-          created.title,
-          created.location,
-          created.budget
-        ),
-      }).catch(error => console.error('Failed to send email to chef:', chef.user.email, error))
-    )
-
-    await Promise.allSettled(emailPromises)
+  try {
+    const created = await requestService.createRequest(getSessionUserId(session), body)
+    return NextResponse.json(created)
+  } catch (error) {
+    return handleApiError(error, "Requests POST")
   }
-
-  return NextResponse.json(created)
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.role) {
+  let session
+  try {
+    session = await getRequiredSession()
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const role = session.user.role
-  const userId = session.user.id
+  try {
+    const result = await requestService.listRequests(getSessionUserId(session), session.user.role)
 
-  if (role === Role.CLIENT && !userId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  if (role === Role.CLIENT) {
-    // Clients see all their own requests
-    const requests = await prisma.request.findMany({
-      where: { clientId: userId! },
-      orderBy: { eventDate: "desc" },
-    })
-    return NextResponse.json({ requests })
-  }
-
-  if (role === Role.CHEF) {
-    // Chefs only see requests within their service radius
-    const chefProfile = await prisma.chefProfile.findUnique({
-      where: { userId: userId! },
-    })
-
-    if (!chefProfile) {
-      return NextResponse.json({ 
-        error: "Chef profile not found. Please create your chef profile first.",
-        needsProfile: true,
-        requests: []
-      }, { status: 404 })
+    if ("status" in result) {
+      return NextResponse.json(result, { status: result.status })
     }
 
-    // If chef doesn't have location coordinates or invalid radius, return empty array
-    if (chefProfile.latitude == null || chefProfile.longitude == null || chefProfile.radius <= 0) {
-      return NextResponse.json({ 
-        error: "Chef location or radius not properly set. Please update your profile.",
-        needsLocation: chefProfile.latitude == null || chefProfile.longitude == null,
-        needsRadius: chefProfile.radius <= 0,
-        requests: []
-      }, { status: 400 })
-    }
-
-    const chefLatitude = chefProfile.latitude
-    const chefLongitude = chefProfile.longitude
-
-    // Get all requests with coordinates - limit to recent requests for performance
-    const allRequests = await prisma.request.findMany({
-      where: {
-        latitude: { not: null },
-        longitude: { not: null },
-        eventDate: { gte: new Date() },
-        proposals: {
-          none: {
-            chefId: chefProfile.id,
-          },
-        },
-      },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-      orderBy: { eventDate: "desc" },
-      take: 100
-    })
-
-    // Filter requests by real distance calculation using Haversine formula
-    const filteredRequests = allRequests
-      .map((request) => {
-        const distance = calculateDistance(
-          chefLatitude,
-          chefLongitude,
-          request.latitude as number,
-          request.longitude as number
-        )
-
-        return {
-          ...request,
-          distanceKm: Math.round(distance * 10) / 10,
-        }
-      })
-      .filter((request) => request.distanceKm <= chefProfile.radius)
-
-    return NextResponse.json({ requests: filteredRequests })
+    return NextResponse.json(result)
+  } catch (error) {
+    return handleApiError(error, "Requests GET")
   }
-
-  // Admin sees all requests
-  const requests = await prisma.request.findMany({
-    orderBy: { eventDate: "desc" },
-  })
-
-  return NextResponse.json({ requests })
 }

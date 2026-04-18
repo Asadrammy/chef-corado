@@ -1,8 +1,11 @@
+"use client"
+
 import Link from "next/link"
-import { ArrowRight, BriefcaseBusiness, Clock3, MapPin, Sparkles, Users } from "lucide-react"
+import { ArrowRight, BriefcaseBusiness, Clock3, MapPin, Send, Sparkles, Users } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ProposalModal } from "@/components/proposal-modal"
 import { ChefDashboardRequestItem } from "@/lib/chef-dashboard"
 
 interface ChefOpportunitiesProps {
@@ -90,9 +93,29 @@ export function ChefOpportunities({ requests, availableRequestsCount }: ChefOppo
                   <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-[0.18em]">Budget</p>
                   <p className="text-foreground mt-2 text-xl font-semibold tracking-tight">${request.budget.toLocaleString()}</p>
                 </div>
-                <Button className="rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-4 shadow-lg shadow-primary/20 transition-all duration-300 group-hover:-translate-y-0.5" asChild>
-                  <Link href={`/dashboard/chef/requests/${request.id}`}>Open request</Link>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="rounded-2xl border-white/70 bg-white/70 px-4 shadow-sm backdrop-blur transition-all duration-300 dark:border-white/10 dark:bg-white/5" 
+                    asChild
+                  >
+                    <Link href={`/dashboard/chef/requests/${request.id}`}>Details</Link>
+                  </Button>
+                  <ProposalModal 
+                    request={{
+                      id: request.id,
+                      eventDate: request.eventDate || new Date().toISOString(),
+                      location: request.location || "",
+                      budget: request.budget,
+                      details: request.title,
+                    }}
+                  >
+                    <Button className="rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-4 shadow-lg shadow-primary/20 transition-all duration-300 group-hover:-translate-y-0.5">
+                      <Send className="mr-1.5 h-4 w-4" />
+                      Send Quote
+                    </Button>
+                  </ProposalModal>
+                </div>
               </div>
             </div>
           ))

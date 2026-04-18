@@ -53,7 +53,7 @@ export function RequestCard({ request }: RequestCardProps) {
     : null;
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow">
+    <Card className="overflow-hidden rounded-[26px] border border-white/60 bg-card/95 shadow-lg shadow-black/5 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl dark:border-white/10">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-start space-x-3">
@@ -128,10 +128,18 @@ export function RequestCard({ request }: RequestCardProps) {
         </div>
 
         <div className="flex gap-2 pt-2">
-          <Button className="flex-1" size="sm" disabled={isPast}>
+          <Button
+            className="flex-1 rounded-xl shadow-sm transition-all duration-200 hover:-translate-y-0.5"
+            size="sm"
+            disabled={isPast}
+          >
             {isPast ? 'Event Passed' : 'Send Proposal'}
           </Button>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl border-border/60 bg-background/80 shadow-sm transition-all duration-200 hover:-translate-y-0.5"
+          >
             View Details
           </Button>
         </div>

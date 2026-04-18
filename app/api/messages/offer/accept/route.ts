@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { createNotification } from '@/lib/notifications';
 
 export async function POST(request: NextRequest) {
   try {
@@ -77,21 +78,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await prisma.notification.create({
-      data: {
-        userId: offer.chef.userId,
-        type: 'BOOKING_CREATED',
-        message: `Your offer has been accepted by ${offer.client.name}`,
-      },
-    });
-
-    await prisma.notification.create({
-      data: {
-        userId: offer.clientId,
-        type: 'BOOKING_CREATED',
-        message: 'Your booking has been created from the accepted offer.',
-      },
-    });
+    // Create notifications with preference checking
+    await Promise.all([
+      createNotification(
+        offer.chef.userId,
+        'BOOKING_CREATED',
+        `Your offer has been accepted by ${offer.client.name}`
+      ),
+      createNotification(
+        offer.clientId,
+        'BOOKING_CREATED',
+        'Your booking has been created from the accepted offer.'
+      ),
+    ]);
 
     return NextResponse.json({
       offer: updatedOffer,

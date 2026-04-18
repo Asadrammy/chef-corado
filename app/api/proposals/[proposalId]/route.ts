@@ -10,6 +10,44 @@ const proposalResolutionSchema = z.object({
   status: z.enum([ProposalStatus.ACCEPTED, ProposalStatus.REJECTED]),
 })
 
+export async function GET(
+  request: Request,
+  { params }: { params: Promise<{ proposalId: string }> }
+) {
+  const { proposalId } = await params
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  try {
+    const proposal = await prisma.proposal.findUnique({
+      where: { id: proposalId },
+      include: {
+        chef: { include: { user: true } },
+        request: { include: { client: true } },
+      },
+    })
+
+    if (!proposal) {
+      return NextResponse.json({ error: "Proposal not found" }, { status: 404 })
+    }
+
+    // CRITICAL: Authorization check - only allow access if user is involved
+    const isClient = session.user.role === Role.CLIENT && proposal.request.clientId === session.user.id
+    const isChef = session.user.role === Role.CHEF && proposal.chef.userId === session.user.id
+    const isAdmin = session.user.role === Role.ADMIN
+
+    if (!isClient && !isChef && !isAdmin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    return NextResponse.json({ proposal })
+  } catch (error) {
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ proposalId: string }> }

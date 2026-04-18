@@ -1,16 +1,20 @@
 "use client"
 
 import * as React from "react"
-import { ArrowRight, BriefcaseBusiness, CalendarDays, Clock3, MapPin, Sparkles } from "lucide-react"
+import { ArrowRight, BriefcaseBusiness, CalendarDays, Clock3, MapPin, Sparkles, Target, TrendingUp } from "lucide-react"
 
 import { ProposalModal } from "@/components/proposal-modal"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { ChefRequestRow } from "@/components/chef-request-table"
+import { MatchBadge, MatchScoreRing, MatchReasonsList } from "@/components/matching/match-badge"
+import { MatchResult } from "@/lib/services/smart-matching-service"
 
 interface ChefRequestCardProps {
-  request: ChefRequestRow
+  request: ChefRequestRow & {
+    matchData?: MatchResult
+  }
 }
 
 function getEventType(details?: string | null) {
@@ -26,7 +30,25 @@ function getEventType(details?: string | null) {
   return "Event"
 }
 
-function getPriorityBadge(requestId: string) {
+function getPriorityBadge(requestId: string, matchScore?: number) {
+  // Use actual match score if available, otherwise fallback to hash
+  if (matchScore !== undefined) {
+    if (matchScore >= 90) {
+      return {
+        label: "Top Match",
+        className: "border-emerald-500/30 bg-emerald-500/15 text-emerald-700",
+      }
+    }
+    if (matchScore >= 75) {
+      return {
+        label: "Great Fit",
+        className: "border-blue-500/30 bg-blue-500/15 text-blue-700",
+      }
+    }
+    return null
+  }
+
+  // Fallback to hash-based for backward compatibility
   const hash = requestId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
   const normalized = hash % 100
 
@@ -49,8 +71,24 @@ function getPriorityBadge(requestId: string) {
 
 export function ChefRequestCard({ request }: ChefRequestCardProps) {
   const [isHovered, setIsHovered] = React.useState(false)
+  const [showDetails, setShowDetails] = React.useState(false)
   const eventType = getEventType(request.details)
-  const priorityBadge = React.useMemo(() => getPriorityBadge(request.id), [request.id])
+  
+  // Use smart match data if available, otherwise fallback to basic calculation
+  const matchData = request.matchData
+  // Always call useMemo to satisfy hooks rules - cannot be conditional
+  const fallbackMatchScore = React.useMemo(() => {
+    const distanceScore = request.distanceKm != null ? Math.max(0, 100 - request.distanceKm * 3) : 70
+    const budgetScore = Math.min(100, Math.max(55, request.budget / 30))
+    return Math.round(distanceScore * 0.6 + budgetScore * 0.4)
+  }, [request.distanceKm, request.budget])
+  const matchScore = matchData?.matchScore ?? fallbackMatchScore
+  
+  const matchLabel = matchData?.matchLabel ?? (matchScore >= 86 ? "Best Match" : matchScore >= 72 ? "High Value" : "Standard")
+  const matchReasons = matchData?.matchReasons ?? []
+  const estimatedResponseTime = matchData?.estimatedResponseTime
+  
+  const priorityBadge = React.useMemo(() => getPriorityBadge(request.id, matchScore), [request.id, matchScore])
 
   return (
     <Card
@@ -86,21 +124,42 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/70 bg-background/70 p-4 text-right shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
+          <div className="space-y-3">
+            <MatchBadge label={matchLabel} score={matchScore} size="sm" showScore />
+            {estimatedResponseTime && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Clock3 className="h-3 w-3" />
+                <span>~{estimatedResponseTime} min response</span>
+              </div>
+            )}
+            <div className="rounded-2xl border border-white/70 bg-background/70 p-4 text-right shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
             <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-[0.18em]">
               Budget
             </p>
             <p className="text-foreground mt-2 text-2xl font-semibold tracking-tight">
               ${request.budget.toLocaleString()}
             </p>
+            </div>
           </div>
         </div>
 
+        {/* Match Reasons - Premium Feature */}
+        {matchReasons.length > 0 && (
+          <div className="rounded-xl border border-emerald-500/10 bg-emerald-50/50 p-3 dark:bg-emerald-950/20">
+            <MatchReasonsList reasons={matchReasons} />
+          </div>
+        )}
+        
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
             <MapPin className="h-4 w-4" />
             <span className="line-clamp-1">{request.location}</span>
           </span>
+          {request.distanceKm != null ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
+              {request.distanceKm.toFixed(1)} km away
+            </span>
+          ) : null}
           <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
             <CalendarDays className="h-4 w-4" />
             {new Date(request.eventDate).toLocaleDateString()}
@@ -113,11 +172,19 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
             {eventType}
           </Badge>
         </div>
-
+        
         <div className="flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-muted-foreground text-sm leading-6">
-            Review the request details and send a proposal tailored to the client’s budget and event needs.
-          </p>
+          <div className="flex items-center gap-3">
+            <MatchScoreRing score={matchScore} size="sm" />
+            <div className="text-sm">
+              <p className="font-medium text-foreground">{matchScore}% Match</p>
+              <p className="text-muted-foreground">
+                {matchData?.priceEstimate && matchData.priceEstimate.confidence > 0.5
+                  ? `Est. quote: $${matchData.priceEstimate.min.toLocaleString()}-$${matchData.priceEstimate.max.toLocaleString()}`
+                  : "Review details and send a proposal"}
+              </p>
+            </div>
+          </div>
           <ProposalModal request={request}>
             <Button
               className="h-11 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25"

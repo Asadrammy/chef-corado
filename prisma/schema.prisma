@@ -4,7 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-  url      = "file:./dev.db"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -12,6 +12,7 @@ model User {
   name              String
   email             String         @unique
   password          String
+  phone             String?
   role              String         @default("CLIENT")
   isBanned          Boolean        @default(false)
   verified          Boolean        @default(false)
@@ -23,39 +24,58 @@ model User {
   updatedAt         DateTime       @updatedAt
   bookings          Booking[]      @relation("ClientBookings")
   chefProfile       ChefProfile?
-  sentMessages      Message[]      @relation("MessageSender")
   receivedMessages  Message[]      @relation("MessageReceiver")
+  sentMessages      Message[]      @relation("MessageSender")
   notifications     Notification[]
+  notificationPreference NotificationPreference?
   requests          Request[]      @relation("ClientRequests")
   reviews           Review[]       @relation("ClientReviews")
 }
 
 model ChefProfile {
-  id                String         @id @default(cuid())
-  userId            String         @unique
-  bio               String?
-  experience        Int?
-  location          String
+  id                String      @id @default(cuid())
+  userId            String      @unique
+  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location          String?
   latitude          Float?
   longitude         Float?
-  radius            Float
-  isApproved        Boolean        @default(false)
-  isBanned          Boolean        @default(false)
-  verified          Boolean        @default(false)
-  profileCompletion Int            @default(0)
-  experienceLevel   String         @default("BEGINNER")
+  radius            Float       @default(50)
+  bio               String?
+  specialties       String?
+  cuisineTypes       String?
+  priceRange        String?
+  isApproved        Boolean     @default(false)
+  isBanned          Boolean     @default(false)
+  banReason         String?
+  profileCompletion Int         @default(0)
+  verificationStatus String      @default("PENDING")
+  certifications    String?
+  chefType          String?
   cuisineType       String?
+  eventsPerMonth    Int?
+  experience        Int?
+  experienceLevel   String?
   profileImage      String?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  availability      Availability[]
-  bookings          Booking[]      @relation("ChefBookings")
-  user              User           @relation(fields: [userId], references: [id])
-  experiences       Experience[]
+  stripeAccountId   String?
+  stripeOnboardingComplete Boolean?
+  verified          Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
   menus             Menu[]
+  experiences       Experience[]
+  availability       Availability[]
   payouts           Payout[]
   proposals         Proposal[]
   reviews           Review[]
+  bookings          Booking[]    @relation("ChefBookings")
+  requestInvitations RequestInvitation[]
+  chefKpiSnapshots  ChefKpiSnapshot[]
+
+  @@index([latitude, longitude])
+  @@index([isApproved])
+  @@index([isBanned])
+  @@index([verificationStatus])
 }
 
 model Menu {
@@ -70,7 +90,30 @@ model Menu {
   cuisineType String?
   eventType   String?
   chef        ChefProfile @relation(fields: [chefId], references: [id])
+  sections    MenuSection[]
   proposals   Proposal[]
+}
+
+model MenuSection {
+  id        String     @id @default(cuid())
+  menuId     String
+  title      String
+  sortOrder  Int        @default(0)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  items      MenuItem[]
+  menu       Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+}
+
+model MenuItem {
+  id            String      @id @default(cuid())
+  menuSectionId  String
+  name          String
+  description   String?
+  sortOrder     Int         @default(0)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  menuSection   MenuSection @relation(fields: [menuSectionId], references: [id], onDelete: Cascade)
 }
 
 model Experience {
@@ -117,8 +160,22 @@ model Request {
   budget      Float
   details     String?
   createdAt   DateTime   @default(now())
+  invitations RequestInvitation[]
   proposals   Proposal[]
   client      User       @relation("ClientRequests", fields: [clientId], references: [id])
+}
+
+model RequestInvitation {
+  id         String      @id @default(cuid())
+  requestId   String
+  chefId      String
+  status      String      @default("PENDING")
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  chef        ChefProfile @relation(fields: [chefId], references: [id], onDelete: Cascade)
+  request     Request     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, chefId])
 }
 
 model Proposal {
@@ -129,12 +186,13 @@ model Proposal {
   price     Float
   message   String?
   status    String      @default("PENDING")
+  expiresAt DateTime?
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   booking   Booking?
-  request   Request     @relation(fields: [requestId], references: [id])
-  chef      ChefProfile @relation(fields: [chefId], references: [id])
   menu      Menu?       @relation(fields: [menuId], references: [id])
+  chef      ChefProfile @relation(fields: [chefId], references: [id])
+  request   Request     @relation(fields: [requestId], references: [id])
 
   @@unique([chefId, requestId])
 }
@@ -154,29 +212,48 @@ model Booking {
   bookingType     String      @default("PROPOSAL")
   status          String      @default("PENDING")
   specialRequests String?
+  idempotencyKey  String?     @unique
+  version         Int         @default(1)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
-  client          User        @relation("ClientBookings", fields: [clientId], references: [id])
-  chef            ChefProfile @relation("ChefBookings", fields: [chefId], references: [id])
-  proposal        Proposal?   @relation(fields: [proposalId], references: [id])
   experience      Experience? @relation(fields: [experienceId], references: [id])
+  proposal        Proposal?   @relation(fields: [proposalId], references: [id])
+  chef            ChefProfile @relation("ChefBookings", fields: [chefId], references: [id])
+  client          User        @relation("ClientBookings", fields: [clientId], references: [id])
+  disputes        Dispute[]
+  ledgerEntries   Ledger[]
   payments        Payment?
   review          Review?
+
+  @@index([status])
+  @@index([clientId, status])
+  @@index([chefId, status])
+  @@index([eventDate])
+  @@index([idempotencyKey])
 }
 
 model Payment {
   id                    String    @id @default(cuid())
-  bookingId             String    @unique(map: "sqlite_autoindex_Payment_2")
+  bookingId             String    @unique
   totalAmount           Float     @default(0)
   commissionAmount      Float     @default(0)
   chefAmount            Float     @default(0)
   status                String    @default("HELD")
-  stripePaymentIntentId String?   @unique(map: "sqlite_autoindex_Payment_3")
+  stripePaymentIntentId String?   @unique
+  stripeChargeId        String?   @unique
+  idempotencyKey        String?   @unique
   releasedAt            DateTime?
   releasedBy            String?
   createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @default(now()) @updatedAt
+  updatedAt             DateTime  @updatedAt
+  version               Int       @default(1)
+  ledgerEntries         Ledger[]
   booking               Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  refunds               Refund[]
+
+  @@index([status])
+  @@index([stripePaymentIntentId])
+  @@index([idempotencyKey])
 }
 
 model Review {
@@ -188,9 +265,9 @@ model Review {
   bookingId String      @unique
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
-  client    User        @relation("ClientReviews", fields: [clientId], references: [id])
-  chef      ChefProfile @relation(fields: [chefId], references: [id])
   booking   Booking     @relation(fields: [bookingId], references: [id])
+  chef      ChefProfile @relation(fields: [chefId], references: [id])
+  client    User        @relation("ClientReviews", fields: [clientId], references: [id])
 }
 
 model Notification {
@@ -203,6 +280,22 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id])
 }
 
+model NotificationPreference {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  emailMessages     Boolean  @default(true)
+  emailBookings     Boolean  @default(true)
+  emailRequests     Boolean  @default(true)
+  pushMessages      Boolean  @default(true)
+  pushBookings      Boolean  @default(true)
+  inAppMessages     Boolean  @default(true)
+  inAppBookings     Boolean  @default(true)
+  inAppRequests     Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model Message {
   id         String   @id @default(cuid())
   senderId   String
@@ -211,8 +304,10 @@ model Message {
   createdAt  DateTime @default(now())
   bookingId  String?
   offerId    String?
-  sender     User     @relation("MessageSender", fields: [senderId], references: [id])
+  proposalId String?
+  isRead     Boolean  @default(false)
   receiver   User     @relation("MessageReceiver", fields: [receiverId], references: [id])
+  sender     User     @relation("MessageSender", fields: [senderId], references: [id])
 }
 
 model Availability {
@@ -238,9 +333,57 @@ model Payout {
   stripeTransferId String?     @unique
   processedAt      DateTime?
   processedBy      String?
+  idempotencyKey   String?     @unique
+  version          Int         @default(1)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
+  ledgerEntries    Ledger[]
   chef             ChefProfile @relation(fields: [chefId], references: [id])
+
+  @@index([status])
+  @@index([chefId, status])
+}
+
+model Refund {
+  id             String    @id @default(cuid())
+  paymentId      String
+  amount         Float
+  reason         String
+  description    String
+  status         String    @default("PENDING")
+  processedBy    String?
+  stripeRefundId String?   @unique
+  createdAt      DateTime  @default(now())
+  processedAt    DateTime?
+  failureReason  String?
+  idempotencyKey String?   @unique
+  ledgerEntries  Ledger[]
+  payment        Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([status])
+  @@index([stripeRefundId])
+  @@index([createdAt])
+}
+
+model Dispute {
+  id          String    @id @default(cuid())
+  bookingId   String
+  reason      String
+  description String
+  status      String    @default("OPEN")
+  evidence    String?
+  initiatedBy String
+  resolvedBy  String?
+  resolution  String?
+  createdAt   DateTime  @default(now())
+  resolvedAt  DateTime?
+  booking     Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([status])
+  @@index([initiatedBy])
+  @@index([createdAt])
 }
 
 model WebhookLog {
@@ -251,6 +394,8 @@ model WebhookLog {
   payload       String
   processedAt   DateTime?
   errorMessage  String?
+  retryCount    Int       @default(0)
+  nextRetryAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -258,17 +403,107 @@ model WebhookLog {
   @@index([status])
   @@index([eventType])
   @@index([createdAt])
+  @@index([retryCount])
 }
 
-/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
-model Payment_backup {
-  id         String?
-  bookingId  String?
-  amount     Float?
-  commission Float?
-  status     String?
-  createdAt  Unsupported("num")?
-  updatedAt  Unsupported("num")?
+model Ledger {
+  id              String   @id @default(cuid())
+  transactionType String
+  amount          Float
+  currency        String   @default("USD")
+  bookingId       String?
+  paymentId       String?
+  refundId        String?
+  payoutId        String?
+  fromAccount     String?
+  toAccount       String?
+  description     String
+  metadata        String?
+  createdBy       String
+  createdAt       DateTime @default(now())
+  payout          Payout?  @relation(fields: [payoutId], references: [id])
+  refund          Refund?  @relation(fields: [refundId], references: [id])
+  payment         Payment? @relation(fields: [paymentId], references: [id])
+  booking         Booking? @relation(fields: [bookingId], references: [id])
 
-  @@ignore
+  @@index([transactionType])
+  @@index([createdAt])
+  @@index([bookingId])
+  @@index([paymentId])
+  @@index([refundId])
+  @@index([payoutId])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entityType  String
+  entityId    String
+  oldValue    String?
+  newValue    String
+  performedBy String
+  reason      String?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([action])
+  @@index([performedBy])
+  @@index([createdAt])
+}
+
+// SLOT LOCKING for concurrency control
+model SlotLock {
+  id            String   @id @default(cuid())
+  availabilityId String
+  acquiredAt    DateTime @default(now())
+  expiresAt     DateTime
+  lockType      String   @default("BOOKING") // BOOKING, AVAILABILITY_UPDATE
+  
+  @@index([availabilityId])
+  @@index([expiresAt])
+  @@unique([availabilityId, lockType])
+}
+
+model EventQueue {
+  id           String    @id @default(cuid())
+  eventType    String
+  payload      String
+  status       String    @default("PENDING")
+  priority     Int       @default(0)
+  retryCount   Int       @default(0)
+  maxRetries   Int       @default(3)
+  nextRetryAt  DateTime?
+  processedAt  DateTime?
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([eventType])
+  @@index([nextRetryAt])
+  @@index([priority])
+}
+
+// KPI tracking for chef analytics
+model ChefKpiSnapshot {
+  id                  String   @id @default(cuid())
+  chefId              String
+  date                DateTime
+  quotesSent          Int      @default(0)
+  proposalsAccepted   Int      @default(0)
+  proposalsRejected   Int      @default(0)
+  bookingsCompleted   Int      @default(0)
+  messageResponseRate Float    @default(0)
+  proposalResponseRate Float   @default(0)
+  earnings            Float    @default(0)
+  menusCount          Int      @default(0)
+  createdAt           DateTime @default(now())
+  chef                ChefProfile @relation(fields: [chefId], references: [id], onDelete: Cascade)
+
+  @@unique([chefId, date])
+  @@index([chefId])
+  @@index([date])
+  @@index([chefId, date])
 }

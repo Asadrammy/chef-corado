@@ -1,9 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -13,12 +15,16 @@ import { ReviewList } from "@/components/reviews/review-list"
 
 interface ChefProfile {
   id: string
+  phone?: string
   bio?: string
   experience?: number
   location: string
   radius: number
   isApproved: boolean
   profileImage?: string
+  chefType?: string
+  certifications?: string
+  eventsPerMonth?: number
   user: {
     name: string
     email: string
@@ -31,17 +37,62 @@ interface ChefProfile {
   avgRating?: number
 }
 
+interface ApiEnvelope<T> {
+  success: boolean
+  data?: T
+  error?: {
+    code: string
+    message: string
+    details?: Array<{ field?: string; message: string }>
+  }
+  needsProfile?: boolean
+}
+
+const applyProfileToForm = (
+  chefProfile: ChefProfile,
+  setProfile: (profile: ChefProfile) => void,
+  setFormData: React.Dispatch<React.SetStateAction<{
+    bio: string
+    phone: string
+    experience: string
+    location: string
+    radius: string
+    profileImage: string
+    chefType: string
+    certifications: string
+    eventsPerMonth: string
+  }>>
+) => {
+  setProfile(chefProfile)
+  setFormData({
+    bio: chefProfile.bio || "",
+    phone: chefProfile.phone || "",
+    experience: chefProfile.experience?.toString() || "",
+    location: chefProfile.location || "",
+    radius: chefProfile.radius?.toString() || "",
+    profileImage: chefProfile.profileImage || "",
+    chefType: chefProfile.chefType || "",
+    certifications: chefProfile.certifications || "",
+    eventsPerMonth: chefProfile.eventsPerMonth?.toString() || "",
+  })
+}
+
 export default function ChefProfilePage() {
   const [profile, setProfile] = useState<ChefProfile | null>(null)
   const [formData, setFormData] = useState({
     bio: "",
+    phone: "",
     experience: "",
     location: "",
     radius: "",
     profileImage: "",
+    chefType: "",
+    certifications: "",
+    eventsPerMonth: "",
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
 
@@ -52,67 +103,23 @@ export default function ChefProfilePage() {
   const fetchProfile = async () => {
     try {
       const response = await fetch("/api/chef/profile")
-      const data = await response.json()
+      const payload = (await response.json()) as ApiEnvelope<ChefProfile>
       
       if (!response.ok) {
-        if (data.needsProfile) {
-          // Profile doesn't exist, create a default one
-          await createDefaultProfile()
+        if (payload.needsProfile) {
+          setProfile(null)
           return
         }
-        throw new Error(data.error || "Failed to fetch profile")
+        throw new Error(payload.error?.message || "Failed to fetch profile")
       }
-      
-      setProfile(data)
-      setFormData({
-        bio: data.bio || "",
-        experience: data.experience?.toString() || "",
-        location: data.location || "",
-        radius: data.radius?.toString() || "",
-        profileImage: data.profileImage || "",
-      })
+
+      if (!payload.data) {
+        throw new Error("Failed to fetch profile")
+      }
+
+      applyProfileToForm(payload.data, setProfile, setFormData)
     } catch (err) {
       setError("Failed to load profile")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const createDefaultProfile = async () => {
-    try {
-      const defaultData = {
-        location: "New York, NY",
-        radius: 25,
-        bio: "Professional chef with a passion for creating memorable culinary experiences.",
-        experience: 5,
-      }
-
-      const response = await fetch("/api/chef/profile/create", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(defaultData),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || "Failed to create profile")
-      }
-
-      const newProfile = await response.json()
-      setProfile(newProfile)
-      setFormData({
-        bio: newProfile.bio || "",
-        experience: newProfile.experience?.toString() || "",
-        location: newProfile.location || "",
-        radius: newProfile.radius?.toString() || "",
-        profileImage: newProfile.profileImage || "",
-      })
-      setSuccess(true)
-      setTimeout(() => setSuccess(false), 3000)
-    } catch (err) {
-      setError("Failed to create profile. Please try again.")
     } finally {
       setLoading(false)
     }
@@ -131,15 +138,19 @@ export default function ChefProfilePage() {
 
     try {
       const submitData = {
+        phone: formData.phone || undefined,
         bio: formData.bio || undefined,
         experience: formData.experience ? parseInt(formData.experience) : undefined,
         location: formData.location,
         radius: parseFloat(formData.radius),
         profileImage: formData.profileImage || undefined,
+        chefType: formData.chefType || undefined,
+        certifications: formData.certifications || undefined,
+        eventsPerMonth: formData.eventsPerMonth ? parseInt(formData.eventsPerMonth) : undefined,
       }
 
-      const response = await fetch("/api/chef/profile", {
-        method: "PUT",
+      const response = await fetch(profile ? "/api/chef/profile" : "/api/chef/profile/create", {
+        method: profile ? "PUT" : "POST",
         headers: {
           "Content-Type": "application/json",
         },
@@ -147,17 +158,22 @@ export default function ChefProfilePage() {
       })
 
       if (!response.ok) {
-        const data = await response.json()
-        if (data.details) {
-          setError(data.details.map((d: any) => d.message).join(", "))
+        const payload = (await response.json()) as ApiEnvelope<ChefProfile>
+        if (payload.error?.details) {
+          setError(payload.error.details.map((d) => d.message).join(", "))
         } else {
-          setError(data.error || "Failed to update profile")
+          setError(payload.error?.message || "Failed to update profile")
         }
         return
       }
 
-      const updatedProfile = await response.json()
-      setProfile(updatedProfile)
+      const payload = (await response.json()) as ApiEnvelope<ChefProfile>
+      if (!payload.data) {
+        setError(profile ? "Failed to update profile" : "Failed to create profile")
+        return
+      }
+
+      applyProfileToForm(payload.data, setProfile, setFormData)
       setSuccess(true)
       setTimeout(() => setSuccess(false), 3000)
     } catch (err) {
@@ -170,25 +186,47 @@ export default function ChefProfilePage() {
   const calculateProfileCompletion = () => {
     if (!profile) return 0
     const fields = [
+      profile.phone,
       profile.bio,
       profile.experience,
       profile.location,
       profile.radius,
-      profile.profileImage
+      profile.profileImage,
+      profile.chefType,
+      profile.certifications,
+      profile.eventsPerMonth,
     ]
     const completed = fields.filter(field => field && field !== "").length
     return Math.round((completed / fields.length) * 100)
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      // For now, just create a preview URL
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, profileImage: reader.result as string }))
+      setUploadingImage(true)
+      setError("")
+
+      try {
+        const payload = new FormData()
+        payload.append("file", file)
+
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: payload,
+        })
+
+        if (!response.ok) {
+          const result = await response.json().catch(() => null)
+          throw new Error(result?.error || "Failed to upload profile image")
+        }
+
+        const result = await response.json()
+        setFormData((prev) => ({ ...prev, profileImage: result.url as string }))
+      } catch (uploadError) {
+        setError(uploadError instanceof Error ? uploadError.message : "Failed to upload profile image")
+      } finally {
+        setUploadingImage(false)
       }
-      reader.readAsDataURL(file)
     }
   }
 
@@ -208,6 +246,11 @@ export default function ChefProfilePage() {
           <p className="text-gray-500 dark:text-gray-400">
             Manage your professional information and service area
           </p>
+          {profile?.id ? (
+            <Button variant="outline" asChild>
+              <Link href={`/chefs/${profile.id}?preview=1`}>Preview public profile</Link>
+            </Button>
+          ) : null}
         </div>
 
         {/* Approval Status Alert */}
@@ -245,9 +288,11 @@ export default function ChefProfilePage() {
                       className="hidden"
                       accept="image/*"
                       onChange={handleImageUpload}
+                      disabled={uploadingImage}
                     />
                   </label>
                 </div>
+                {uploadingImage ? <p className="text-xs text-gray-500">Uploading profile image...</p> : null}
                 
                 {/* Name and Role */}
                 <div className="text-center mt-16">
@@ -323,13 +368,13 @@ export default function ChefProfilePage() {
           {/* Right Column - Main Content */}
           <div className="lg:col-span-2 w-full min-w-0 space-y-8">
             <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Basic Information Section */}
+              {/* Account Information Section */}
               <div className="w-full bg-white dark:bg-gray-900 border border-gray-200 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 p-6">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center">
                     <User className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Basic Information</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Account Information</h2>
                 </div>
                 
                 <div className="space-y-5">
@@ -353,6 +398,18 @@ export default function ChefProfilePage() {
                       className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 focus:scale-[1.01]"
                     />
                     <p className="text-xs text-gray-400 mt-1">Email cannot be changed here</p>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="phone" className="text-sm text-gray-500 dark:text-gray-300">Phone number</Label>
+                    <Input
+                      id="phone"
+                      name="phone"
+                      placeholder="e.g., +1 555 123 4567"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 focus:scale-[1.01]"
+                    />
                   </div>
                 </div>
               </div>
@@ -383,16 +440,16 @@ export default function ChefProfilePage() {
                 </div>
               </div>
 
-              {/* Experience & Service Section */}
+              {/* Professional Information Section */}
               <div className="w-full bg-white dark:bg-gray-900 border border-gray-200 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 p-6">
                 <div className="flex items-center gap-3 mb-6">
                   <div className="w-10 h-10 rounded-lg bg-green-50 dark:bg-green-900/20 flex items-center justify-center">
                     <Briefcase className="h-5 w-5 text-green-600 dark:text-green-400" />
                   </div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Experience & Service</h2>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Professional Information</h2>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                   <div>
                     <Label htmlFor="experience" className="text-sm text-gray-500 dark:text-gray-300">Years of Experience</Label>
                     <Input
@@ -402,6 +459,36 @@ export default function ChefProfilePage() {
                       min="0"
                       placeholder="e.g., 5"
                       value={formData.experience}
+                      onChange={handleChange}
+                      className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 focus:scale-[1.01]"
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="chefType" className="text-sm text-gray-500 dark:text-gray-300">Chef type</Label>
+                    <Select value={formData.chefType || undefined} onValueChange={(value) => setFormData((prev) => ({ ...prev, chefType: value }))}>
+                      <SelectTrigger className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white">
+                        <SelectValue placeholder="Select your chef type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PRIVATE_CHEF">Private Chef</SelectItem>
+                        <SelectItem value="EVENT_CHEF">Event Chef</SelectItem>
+                        <SelectItem value="MEAL_PREP">Meal Prep Specialist</SelectItem>
+                        <SelectItem value="CULINARY_INSTRUCTOR">Culinary Instructor</SelectItem>
+                        <SelectItem value="PASTRY_CHEF">Pastry Chef</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label htmlFor="eventsPerMonth" className="text-sm text-gray-500 dark:text-gray-300">Events per month</Label>
+                    <Input
+                      id="eventsPerMonth"
+                      name="eventsPerMonth"
+                      type="number"
+                      min="0"
+                      placeholder="e.g., 12"
+                      value={formData.eventsPerMonth}
                       onChange={handleChange}
                       className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 focus:scale-[1.01]"
                     />
@@ -423,6 +510,19 @@ export default function ChefProfilePage() {
                       className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 focus:scale-[1.01]"
                     />
                     <p className="text-xs text-gray-400 mt-1">How far are you willing to travel?</p>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <Label htmlFor="certifications" className="text-sm text-gray-500 dark:text-gray-300">Certifications</Label>
+                    <Textarea
+                      id="certifications"
+                      name="certifications"
+                      placeholder="List certifications separated by commas"
+                      value={formData.certifications}
+                      onChange={handleChange}
+                      rows={3}
+                      className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 focus:scale-[1.01]"
+                    />
                   </div>
                 </div>
               </div>

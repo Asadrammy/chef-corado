@@ -10,6 +10,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
+type ProposalErrorPayload = {
+  error?: string
+}
+
 interface ChefRequestDetailProps {
   request: any
   session: any
@@ -45,7 +49,7 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
         // Redirect back to requests list
         window.location.href = "/dashboard/chef/requests"
       } else {
-        const error = await response.json()
+        const error = (await response.json()) as ProposalErrorPayload
         alert(error.error || "Failed to send proposal")
       }
     } catch (error) {

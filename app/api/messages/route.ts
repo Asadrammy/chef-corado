@@ -1,121 +1,89 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { triggerMessageNotification } from '@/lib/notifications';
+import { apiSuccess } from '@/lib/api-response';
+import { getRequiredSession, getSessionUserId } from '@/lib/auth-helpers';
+import { ApiError, handleApiError } from '@/lib/error-handler';
+import { messageService } from '@/lib/services/message-service';
 
 const createMessageSchema = z.object({
   receiverId: z.string(),
   content: z.string().min(1).max(1000),
 });
 
+const createQuoteSchema = z.object({
+  action: z.literal('quote:create'),
+  receiverId: z.string(),
+  requestId: z.string(),
+  price: z.number().positive(),
+  message: z.string().min(1).max(2000),
+});
+
+const updateQuoteSchema = z.object({
+  action: z.literal('quote:update'),
+  receiverId: z.string(),
+  proposalId: z.string(),
+  price: z.number().positive(),
+  message: z.string().min(1).max(2000),
+});
+
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await getRequiredSession();
 
     const body = await request.json();
-    const { receiverId, content } = createMessageSchema.parse(body);
+    const senderId = getSessionUserId(session);
 
-    // Ensure sender can only send as themselves
-    const senderId = session.user.id;
+    if (body?.action === 'quote:create') {
+      const payload = createQuoteSchema.parse(body);
+      const result = await messageService.sendConversationQuote({
+        senderId,
+        receiverId: payload.receiverId,
+        requestId: payload.requestId,
+        price: payload.price,
+        message: payload.message,
+      });
 
-    // Verify receiver exists
-    const receiver = await prisma.user.findUnique({
-      where: { id: receiverId },
-      select: { id: true, name: true }
-    });
-
-    if (!receiver) {
-      return NextResponse.json({ error: 'Receiver not found' }, { status: 404 });
+      return apiSuccess(result, 201);
     }
 
-    const message = await (prisma as any).message.create({
-      data: {
+    if (body?.action === 'quote:update') {
+      const payload = updateQuoteSchema.parse(body);
+      const result = await messageService.updateConversationQuote({
         senderId,
-        receiverId,
-        content,
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        receiver: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-    });
+        receiverId: payload.receiverId,
+        proposalId: payload.proposalId,
+        price: payload.price,
+        message: payload.message,
+      });
 
-    await triggerMessageNotification(receiverId, message.sender.name ?? 'User');
+      return apiSuccess(result);
+    }
 
-    return NextResponse.json(message);
+    const { receiverId, content } = createMessageSchema.parse(body);
+    const message = await messageService.createMessage(senderId, receiverId, content);
+
+    return apiSuccess(message, 201);
   } catch (error) {
-    console.error('Error creating message:', error);
-    return NextResponse.json({ error: 'Failed to create message' }, { status: 500 });
+    return handleApiError(error, 'Messages POST');
   }
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await getRequiredSession();
 
     const { searchParams } = new URL(request.url);
     const otherUserId = searchParams.get('otherUserId');
 
     if (!otherUserId) {
-      return NextResponse.json({ error: 'Other user ID is required' }, { status: 400 });
+      throw new ApiError(400, 'Other user ID is required');
     }
 
-    // Users can only see messages they are part of
-    const userId = session.user.id;
+    const userId = getSessionUserId(session);
+    const messages = await messageService.listConversationMessages(userId, otherUserId);
 
-    const messages = await (prisma as any).message.findMany({
-      where: {
-        OR: [
-          {
-            senderId: userId,
-            receiverId: otherUserId,
-          },
-          {
-            senderId: otherUserId,
-            receiverId: userId,
-          },
-        ],
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        receiver: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'asc',
-      },
-    });
-
-    return NextResponse.json(messages);
+    return apiSuccess(messages);
   } catch (error) {
-    console.error('Error fetching messages:', error);
-    return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 });
+    return handleApiError(error, 'Messages GET');
   }
 }

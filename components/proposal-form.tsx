@@ -14,6 +14,11 @@ export type ProposalFormProps = {
   onSuccess?: () => void
 }
 
+type ProposalErrorPayload = {
+  error?: string
+  details?: Array<{ field?: string; message: string }>
+}
+
 export function ProposalForm({ requestId, onSuccess }: ProposalFormProps) {
   const [price, setPrice] = React.useState("")
   const [message, setMessage] = React.useState("")
@@ -37,7 +42,7 @@ export function ProposalForm({ requestId, onSuccess }: ProposalFormProps) {
       })
 
       if (!response.ok) {
-        const payload = await response.json().catch(() => null)
+        const payload = (await response.json().catch(() => null)) as ProposalErrorPayload | null
         const message = payload?.error || "Unable to send proposal"
         throw new Error(message)
       }

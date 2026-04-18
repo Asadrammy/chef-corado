@@ -17,6 +17,48 @@ import { UserActivationFlow } from "@/components/onboarding/UserActivationFlow"
 import { ConversionSignals } from "@/components/conversion/ConversionSignals"
 import { TrustSignals } from "@/components/trust/TrustSignals"
 
+type DashboardRequest = {
+  id: string
+  status?: string | null
+}
+
+type DashboardProposal = {
+  id: string
+  status: string
+}
+
+type DashboardBooking = {
+  id: string
+  status: string
+}
+
+type DashboardExperience = {
+  id: string
+  title: string
+  description: string
+  price: number
+  duration: number
+  experienceImage?: string | null
+  images?: string[]
+  category?: string | null
+  cuisineType?: string | null
+  eventType?: string | null
+  minGuests?: number | null
+  maxGuests?: number | null
+  pricePerPerson?: number | null
+  chef: {
+    id: string
+    user: {
+      name: string
+    }
+  }
+}
+
+type RequestsResponse = { requests: DashboardRequest[] }
+type ProposalsResponse = { proposals: DashboardProposal[] }
+type BookingsResponse = { bookings: DashboardBooking[] }
+type ExperiencesResponse = { experiences: DashboardExperience[] }
+
 export const metadata: Metadata = generateMeta({
   title: "Client Dashboard",
   description: "Manage requests, proposals, and bookings as a client in the chef marketplace.",
@@ -33,7 +75,10 @@ export default async function ClientDashboardPage() {
   const baseUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"
 
   // Fetch requests, proposals, and bookings with error handling
-  let requests = [], proposals = [], bookings = [], experiences = []
+  let requests: DashboardRequest[] = []
+  let proposals: DashboardProposal[] = []
+  let bookings: DashboardBooking[] = []
+  let experiences: DashboardExperience[] = []
   let hasError = false
   let errorMessage = ""
 
@@ -61,10 +106,10 @@ export default async function ClientDashboardPage() {
       hasError = true
       errorMessage = "Failed to fetch dashboard data"
     } else {
-      requests = ((await requestsResponse.json()) as { requests: any[] }).requests || []
-      proposals = ((await proposalsResponse.json()) as { proposals: any[] }).proposals || []
-      bookings = ((await bookingsResponse.json()) as { bookings: any[] }).bookings || []
-      experiences = ((await experiencesResponse.json()) as { experiences: any[] }).experiences || []
+      requests = ((await requestsResponse.json()) as RequestsResponse).requests || []
+      proposals = ((await proposalsResponse.json()) as ProposalsResponse).proposals || []
+      bookings = ((await bookingsResponse.json()) as BookingsResponse).bookings || []
+      experiences = ((await experiencesResponse.json()) as ExperiencesResponse).experiences || []
     }
   } catch (error) {
     hasError = true

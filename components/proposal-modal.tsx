@@ -42,6 +42,11 @@ export type ProposalModalProps = {
   children: React.ReactNode
 }
 
+type ProposalErrorPayload = {
+  error?: string
+  details?: Array<{ field?: string; message: string }>
+}
+
 export function ProposalModal({ request, onSuccess, children }: ProposalModalProps) {
   const [open, setOpen] = React.useState(false)
   const [price, setPrice] = React.useState("")
@@ -76,9 +81,10 @@ export function ProposalModal({ request, onSuccess, children }: ProposalModalPro
         onSuccess?.()
       } else {
         // ERROR
-        const errorMessage = data.error || data.message || "Failed to send proposal"
+        const payload = data as ProposalErrorPayload
+        const errorMessage = payload.error || "Failed to send proposal"
         const validationDetails = data.details ? 
-          data.details.map((d: any) => `${d.field}: ${d.message}`).join(', ') : 
+          payload.details?.map((d) => `${d.field}: ${d.message}`).join(', ') : 
           null
         const fullErrorMessage = validationDetails ? `${errorMessage}: ${validationDetails}` : errorMessage
         setError(fullErrorMessage)

@@ -8,6 +8,26 @@ import { AvailabilityCalendar } from "@/components/availability/availability-cal
 import { Calendar, Clock, TrendingUp, Users } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
+import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+
+interface AvailabilitySlot {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  maxBookings: number;
+  currentBookings: number;
+  recurringPattern?: string | null;
+}
+
+interface ChefBooking {
+  id: string;
+  eventDate: string;
+  status: string;
+  client?: {
+    name?: string | null;
+  };
+}
 
 interface AvailabilityStats {
   totalSlots: number;
@@ -23,31 +43,48 @@ export default function ChefAvailabilityPage() {
     bookedSlots: 0,
     upcomingBookings: 0,
   });
+  const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
+  const [bookings, setBookings] = useState<ChefBooking[]>([]);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    fetchAvailabilityData(currentMonth);
+  }, [currentMonth]);
 
-  const fetchStats = async () => {
+  const fetchAvailabilityData = async (monthDate: Date) => {
     try {
-      // Get current month availability
-      const currentMonth = new Date();
-      const monthStr = currentMonth.toISOString().slice(0, 7); // YYYY-MM
-      
-      const response = await axios.get(`/api/availability?month=${monthStr}`);
-      const availability = response.data || [];
-      
-      const totalSlots = availability.length;
-      const availableSlots = availability.reduce((sum: number, slot: any) => {
-        return sum + (slot.maxBookings - slot.currentBookings);
-      }, 0);
-      const bookedSlots = availability.reduce((sum: number, slot: any) => {
-        return sum + slot.currentBookings;
-      }, 0);
-      
-      // Get upcoming bookings (this would need to be implemented)
-      const upcomingBookings = 0; // Placeholder
+      const monthStr = format(monthDate, "yyyy-MM");
+      const [availabilityResponse, bookingsResponse] = await Promise.all([
+        axios.get(`/api/availability?month=${monthStr}`),
+        axios.get("/api/bookings/chef"),
+      ]);
+
+      const nextAvailability = (availabilityResponse.data || []) as AvailabilitySlot[];
+      const nextBookings = ((bookingsResponse.data?.bookings || []) as ChefBooking[]).map((booking) => ({
+        ...booking,
+        eventDate: typeof booking.eventDate === "string" ? booking.eventDate : new Date(booking.eventDate).toISOString(),
+      }));
+
+      const totalSlots = nextAvailability.length;
+      const availableSlots = nextAvailability.reduce((sum, slot) => sum + Math.max(slot.maxBookings - slot.currentBookings, 0), 0);
+      const bookedSlots = nextAvailability.reduce((sum, slot) => sum + slot.currentBookings, 0);
+      const upcomingWindowStart = startOfDay(new Date());
+      const upcomingWindowEnd = endOfDay(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+      const upcomingBookings = nextBookings.filter((booking) => {
+        if (!["PENDING", "CONFIRMED"].includes(booking.status)) {
+          return false;
+        }
+
+        const eventDate = new Date(booking.eventDate);
+        return isWithinInterval(eventDate, {
+          start: upcomingWindowStart,
+          end: upcomingWindowEnd,
+        });
+      }).length;
+
+      setAvailability(nextAvailability);
+      setBookings(nextBookings);
 
       setStats({
         totalSlots,
@@ -62,6 +99,16 @@ export default function ChefAvailabilityPage() {
       setLoading(false);
     }
   };
+
+  const handleAvailabilityChanged = () => {
+    fetchAvailabilityData(currentMonth);
+  };
+
+  const listViewSlots = [...availability].sort((a, b) => {
+    const left = `${a.date}T${a.startTime}`;
+    const right = `${b.date}T${b.startTime}`;
+    return left.localeCompare(right);
+  });
 
   if (loading) {
     return (
@@ -157,7 +204,9 @@ export default function ChefAvailabilityPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <AvailabilityCalendar />
+              <AvailabilityCalendar
+                onAvailabilityChanged={handleAvailabilityChanged}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -171,11 +220,32 @@ export default function ChefAvailabilityPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8 text-gray-500">
-                <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>List view coming soon</p>
-                <p className="text-sm">Use the calendar view to manage your availability</p>
-              </div>
+              {listViewSlots.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No time slots yet</p>
+                  <p className="text-sm">Add availability from the calendar tab to start accepting bookings.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {listViewSlots.map((slot) => (
+                    <div key={slot.id} className="rounded-xl border border-border/60 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="font-medium text-foreground">{format(new Date(`${slot.date}T00:00:00`), "EEE, MMM d, yyyy")}</p>
+                          <p className="text-sm text-muted-foreground">{slot.startTime} - {slot.endTime}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={slot.currentBookings === 0 ? "default" : slot.currentBookings < slot.maxBookings ? "secondary" : "destructive"}>
+                            {slot.currentBookings}/{slot.maxBookings} booked
+                          </Badge>
+                          {slot.recurringPattern ? <Badge variant="outline">{slot.recurringPattern}</Badge> : null}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

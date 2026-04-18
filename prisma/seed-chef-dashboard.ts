@@ -15,7 +15,11 @@ async function main() {
     where: { email: 'client@example.com' }
   });
 
-  let chef, client;
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email: 'admin@example.com' }
+  });
+
+  let chef, client, admin;
 
   // Create chef user if not exists
   if (!existingChef) {
@@ -73,6 +77,23 @@ async function main() {
   } else {
     client = existingClient;
     console.log('ℹ️ Client user already exists');
+  }
+
+  // Create admin user if not exists
+  if (!existingAdmin) {
+    const adminPassword = await bcrypt.hash('admin123', 10);
+    admin = await prisma.user.create({
+      data: {
+        name: 'Admin User',
+        email: 'admin@example.com',
+        password: adminPassword,
+        role: 'ADMIN',
+      },
+    });
+    console.log('✅ Created admin user');
+  } else {
+    admin = existingAdmin;
+    console.log('ℹ️ Admin user already exists');
   }
 
   // Get chef profile
@@ -309,6 +330,7 @@ async function main() {
   console.log(`📋 Available Requests: ${availableRequests}`);
   console.log(`⭐ Average Rating: 4.5`);
   console.log('\n👤 LOGIN CREDENTIALS:');
+  console.log('Admin: admin@example.com / admin123');
   console.log('Chef: chef@example.com / chef123');
   console.log('Client: client@example.com / client123');
 }

@@ -38,7 +38,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
   }
 
   const validatePassword = (password: string) => {
-    return password.trim().length >= 8
+    return password.trim().length >= 6
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,7 +66,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
         if (!trimmedValue) {
           setFieldErrors((prev) => ({ ...prev, password: "Password is required" }))
         } else if (!validatePassword(trimmedValue)) {
-          setFieldErrors((prev) => ({ ...prev, password: "Password must be at least 8 characters" }))
+          setFieldErrors((prev) => ({ ...prev, password: "Password must be at least 6 characters" }))
         } else {
           setFieldErrors((prev) => ({ ...prev, password: "" }))
         }
@@ -95,7 +95,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
       if (!trimmedValue) {
         setFieldErrors((prev) => ({ ...prev, password: "Password is required" }))
       } else if (!validatePassword(trimmedValue)) {
-        setFieldErrors((prev) => ({ ...prev, password: "Password must be at least 8 characters" }))
+        setFieldErrors((prev) => ({ ...prev, password: "Password must be at least 6 characters" }))
       } else {
         setFieldErrors((prev) => ({ ...prev, password: "" }))
       }
@@ -119,7 +119,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
     if (!trimmedPassword) {
       errors.password = "Password is required"
     } else if (!validatePassword(trimmedPassword)) {
-      errors.password = "Password must be at least 8 characters"
+      errors.password = "Password must be at least 6 characters"
     }
 
     setFieldErrors(errors)

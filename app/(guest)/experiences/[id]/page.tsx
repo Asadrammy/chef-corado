@@ -8,9 +8,46 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar, MapPin, Clock, Users, Star, ChefHat, DollarSign } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { BookNowButton } from "@/components/book-now-button";
 
 interface ExperiencePageProps {
   params: Promise<{ id: string }>;
+}
+
+// Interface to match the database query result
+interface ExperienceWithChef {
+  id: string;
+  title: string;
+  description: string;
+  cuisineType: string | null;
+  price: number;
+  duration: number;
+  maxGuests: number | null;
+  includedServices: string | null;
+  tags: string | null;
+  experienceImage: string | null;
+  chef: {
+    id: string;
+    radius: number;
+    experience: number | null;
+    cuisineType: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    isBanned: boolean;
+    userId: string;
+    bio: string | null;
+    location: string | null;
+    verified: boolean;
+    profileImage: string | null;
+    user: {
+      id: string;
+      name: string;
+      email: string;
+    };
+  };
+  _count: {
+    bookings: number;
+  };
 }
 
 export default async function ExperiencePage({ params }: ExperiencePageProps) {
@@ -44,6 +81,22 @@ export default async function ExperiencePage({ params }: ExperiencePageProps) {
   }
 
   const isOwner = session?.user?.id === experience.chef.userId;
+
+  // Create a safe experience object for BookNowButton
+  const safeExperience = {
+    id: experience.id,
+    title: experience.title,
+    price: experience.price,
+    duration: experience.duration,
+    maxGuests: experience.maxGuests,
+    chef: {
+      user: {
+        id: experience.chef.user.id,
+        name: experience.chef.user.name,
+      },
+      location: experience.chef.location,
+    },
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -202,11 +255,7 @@ export default async function ExperiencePage({ params }: ExperiencePageProps) {
                       </Link>
                     </Button>
                   ) : (
-                    <Button asChild className="w-full" size="lg">
-                      <Link href={`/dashboard/search?experienceId=${experience.id}`}>
-                        Book This Experience
-                      </Link>
-                    </Button>
+                    <BookNowButton experience={safeExperience} />
                   )
                 ) : (
                   <div className="space-y-2">

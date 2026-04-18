@@ -19,6 +19,8 @@ import {
   IconFileText, 
   IconCalendar, 
   IconUsers, 
+  IconMessageCircle,
+  IconHelp,
   IconCurrencyDollar, 
   IconSettings, 
   IconHome,
@@ -82,12 +84,17 @@ const getChefNavGroups = (pathname: string): NavGroup[] => [
     items: [
       createNavItem("Requests", "/dashboard/chef/requests", IconUsers, pathname),
       createNavItem("Bookings", "/dashboard/chef/bookings", IconCalendar, pathname),
+      createNavItem("Messages", "/dashboard/chef/messages", IconMessageCircle, pathname),
       createNavItem("Menus", "/dashboard/chef/menus", IconFileText, pathname),
     ],
   },
   {
     label: "Account",
-    items: [createNavItem("Profile", "/dashboard/chef/profile", IconChefHat, pathname)],
+    items: [
+      createNavItem("Profile", "/dashboard/chef/profile", IconChefHat, pathname),
+      createNavItem("Settings", "/dashboard/chef/settings", IconSettings, pathname),
+      createNavItem("Help Desk", "/dashboard/chef/help", IconHelp, pathname),
+    ],
   },
 ]
 
@@ -127,9 +134,12 @@ export function MarketplaceSidebar() {
   const navSecondary = [
     {
       title: "Settings",
-      url: "/dashboard/settings",
+      url: userRole === Role.CHEF ? "/dashboard/chef/settings" : "/dashboard/settings",
       icon: IconSettings,
-      isActive: pathname === "/dashboard/settings" || pathname.startsWith("/dashboard/settings/"),
+      isActive:
+        userRole === Role.CHEF
+          ? pathname === "/dashboard/chef/settings" || pathname.startsWith("/dashboard/chef/settings/")
+          : pathname === "/dashboard/settings" || pathname.startsWith("/dashboard/settings/"),
     },
     {
       title: "Logout",

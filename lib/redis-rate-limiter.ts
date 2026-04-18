@@ -250,6 +250,27 @@ export const rateLimitConfigs = {
     message: "Too many payment attempts. Please try again later."
   },
 
+  // Refund endpoints - very strict (financial risk)
+  refunds: {
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    maxRequests: 5, // 5 refund requests per 15 minutes
+    message: "Too many refund requests. Please contact support if needed."
+  },
+
+  // Dispute endpoints - strict (legal risk)
+  disputes: {
+    windowMs: 60 * 60 * 1000, // 1 hour
+    maxRequests: 3, // 3 disputes per hour
+    message: "Too many dispute requests. Please contact support if needed."
+  },
+
+  // Payout endpoints - moderate
+  payouts: {
+    windowMs: 60 * 60 * 1000, // 1 hour
+    maxRequests: 10, // 10 payout requests per hour
+    message: "Too many payout requests. Please try again later."
+  },
+
   // General API - lenient
   general: {
     windowMs: 15 * 60 * 1000, // 15 minutes

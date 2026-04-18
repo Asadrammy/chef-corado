@@ -6,6 +6,13 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { prisma } from "@/lib/prisma"
 import { Role } from "@/types"
 
+type AuthUser = {
+  id: string
+  name: string
+  email: string
+  role: Role
+}
+
 export const roleDashboardPath: Record<Role, string> = {
   [Role.CLIENT]: "/dashboard/client",
   [Role.CHEF]: "/dashboard/chef",
@@ -22,14 +29,7 @@ export const authOptions: AuthOptions = {
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        console.log("🔍 AUTH DEBUG - Authorize function called")
-        console.log("🔍 AUTH DEBUG - Credentials:", { 
-          email: credentials?.email, 
-          passwordLength: credentials?.password?.length 
-        })
-
         if (!credentials?.email || !credentials?.password) {
-          console.log("❌ AUTH DEBUG - Missing credentials")
           return null
         }
 
@@ -37,36 +37,24 @@ export const authOptions: AuthOptions = {
           where: { email: credentials.email.toLowerCase() },
         })
 
-        console.log("🔍 AUTH DEBUG - User found:", !!user)
-        if (user) {
-          console.log("🔍 AUTH DEBUG - User details:", {
-            id: user.id,
-            email: user.email,
-            role: user.role,
-            hasPassword: !!user.password
-          })
-        }
-
         if (!user) {
-          console.log("❌ AUTH DEBUG - User not found")
           return null
         }
 
         const isValidPassword = await compare(credentials.password, user.password)
-        console.log("🔍 AUTH DEBUG - Password match:", isValidPassword)
 
         if (!isValidPassword) {
-          console.log("❌ AUTH DEBUG - Invalid password")
           return null
         }
 
-        console.log("✅ AUTH DEBUG - Authentication successful")
-        return {
+        const authUser: AuthUser = {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role as Role,
-        } as any
+        }
+
+        return authUser
       },
     }),
   ],

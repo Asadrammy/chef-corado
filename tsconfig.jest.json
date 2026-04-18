@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "isolatedModules": false,
+    "types": ["jest", "node"],
+    "noEmit": true
+  },
+  "include": [
+    "jest.setup.ts",
+    "jest.setup.js",
+    "__tests__/**/*",
+    "lib/**/*",
+    "app/**/*"
+  ]
+}

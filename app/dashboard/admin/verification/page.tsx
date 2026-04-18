@@ -38,9 +38,9 @@ export default function AdminVerificationPage() {
       
       const newStats: VerificationStats = {
         total: chefs.length,
-        pending: chefs.filter((c: any) => !c.verified).length,
-        approved: chefs.filter((c: any) => c.verified).length,
-        rejected: 0, // Would need to track rejected status separately
+        pending: chefs.filter((c: any) => c.verificationStatus === 'PENDING').length,
+        approved: chefs.filter((c: any) => c.verificationStatus === 'APPROVED').length,
+        rejected: chefs.filter((c: any) => c.verificationStatus === 'REJECTED').length,
         avgCompletion: chefs.length > 0 
           ? Math.round(chefs.reduce((sum: number, c: any) => sum + c.profileCompletion, 0) / chefs.length)
           : 0,

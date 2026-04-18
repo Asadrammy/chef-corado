@@ -9,6 +9,7 @@ export interface ChatMessage {
   receiverId: string;
   content: string;
   createdAt: string;
+  isRead?: boolean;
   sender: ChatUser;
   receiver: ChatUser;
 }

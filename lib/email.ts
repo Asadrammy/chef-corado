@@ -1,4 +1,5 @@
 import { Resend } from 'resend'
+import { shouldSendNotification, type NotificationTopic } from '@/lib/notification-preferences'
 
 let resend: Resend | null = null
 
@@ -43,6 +44,43 @@ export async function sendEmail({ to, subject, html, from }: EmailData) {
     console.error('Email service error:', error)
     return { success: false, error }
   }
+}
+
+export async function sendPreferenceAwareEmail({
+  userId,
+  topic,
+  email,
+  subject,
+  html,
+  from,
+}: {
+  userId: string
+  topic: NotificationTopic
+  email?: string | null
+  subject: string
+  html: string
+  from?: string
+}) {
+  if (!email) {
+    console.log(`[EMAIL] Skipped - no email address for user ${userId}`)
+    return { success: false, error: 'Recipient email missing' }
+  }
+
+  const canSend = await shouldSendNotification(userId, 'email', topic)
+
+  if (!canSend) {
+    console.log(`[EMAIL] Skipped for user ${userId}, topic ${topic} - email preference disabled`)
+    return { success: false, error: 'Email preference disabled' }
+  }
+
+  console.log(`[EMAIL] Sending email to ${email} for user ${userId}, topic ${topic}`)
+
+  return sendEmail({
+    to: email,
+    subject,
+    html,
+    from,
+  })
 }
 
 // Email templates

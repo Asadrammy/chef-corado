@@ -22,6 +22,28 @@ interface ChatWindowProps {
 
 type ChatWindowStateMessage = ChatMessage & { pending?: boolean };
 
+interface ApiEnvelope<T> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+  };
+}
+
+interface ConversationPayload {
+  otherUser: {
+    id: string;
+    name: string | null;
+  } | null;
+  context: {
+    request: unknown;
+    activeProposal: unknown;
+    latestBooking: unknown;
+  };
+  messages: ChatMessage[];
+}
+
 export function ChatWindow({
   currentUserId,
   currentUserName,
@@ -35,6 +57,7 @@ export function ChatWindow({
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [connectionState, setConnectionState] = useState<'connecting' | 'open' | 'error'>('connecting');
+  const [loadError, setLoadError] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -54,10 +77,13 @@ export function ChatWindow({
       );
       const next = [...pendingFiltered, incoming];
       next.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-      return next;
+      return next.slice(-200);
     });
     lastMessageTimestampRef.current = incoming.createdAt;
   }, []);
+
+  const formatMessageTime = (value: string) =>
+    new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 
   const fetchMessages = useCallback(async () => {
     if (!currentUserId || !otherUserId) {
@@ -67,8 +93,9 @@ export function ChatWindow({
 
     try {
       setLoading(true);
+      setLoadError(null);
       const response = await fetch(
-        `/api/messages?userId=${currentUserId}&otherUserId=${otherUserId}`,
+        `/api/messages?otherUserId=${otherUserId}`,
         {
           method: 'GET',
           credentials: 'include',
@@ -76,14 +103,20 @@ export function ChatWindow({
         }
       );
       
-      if (!response.ok) throw new Error('Failed to fetch messages');
-      
-      const data: ChatMessage[] = await response.json();
-      const sorted = data.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-      setMessages(sorted);
-      lastMessageTimestampRef.current = sorted.length ? sorted[sorted.length - 1].createdAt : null;
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(payload?.error?.message || payload?.error || 'Failed to fetch messages');
+      }
+
+      const payload = (await response.json()) as ApiEnvelope<ConversationPayload>;
+      const data = payload.data?.messages ?? [];
+      const sorted = [...data].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      const windowed = sorted.slice(-200);
+      setMessages(windowed);
+      lastMessageTimestampRef.current = windowed.length ? windowed[windowed.length - 1].createdAt : null;
     } catch (error) {
       console.error('Error fetching messages:', error);
+      setLoadError(error instanceof Error ? error.message : 'Failed to load conversation');
     } finally {
       setLoading(false);
     }
@@ -165,9 +198,10 @@ export function ChatWindow({
     if (!newMessage.trim()) return;
 
     setSending(true);
+    const optimisticId = `pending-${Date.now()}`;
 
     const optimisticMessage: ChatWindowStateMessage = {
-      id: `pending-${Date.now()}`,
+      id: optimisticId,
       senderId: currentUserId,
       receiverId: otherUserId,
       content: newMessage.trim(),
@@ -205,6 +239,7 @@ export function ChatWindow({
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
+      setMessages((prev) => prev.filter((message) => message.id !== optimisticId));
       toast.error('Failed to send message');
     } finally {
       setSending(false);
@@ -221,6 +256,22 @@ export function ChatWindow({
     );
   }
 
+  if (loadError) {
+    return (
+      <Card className="h-[600px]">
+        <CardContent className="flex h-full flex-col items-center justify-center gap-4">
+          <div className="text-center">
+            <p className="font-medium">Unable to load conversation</p>
+            <p className="text-sm text-muted-foreground">{loadError}</p>
+          </div>
+          <Button type="button" variant="outline" onClick={() => fetchMessages()}>
+            Retry
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="h-[600px] flex flex-col">
       <CardHeader className="flex flex-row items-center gap-3 pb-3">
@@ -231,62 +282,86 @@ export function ChatWindow({
         )}
         <Avatar>
           <AvatarImage src={undefined} />
-          <AvatarFallback>{otherUserName.charAt(0).toUpperCase()}</AvatarFallback>
+          <AvatarFallback>{(otherUserName || '?').charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
         <CardTitle className="text-lg">{otherUserName}</CardTitle>
       </CardHeader>
 
       <CardContent className="flex-1 flex flex-col p-0">
         <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
-          <div className="space-y-4">
+          <div className="space-y-6">
             {messages.length === 0 ? (
               <div className="text-center text-muted-foreground py-8">
                 No messages yet. Start the conversation!
               </div>
             ) : (
-              messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={`flex gap-3 ${
-                    message.senderId === currentUserId ? 'justify-end' : 'justify-start'
-                  }`}
-                >
-                  {message.senderId !== currentUserId && (
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={undefined} />
-                      <AvatarFallback className="text-xs">
-                        {message.sender.name.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-                  <div
-                    className={`max-w-[70%] rounded-lg p-3 ${
-                      message.senderId === currentUserId
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-muted'
-                    }`}
-                  >
-                    <p className="text-sm">{message.content}</p>
-                    <p
-                      className={`text-xs mt-1 ${
-                        message.senderId === currentUserId
-                          ? 'text-primary-foreground/70'
-                          : 'text-muted-foreground'
+              messages.map((message, index) => {
+                const previous = messages[index - 1];
+                const isMine = message.senderId === currentUserId;
+                const showAvatar = !previous || previous.senderId !== message.senderId;
+                const showDivider =
+                  !previous ||
+                  new Date(message.createdAt).getTime() - new Date(previous.createdAt).getTime() > 1000 * 60 * 30;
+
+                return (
+                  <div key={message.id} className="space-y-2">
+                    {showDivider ? (
+                      <div className="flex justify-center">
+                        <span className="rounded-full border border-border/60 bg-background/80 px-3 py-1 text-[11px] font-medium text-muted-foreground">
+                          {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
+                        </span>
+                      </div>
+                    ) : null}
+                    <div
+                      className={`flex items-end gap-3 ${
+                        isMine ? 'justify-end' : 'justify-start'
                       }`}
                     >
-                      {formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })}
-                    </p>
+                      {!isMine && showAvatar ? (
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={undefined} />
+                          <AvatarFallback className="text-xs">
+                            {message.sender.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      ) : !isMine ? (
+                        <div className="h-8 w-8" />
+                      ) : null}
+                      <div
+                        className={`max-w-[72%] space-y-1 rounded-2xl px-4 py-3 shadow-sm ${
+                          isMine
+                            ? 'bg-primary text-primary-foreground'
+                            : 'bg-muted'
+                        } ${message.pending ? 'opacity-70' : ''}`}
+                      >
+                        <p className="text-sm leading-relaxed">{message.content}</p>
+                        <div
+                          className={`flex items-center justify-between gap-2 text-[11px] ${
+                            isMine ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                          }`}
+                        >
+                          <span>{formatMessageTime(message.createdAt)}</span>
+                          {isMine ? (
+                            <span className="font-medium">
+                              {message.pending ? 'Sending...' : message.isRead ? 'Read' : 'Delivered'}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      {isMine && showAvatar ? (
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={undefined} />
+                          <AvatarFallback className="text-xs">
+                            {message.sender.name.charAt(0).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                      ) : isMine ? (
+                        <div className="h-8 w-8" />
+                      ) : null}
+                    </div>
                   </div>
-                  {message.senderId === currentUserId && (
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={undefined} />
-                      <AvatarFallback className="text-xs">
-                        {message.sender.name.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </ScrollArea>

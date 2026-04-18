@@ -69,7 +69,7 @@ const bookingStatusMeta: Record<
   },
   COMPLETED: {
     label: "Completed",
-    className: "border-slate-300 bg-slate-100 text-slate-700",
+    className: "border-border bg-muted text-muted-foreground",
     isUpcoming: false,
   },
   CANCELLED: {
@@ -238,7 +238,7 @@ export function ClientBookingsList() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center gap-3 rounded-3xl border border-dashed border-slate-300/80 bg-white/80 px-6 py-12">
+      <div className="flex items-center justify-center gap-3 rounded-[28px] border border-dashed border-border/80 bg-background/50 px-6 py-12">
         <Spinner className="text-muted-foreground" />
         <p className="text-sm font-medium text-muted-foreground">Loading bookings…</p>
       </div>
@@ -247,7 +247,7 @@ export function ClientBookingsList() {
 
   if (error) {
     return (
-      <div className="rounded-2xl border border-rose-200 bg-rose-50 p-6 text-sm text-rose-700">
+      <div className="rounded-[28px] border border-destructive/60 bg-destructive/5 p-6 text-sm text-destructive">
         {error}
       </div>
     )
@@ -255,66 +255,66 @@ export function ClientBookingsList() {
 
   return (
     <div className="w-full space-y-8">
-      <section className="w-full grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        <div className="rounded-2xl border border-blue-100 bg-gradient-to-br from-white to-blue-50 p-5 shadow-sm transition-all hover:scale-[1.01] hover:shadow-md">
+      <section className="grid w-full gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="rounded-[24px] border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
           <div className="mb-3 flex items-start justify-between">
-            <p className="text-sm font-medium text-slate-600">Upcoming Bookings</p>
-            <div className="rounded-lg bg-blue-100 p-2 text-blue-700">
+            <p className="text-sm font-medium text-muted-foreground">Upcoming Bookings</p>
+            <div className="rounded-xl bg-primary/10 p-2 text-primary">
               <Clock3 className="h-4 w-4" />
             </div>
           </div>
-          <p className="text-3xl font-semibold text-slate-900">{upcomingCount}</p>
-          <p className="mt-1 text-xs text-slate-500">Including pending and confirmed events</p>
+          <p className="text-3xl font-semibold text-foreground">{upcomingCount}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Including pending and confirmed events</p>
         </div>
 
-        <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-white to-emerald-50 p-5 shadow-sm transition-all hover:scale-[1.01] hover:shadow-md">
+        <div className="rounded-[24px] border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
           <div className="mb-3 flex items-start justify-between">
-            <p className="text-sm font-medium text-slate-600">Completed Events</p>
-            <div className="rounded-lg bg-emerald-100 p-2 text-emerald-700">
+            <p className="text-sm font-medium text-muted-foreground">Completed Events</p>
+            <div className="rounded-xl bg-emerald-500/10 p-2 text-emerald-500">
               <CheckCircle2 className="h-4 w-4" />
             </div>
           </div>
-          <p className="text-3xl font-semibold text-slate-900">{completedCount}</p>
-          <p className="mt-1 text-xs text-slate-500">Successfully delivered experiences</p>
+          <p className="text-3xl font-semibold text-foreground">{completedCount}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Successfully delivered experiences</p>
         </div>
 
-        <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-white to-violet-50 p-5 shadow-sm transition-all hover:scale-[1.01] hover:shadow-md">
+        <div className="rounded-[24px] border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
           <div className="mb-3 flex items-start justify-between">
-            <p className="text-sm font-medium text-slate-600">Total Spent</p>
-            <div className="rounded-lg bg-violet-100 p-2 text-violet-700">
+            <p className="text-sm font-medium text-muted-foreground">Total Spent</p>
+            <div className="rounded-xl bg-violet-500/10 p-2 text-violet-500">
               <Wallet className="h-4 w-4" />
             </div>
           </div>
-          <p className="text-3xl font-semibold text-slate-900">{formatPrice(String(totalSpent))}</p>
-          <p className="mt-1 text-xs text-slate-500">From completed bookings</p>
+          <p className="text-3xl font-semibold text-foreground">{formatPrice(String(totalSpent))}</p>
+          <p className="mt-1 text-xs text-muted-foreground">From completed bookings</p>
         </div>
 
-        <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-white to-amber-50 p-5 shadow-sm transition-all hover:scale-[1.01] hover:shadow-md">
+        <div className="rounded-[24px] border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
           <div className="mb-3 flex items-start justify-between">
-            <p className="text-sm font-medium text-slate-600">Pending Bookings</p>
-            <div className="rounded-lg bg-amber-100 p-2 text-amber-700">
+            <p className="text-sm font-medium text-muted-foreground">Pending Bookings</p>
+            <div className="rounded-xl bg-amber-500/10 p-2 text-amber-500">
               <CalendarDays className="h-4 w-4" />
             </div>
           </div>
-          <p className="text-3xl font-semibold text-slate-900">{pendingCount}</p>
-          <p className="mt-1 text-xs text-slate-500">Awaiting final confirmation</p>
+          <p className="text-3xl font-semibold text-foreground">{pendingCount}</p>
+          <p className="mt-1 text-xs text-muted-foreground">Awaiting final confirmation</p>
         </div>
       </section>
 
       <section className="sticky top-3 z-10 flex flex-col gap-3 rounded-full border border-white/70 bg-white/80 px-4 py-3 shadow-md backdrop-blur lg:flex-row lg:items-center lg:gap-4">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchQuery}
             onChange={(event) => setSearchQuery(event.target.value)}
             placeholder="Search bookings..."
-            className="h-10 rounded-full border-slate-200/80 bg-white pl-10 shadow-sm"
+            className="h-10 rounded-full border-white/60 bg-white/80 pl-10 shadow-sm"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
           <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as FilterOption)}>
-            <SelectTrigger className="h-10 w-[170px] rounded-full border-slate-200/80 bg-white shadow-sm">
+            <SelectTrigger className="h-10 w-[170px] rounded-full border-white/60 bg-white/80 shadow-sm">
               <SelectValue placeholder="Filter" />
             </SelectTrigger>
             <SelectContent>
@@ -326,7 +326,7 @@ export function ClientBookingsList() {
           </Select>
 
           <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
-            <SelectTrigger className="h-10 w-[160px] rounded-full border-slate-200/80 bg-white shadow-sm">
+            <SelectTrigger className="h-10 w-[160px] rounded-full border-white/60 bg-white/80 shadow-sm">
               <SelectValue placeholder="Sort" />
             </SelectTrigger>
             <SelectContent>
@@ -339,30 +339,30 @@ export function ClientBookingsList() {
       </section>
 
       {!bookings.length ? (
-        <section className="grid gap-6 rounded-3xl border border-slate-200/80 bg-white/95 p-6 shadow-sm md:grid-cols-2 md:p-8">
+        <section className="grid gap-6 rounded-[30px] border border-white/60 bg-white/80 p-6 shadow-xl shadow-slate-900/5 backdrop-blur md:grid-cols-2 md:p-8">
           <div className="space-y-6">
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600">
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
                 <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                 Getting started
               </div>
-              <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
                 No bookings yet — let’s plan your first event
               </h2>
-              <p className="max-w-xl text-sm leading-relaxed text-slate-600">
+              <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
                 Start by creating a request. Chefs will send proposals, and once you accept one, your booking
                 will appear here.
               </p>
             </div>
 
-            <ul className="space-y-3 text-sm text-slate-700">
+            <ul className="space-y-3 text-sm text-muted-foreground">
               {[
                 "Create a request",
                 "Receive proposals",
                 "Confirm booking",
               ].map((item, index) => (
                 <li key={item} className="flex items-center gap-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-600">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
                     {index + 1}
                   </span>
                   <span>{item}</span>
@@ -380,18 +380,18 @@ export function ClientBookingsList() {
             <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-white/10" />
             <div className="absolute -bottom-14 -left-10 h-32 w-32 rounded-full bg-indigo-300/20" />
             <div className="relative space-y-4">
-              <p className="text-xs uppercase tracking-[0.3em] text-slate-200">Booking pipeline</p>
+              <p className="text-xs uppercase tracking-[0.3em] text-white/60">Booking pipeline</p>
               <h3 className="text-xl font-semibold">Your Event Command Center</h3>
-              <p className="max-w-sm text-sm text-slate-200">
+              <p className="max-w-sm text-sm text-white/80">
                 This is where your confirmed bookings, timelines, and chef coordination come together.
               </p>
             </div>
           </div>
         </section>
       ) : !filteredBookings.length ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <p className="text-sm font-medium text-slate-900">No bookings match this search or filter.</p>
-          <p className="mt-1 text-sm text-slate-500">Try adjusting your keywords, status, or sorting options.</p>
+        <div className="rounded-[24px] border border-white/60 bg-white/80 p-8 text-center shadow-sm">
+          <p className="text-sm font-medium text-foreground">No bookings match this search or filter.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Try adjusting your keywords, status, or sorting options.</p>
         </div>
       ) : (
         <section className="w-full grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -402,29 +402,29 @@ export function ClientBookingsList() {
             return (
               <article
                 key={booking.id}
-                className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition-all hover:-translate-y-1 hover:scale-[1.01] hover:shadow-lg"
+                className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl"
               >
                 <div className="mb-5 flex items-start justify-between gap-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-900">
+                    <h3 className="text-lg font-semibold text-foreground">
                       {booking.chef?.user?.name ?? "Chef"}
                     </h3>
-                    <p className="mt-1 text-sm text-slate-500">{eventType}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{eventType}</p>
                   </div>
                   <Badge className={status.className}>{status.label}</Badge>
                 </div>
 
-                <div className="space-y-3 text-sm text-slate-600">
+                <div className="space-y-3 text-sm text-muted-foreground">
                   <div className="flex items-start gap-2">
-                    <CalendarDays className="mt-0.5 h-4 w-4 text-slate-400" />
+                    <CalendarDays className="mt-0.5 h-4 w-4 text-muted-foreground" />
                     <span>{formatDate(booking.proposal?.request?.eventDate ?? booking.createdAt)}</span>
                   </div>
                   <div className="flex items-start gap-2">
-                    <MapPin className="mt-0.5 h-4 w-4 text-slate-400" />
+                    <MapPin className="mt-0.5 h-4 w-4 text-muted-foreground" />
                     <span>{booking.proposal?.request?.location ?? "Location TBD"}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                    <DollarSign className="h-4 w-4 text-slate-500" />
+                  <div className="flex items-center gap-2 text-base font-semibold text-foreground">
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
                     <span>{formatPrice(booking.totalPrice)}</span>
                   </div>
                 </div>

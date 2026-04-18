@@ -4,11 +4,12 @@ import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import Link from "next/link";
+import { BookingStatus } from "@/types";
 
 interface Booking {
   id: string;
   totalPrice: number;
-  status: string;
+  status: BookingStatus;
   createdAt: string;
   client: {
     name: string;
@@ -23,17 +24,20 @@ interface Booking {
       title: string;
     };
   };
+  experience?: {
+    title: string;
+  };
 }
 
-const getStatusColor = (status: string) => {
+const getStatusColor = (status: BookingStatus) => {
   switch (status) {
-    case "COMPLETED":
+    case BookingStatus.COMPLETED:
       return "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400";
-    case "CONFIRMED":
+    case BookingStatus.CONFIRMED:
       return "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400";
-    case "PENDING":
+    case BookingStatus.PENDING:
       return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400";
-    case "CANCELLED":
+    case BookingStatus.CANCELLED:
       return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400";
     default:
       return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400";
@@ -110,12 +114,12 @@ export function RecentBookings() {
     queryFn: async () => {
       if (!userId || !userRole) throw new Error("User not authenticated");
       
-      let url = `/api/bookings?limit=5`;
-      if (userRole !== "ADMIN") {
-        url += `&userId=${userId}&role=${userRole}`;
-      }
+      const url = `/api/bookings?limit=5`;
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        cache: "no-store",
+        credentials: "include",
+      });
       if (!response.ok) throw new Error("Failed to fetch bookings");
       return response.json();
     },
@@ -298,7 +302,7 @@ export function RecentBookings() {
                     </div>
                   </td>
                   <td className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                    {booking.proposal?.menu?.title || "Custom Menu"}
+                    {booking.proposal?.menu?.title || booking.experience?.title || "Custom Menu"}
                   </td>
                   <td className="py-3 text-gray-900 font-medium text-theme-sm dark:text-white">
                     ${booking.totalPrice.toLocaleString()}

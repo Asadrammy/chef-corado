@@ -10,6 +10,7 @@ export type ChefRequestRow = {
   location: string
   budget: number
   details: string | null
+  distanceKm?: number
 }
 
 export function ChefRequestTable({

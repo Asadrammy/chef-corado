@@ -1,102 +1,77 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { geocodeAddress } from "@/lib/geo"
 import { z } from "zod"
 
+import { apiSuccess } from "@/lib/api-response"
+import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
+import { handleApiError } from "@/lib/error-handler"
+import { chefProfileService } from "@/lib/services/chef-profile-service"
+import { Role } from "@/types"
+
 const profileSchema = z.object({
+  phone: z.string().min(7, "Phone must be at least 7 characters").optional(),
   bio: z.string().optional(),
   experience: z.number().int().min(0).optional(),
   location: z.string().min(1, "Location is required"),
   radius: z.number().min(1, "Radius must be at least 1 km").max(500, "Radius cannot exceed 500 km"),
   profileImage: z.string().url().optional(),
+  chefType: z.string().optional(),
+  certifications: z.string().optional(),
+  eventsPerMonth: z.number().int().min(0).optional(),
+  stripeAccountId: z.string().optional(),
+  stripeOnboardingComplete: z.boolean().optional(),
 })
 
 // GET chef profile
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    if (session.user.role !== "CHEF") {
-      return NextResponse.json({ error: "Only chefs can access profile" }, { status: 403 })
-    }
-
-    const chefProfile = await prisma.chefProfile.findUnique({
-      where: { userId: session.user.id },
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
-      },
-    })
+    const session = await getRequiredSession(Role.CHEF)
+    const userId = getSessionUserId(session)
+    const chefProfile = await chefProfileService.getByUserId(userId)
 
     if (!chefProfile) {
-      return NextResponse.json({ 
-        error: "Chef profile not found. Please create your chef profile first.",
-        needsProfile: true 
-      }, { status: 404 })
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "NOT_FOUND",
+            message: "Chef profile not found. Please create your chef profile first.",
+          },
+          needsProfile: true,
+          userId,
+        },
+        { status: 404 }
+      )
     }
 
-    return NextResponse.json(chefProfile)
+    return apiSuccess(chefProfile)
   } catch (error) {
-    console.error("Error fetching chef profile:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "USER_NOT_FOUND",
+            message: "Your session has expired. Please log out and log back in.",
+          },
+        },
+        { status: 401 }
+      )
+    }
+
+    return handleApiError(error, "Chef Profile GET")
   }
 }
 
 // PUT chef profile
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    if (session.user.role !== "CHEF") {
-      return NextResponse.json({ error: "Only chefs can update profile" }, { status: 403 })
-    }
-
+    const session = await getRequiredSession(Role.CHEF)
     const body = await request.json()
     const validatedData = profileSchema.parse(body)
-    const coordinates = await geocodeAddress(validatedData.location)
+    const updatedProfile = await chefProfileService.update(getSessionUserId(session), validatedData)
 
-    const updatedProfile = await prisma.chefProfile.update({
-      where: { userId: session.user.id },
-      data: {
-        ...validatedData,
-        latitude: coordinates?.latitude ?? null,
-        longitude: coordinates?.longitude ?? null,
-      },
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
-          },
-        },
-      },
-    })
-
-    return NextResponse.json(updatedProfile)
+    return apiSuccess(updatedProfile)
   } catch (error) {
-    console.error("Error updating chef profile:", error)
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Validation failed", details: error.errors },
-        { status: 400 }
-      )
-    }
-
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error, "Chef Profile PUT")
   }
 }

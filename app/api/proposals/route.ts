@@ -1,20 +1,13 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
-import { prisma } from "@/lib/prisma"
-import { authOptions } from "@/lib/auth"
-import { getServerSession } from "next-auth"
-import { Prisma } from "@prisma/client"
-import { ProposalStatus, BookingStatus, Role } from "@/types"
+import { apiError } from "@/lib/api-response"
+import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
+import { handleApiError } from "@/lib/error-handler"
+import { proposalService } from "@/lib/services/proposal-service"
+import { ProposalStatus, Role } from "@/types"
 import { applyRateLimit } from "@/lib/redis-rate-limiter"
-import { SecurityUtils, secureSchemas, sanitizeError, securityHeaders } from "@/lib/security"
-import {
-  triggerProposalNotification,
-  triggerProposalAcceptedNotification,
-  triggerProposalRejectedNotification,
-  triggerBookingCreatedNotification,
-} from "@/lib/notifications"
-import { sendEmail, emailTemplates } from "@/lib/email"
+import { secureSchemas, securityHeaders } from "@/lib/security"
 
 const proposalSchema = z.object({
   requestId: z.string().cuid().min(1, "Request ID is required"),
@@ -34,24 +27,11 @@ export async function POST(request: Request) {
     return rateLimitResult.response
   }
 
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id || session.user.role !== Role.CLIENT && session.user.role !== Role.CHEF) {
+  let session
+  try {
+    session = await getRequiredSession(Role.CHEF)
+  } catch {
     const response = NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    Object.entries(securityHeaders).forEach(([key, value]) => {
-      response.headers.set(key, value)
-    })
-    return response
-  }
-
-  const userId = session.user.id
-
-  // Get chef profile
-  const chefProfile = await prisma.chefProfile.findUnique({
-    where: { userId },
-  })
-
-  if (!chefProfile) {
-    const response = NextResponse.json({ error: "Chef profile not found" }, { status: 404 })
     Object.entries(securityHeaders).forEach(([key, value]) => {
       response.headers.set(key, value)
     })
@@ -82,52 +62,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const targetRequest = await prisma.request.findUnique({
-      where: { id: body.requestId },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-    })
-    if (!targetRequest) {
-      const response = NextResponse.json({ error: "Request not found" }, { status: 404 })
-      Object.entries(securityHeaders).forEach(([key, value]) => {
-        response.headers.set(key, value)
-      })
-      return response
-    }
-
-    const created = await prisma.proposal.create({
-      data: {
-        request: { connect: { id: body.requestId } },
-        chef: { connect: { id: chefProfile.id } },
-        price: body.price,
-        message: body.message,
-        status: "PENDING",
-      },
-    })
-
-    // Send email notification to client
-    await sendEmail({
-      to: targetRequest.client.email || `${targetRequest.client.id}@example.com`,
-      subject: `New Proposal Received for ${targetRequest.title}`,
-      html: emailTemplates.newProposal(
-        targetRequest.client.name,
-        session.user.name || "Chef",
-        body.price,
-        targetRequest.title
-      ),
-    }).catch(error => {
-      console.error('Failed to send proposal email to client:', targetRequest.client.email, error)
-      // Don't fail the request if email fails
-    })
-
-    await triggerProposalNotification(targetRequest.clientId, session.user.name ?? "Chef")
+    const created = await proposalService.createProposal(
+      getSessionUserId(session),
+      session.user.name,
+      body
+    )
     
     const response = NextResponse.json(created)
     Object.entries(securityHeaders).forEach(([key, value]) => {
@@ -135,11 +74,24 @@ export async function POST(request: Request) {
     })
     return response
 
-  } catch (error: any) {
-    console.error('Proposal creation error:', error)
-    const response = NextResponse.json({ 
-      error: sanitizeError(error)
-    }, { status: 500 })
+  } catch (error) {
+    if (error instanceof Error && error.message === "CHEF_PROFILE_NOT_FOUND") {
+      const response = NextResponse.json({ error: "Chef profile not found" }, { status: 404 })
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
+    if (error instanceof Error && error.message === "REQUEST_NOT_FOUND") {
+      const response = NextResponse.json({ error: "Request not found" }, { status: 404 })
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
+    const response = handleApiError(error, "Proposals POST")
     Object.entries(securityHeaders).forEach(([key, value]) => {
       response.headers.set(key, value)
     })
@@ -148,41 +100,17 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id || !session.user.role) {
+  let session
+  try {
+    session = await getRequiredSession()
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const role = session.user.role
-  const userId = session.user.id
-
-  // Get chef profile ID if user is a chef
-  let chefProfileId: string | undefined;
-  if (role === Role.CHEF) {
-    const chefProfile = await prisma.chefProfile.findUnique({
-      where: { userId: userId },
-    });
-    chefProfileId = chefProfile?.id;
-  }
-
-  const proposals =
-    role === Role.CHEF && chefProfileId
-      ? await prisma.proposal.findMany({
-          where: { chefId: chefProfileId },
-          orderBy: { createdAt: "desc" },
-          include: {
-            request: true,
-            chef: true,
-          },
-        })
-      : await prisma.proposal.findMany({
-          where: { request: { clientId: userId } },
-          orderBy: { createdAt: "desc" },
-          include: {
-            request: true,
-            chef: true,
-          },
-        })
+  const proposals = await proposalService.listProposals(
+    getSessionUserId(session),
+    session.user.role
+  )
 
   return NextResponse.json({ proposals })
 }
@@ -194,8 +122,10 @@ export async function PATCH(request: Request) {
     return rateLimitResult.response
   }
 
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id || session.user.role !== Role.CLIENT) {
+  let session
+  try {
+    session = await getRequiredSession(Role.CLIENT)
+  } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -210,89 +140,27 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 })
   }
 
-  const existing = await prisma.proposal.findUnique({
-    where: { id: body.proposalId },
-    include: {
-      request: {
-        include: {
-          client: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-        },
-      },
-    },
-  })
+  try {
+    const updated = await proposalService.resolveProposal(
+      getSessionUserId(session),
+      body.proposalId,
+      body.status
+    )
 
-  if (!existing) {
-    return NextResponse.json({ error: "Proposal not found" }, { status: 404 })
-  }
-
-  if (existing.request.clientId !== session.user.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  if (existing.status !== ProposalStatus.PENDING) {
-    return NextResponse.json({ error: "Proposal already resolved" }, { status: 400 })
-  }
-
-  const clientName = existing.request.client?.name ?? "Client"
-
-  if (body.status === ProposalStatus.ACCEPTED) {
-    const updated = await prisma.$transaction(async (tx: any) => {
-      const accepted = await tx.proposal.update({
-        where: { id: body.proposalId },
-        data: { status: ProposalStatus.ACCEPTED },
-        include: { chef: true, request: true },
-      })
-
-      // Reject all other proposals for this request
-      await tx.proposal.updateMany({
-        where: {
-          requestId: existing.requestId,
-          id: { not: body.proposalId },
-          status: ProposalStatus.PENDING,
-        },
-        data: { status: ProposalStatus.REJECTED },
-      })
-
-      // CRITICAL SECURITY FIX: DO NOT create booking here
-      // Booking will ONLY be created after payment confirmation via webhook
-      // This prevents fraud and ensures payment is actually received
-
-      return accepted
-    })
-
-    // Send email notification to chef for proposal acceptance
-    const chefUser = await prisma.user.findUnique({
-      where: { id: updated.chef.userId },
-      select: { email: true, name: true }
-    })
-
-    if (chefUser?.email) {
-      await sendEmail({
-        to: chefUser.email,
-        subject: `Proposal Accepted! 🎉`,
-        html: emailTemplates.proposalAccepted(
-          chefUser.name,
-          clientName,
-          updated.request.title
-        ),
-      }).catch(error => console.error('Failed to send proposal acceptance email:', error))
+    return NextResponse.json({ proposal: updated })
+  } catch (error) {
+    if (error instanceof Error && error.message === "PROPOSAL_NOT_FOUND") {
+      return NextResponse.json({ error: "Proposal not found" }, { status: 404 })
     }
 
-    await triggerProposalAcceptedNotification(updated.chefId, clientName)
-    return NextResponse.json({ proposal: updated })
+    if (error instanceof Error && error.message === "PROPOSAL_ALREADY_RESOLVED") {
+      return NextResponse.json({ error: "Proposal already resolved" }, { status: 400 })
+    }
+
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    return handleApiError(error, "Proposals PATCH")
   }
-
-  const updated = await prisma.proposal.update({
-    where: { id: body.proposalId },
-    data: { status: ProposalStatus.REJECTED },
-    include: { chef: true, request: true },
-  })
-
-  await triggerProposalRejectedNotification(updated.chefId, clientName)
-  return NextResponse.json({ proposal: updated })
 }

@@ -15,6 +15,20 @@ import { useSession } from 'next-auth/react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { analytics } from '@/lib/analytics';
 
+interface ApiErrorPayload {
+  error?: string;
+}
+
+interface CheckoutResponsePayload {
+  success: boolean;
+  data?: {
+    url?: string | null;
+  };
+  error?: {
+    message: string;
+  };
+}
+
 interface BookingDetails {
   id: string;
   totalPrice: number;
@@ -39,17 +53,17 @@ interface BookingDetails {
       email: string;
     };
   };
-  proposal: {
+  proposal?: {
     id: string;
     price: number;
     message: string | null;
-    menu: {
+    menu?: {
       id: string;
       title: string;
       description: string | null;
       price: number;
     } | null;
-  };
+  } | null;
   payments?: {
     id: string;
     totalAmount: number;
@@ -97,7 +111,7 @@ export default function BookingDetailsPage() {
         throw new Error('Failed to fetch booking');
       }
       
-      const data = await response.json();
+      const data = (await response.json()) as BookingDetails;
       setBooking(data);
     } catch (error) {
       console.error('Error fetching booking:', error);
@@ -120,7 +134,7 @@ export default function BookingDetailsPage() {
 
       if (!response.ok) throw new Error('Failed to update booking');
 
-      const updatedBooking = await response.json();
+      const updatedBooking = (await response.json()) as BookingDetails;
       setBooking(updatedBooking);
       toast.success(`Booking ${newStatus.toLowerCase()}`);
     } catch (error) {
@@ -201,21 +215,25 @@ export default function BookingDetailsPage() {
 
   const handlePayNow = async () => {
     try {
+      if (!booking.proposal?.id) {
+        throw new Error('No accepted proposal is attached to this booking');
+      }
+
       const response = await fetch('/api/payments/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookingId: booking.id }),
+        body: JSON.stringify({ proposalId: booking.proposal.id }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const errorData = (await response.json().catch(() => ({}))) as ApiErrorPayload;
         throw new Error(errorData.error || 'Failed to initiate payment');
       }
 
-      const data = await response.json();
-      if (data.url) {
+      const data = (await response.json()) as CheckoutResponsePayload;
+      if (data.data?.url) {
         analytics.track('payment_completed', currentUserId || undefined, { bookingId: booking.id, amount: booking.totalPrice });
-        window.location.href = data.url;
+        window.location.href = data.data.url;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to process payment. Please try again.';
@@ -291,47 +309,72 @@ export default function BookingDetailsPage() {
           </Card>
 
           {/* Proposal Details */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Proposal Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {booking.proposal.menu && (
-                <div>
-                  <h4 className="font-medium mb-2">Menu: {booking.proposal.menu.title}</h4>
-                  {booking.proposal.menu.description && (
-                    <p className="text-sm text-muted-foreground mb-2">
-                      {booking.proposal.menu.description}
-                    </p>
-                  )}
+          {booking.proposal ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Proposal Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {booking.proposal?.menu && (
+                  <div>
+                    <h4 className="font-medium mb-2">Menu: {booking.proposal.menu.title}</h4>
+                    {booking.proposal.menu.description && (
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {booking.proposal.menu.description}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      <span className="font-medium">${booking.proposal.menu.price}</span>
+                    </div>
+                  </div>
+                )}
+                
+                {booking.proposal?.message && (
+                  <div>
+                    <h4 className="font-medium mb-2">Message from Chef</h4>
+                    <p className="text-sm text-muted-foreground">{booking.proposal.message}</p>
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-4 pt-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    <span className="text-sm">
+                      {formatDistanceToNow(new Date(booking.createdAt), { addSuffix: true })}
+                    </span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <DollarSign className="h-4 w-4" />
-                    <span className="font-medium">${booking.proposal.menu.price}</span>
+                    <span className="font-medium">${booking.proposal?.price || booking.totalPrice}</span>
                   </div>
                 </div>
-              )}
-              
-              {booking.proposal.message && (
-                <div>
-                  <h4 className="font-medium mb-2">Message from Chef</h4>
-                  <p className="text-sm text-muted-foreground">{booking.proposal.message}</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Booking Details</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-4 pt-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    <span className="text-sm">
+                      {formatDistanceToNow(new Date(booking.createdAt), { addSuffix: true })}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4" />
+                    <span className="font-medium">${booking.totalPrice}</span>
+                  </div>
                 </div>
-              )}
-              
-              <div className="flex items-center gap-4 pt-2">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  <span className="text-sm">
-                    {formatDistanceToNow(new Date(booking.createdAt), { addSuffix: true })}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" />
-                  <span className="font-medium">${booking.totalPrice}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                <p className="text-sm text-muted-foreground">
+                  This is an instant booking experience.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Payment Status */}
           <Card>

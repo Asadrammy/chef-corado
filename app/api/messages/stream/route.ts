@@ -54,18 +54,42 @@ export async function GET(request: NextRequest) {
       const hasBusinessRelationship = await prisma.booking.findFirst({
         where: {
           OR: [
-            { clientId: userId, chefId: otherUserId },
-            { clientId: otherUserId, chefId: userId },
+            {
+              clientId: userId,
+              chef: {
+                userId: otherUserId,
+              },
+            },
+            {
+              clientId: otherUserId,
+              chef: {
+                userId: userId,
+              },
+            },
           ],
         },
       });
 
       const hasProposalRelationship = await prisma.proposal.findFirst({
         where: {
-          request: {
-            clientId: userId,
-          },
-          chefId: otherUserId,
+          OR: [
+            {
+              request: {
+                clientId: userId,
+              },
+              chef: {
+                userId: otherUserId,
+              },
+            },
+            {
+              request: {
+                clientId: otherUserId,
+              },
+              chef: {
+                userId: userId,
+              },
+            },
+          ],
         },
       });
 

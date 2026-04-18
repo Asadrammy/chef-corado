@@ -15,17 +15,22 @@ export type RequestRow = {
 export function RequestTable({ data }: { data: RequestRow[] }) {
   if (!data.length) {
     return (
-      <div className="text-center py-12">
-        <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-        <h3 className="text-lg font-semibold mb-2">No requests yet</h3>
-        <p className="text-muted-foreground mb-4">
-          Start by creating your first event request to get proposals from chefs.
-        </p>
-        <Link href="/dashboard/client/create-request">
-          <Button>
-            Create Your First Request <ArrowRight className="ml-2 h-4 w-4" />
-          </Button>
-        </Link>
+      <div className="rounded-[28px] border border-white/60 bg-white/72 py-12 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
+        <div className="mx-auto flex max-w-xl flex-col items-center text-center">
+          <div className="from-primary/15 to-background text-primary mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br shadow-sm">
+            <FileText className="h-9 w-9" />
+          </div>
+          <h3 className="text-2xl font-semibold tracking-tight text-foreground">No requests yet</h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Start by creating your first event request to receive chef proposals.
+          </p>
+          <Link href="/dashboard/client/create-request" className="mt-6">
+            <Button className="h-11 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+              Create Your First Request
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </Link>
+        </div>
       </div>
     )
   }

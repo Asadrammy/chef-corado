@@ -25,13 +25,13 @@ export function ChefBookingsControlPanel({
   onSortByChange,
 }: ChefBookingsControlPanelProps) {
   return (
-    <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
+    <Card className="rounded-[30px] border border-white/60 bg-white/72 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
       <CardHeader className="space-y-1 pb-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1.5">
-            <div className="text-primary inline-flex w-fit items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-xs font-medium shadow-sm">
+            <div className="text-primary inline-flex w-fit items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] shadow-sm">
               <Sparkles className="h-3.5 w-3.5" />
-              Search and filter
+              Workspace controls
             </div>
             <CardTitle className="text-foreground text-xl font-semibold tracking-tight">
               Booking controls
@@ -43,19 +43,19 @@ export function ChefBookingsControlPanel({
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_220px_220px_auto] xl:items-center">
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.35fr)_220px_220px_auto] xl:items-center">
           <div className="group relative w-full">
             <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-foreground" />
             <Input
               placeholder="Search by client, location, or event notes..."
               value={searchQuery}
               onChange={(event) => onSearchQueryChange(event.target.value)}
-              className="h-11 rounded-xl border-border/60 bg-muted/30 pl-10 shadow-sm transition-all duration-200 focus-visible:border-border focus-visible:bg-background focus-visible:shadow-md focus-visible:shadow-black/5"
+              className="h-12 rounded-2xl border-white/70 bg-white/80 pl-10 shadow-sm backdrop-blur transition-all duration-200 focus-visible:border-white focus-visible:bg-white focus-visible:shadow-md focus-visible:shadow-black/5 dark:border-white/10 dark:bg-white/5"
             />
           </div>
 
           <Select value={statusFilter} onValueChange={onStatusFilterChange}>
-            <SelectTrigger className="h-11 w-full rounded-2xl border-white/70 bg-background/70 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
+            <SelectTrigger className="h-12 w-full rounded-2xl border-white/70 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5">
               <Filter className="mr-2 h-4 w-4" />
               <SelectValue placeholder="Status" />
             </SelectTrigger>
@@ -69,7 +69,7 @@ export function ChefBookingsControlPanel({
           </Select>
 
           <Select value={sortBy} onValueChange={onSortByChange}>
-            <SelectTrigger className="h-11 w-full rounded-2xl border-white/70 bg-background/70 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
+            <SelectTrigger className="h-12 w-full rounded-2xl border-white/70 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5">
               <ArrowUpDown className="mr-2 h-4 w-4" />
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
@@ -82,7 +82,7 @@ export function ChefBookingsControlPanel({
 
           <Button
             variant="outline"
-            className="h-11 rounded-2xl border-white/70 bg-background/70 px-4 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-background dark:border-white/10 dark:bg-background/10 dark:hover:bg-background/15"
+            className="h-12 rounded-2xl border-white/70 bg-white/80 px-4 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
           >
             <SlidersHorizontal className="h-4 w-4" />
             Filters active

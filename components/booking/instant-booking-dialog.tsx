@@ -99,9 +99,26 @@ export function InstantBookingDialog({
         specialRequests: specialRequests || undefined,
       });
 
-      toast.success("Booking created successfully!");
-      onBookingComplete?.(response.data);
-      onOpenChange(false);
+      const booking = response.data;
+      
+      // Create payment for instant booking
+      try {
+        const paymentResponse = await axios.post("/api/bookings/instant/payment", {
+          bookingId: booking.id,
+        });
+
+        if (paymentResponse.data.url) {
+          window.location.href = paymentResponse.data.url;
+        } else {
+          toast.error("Failed to create payment session");
+        }
+      } catch (paymentError: any) {
+        console.error("Payment creation error:", paymentError);
+        toast.error(paymentError.response?.data?.error || "Failed to create payment");
+        // Still close dialog since booking was created
+        onBookingComplete?.(booking);
+        onOpenChange(false);
+      }
       
       // Reset form
       setSelectedDate(undefined);
@@ -316,7 +333,7 @@ export function InstantBookingDialog({
                   className="w-full"
                   size="lg"
                 >
-                  {loading ? "Creating Booking..." : "Complete Instant Booking"}
+                  {loading ? "Creating Booking..." : "Book & Pay Now"}
                 </Button>
               </div>
             )}

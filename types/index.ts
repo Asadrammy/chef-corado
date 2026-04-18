@@ -18,7 +18,11 @@ export type BookingStatus = typeof BookingStatus[keyof typeof BookingStatus];
 export const ProposalStatus = {
   PENDING: 'PENDING',
   ACCEPTED: 'ACCEPTED',
+  ACCEPTED_PENDING_PAYMENT: 'ACCEPTED_PENDING_PAYMENT',
   REJECTED: 'REJECTED',
+  BOOKED: 'BOOKED',
+  EXPIRED: 'EXPIRED',
+  WITHDRAWN: 'WITHDRAWN',
 } as const;
 
 export type ProposalStatus = typeof ProposalStatus[keyof typeof ProposalStatus];

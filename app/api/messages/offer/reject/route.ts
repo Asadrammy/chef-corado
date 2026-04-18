@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
+import { createNotification } from '@/lib/notifications';
 
 export async function POST(request: NextRequest) {
   try {
@@ -48,13 +49,12 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    await prisma.notification.create({
-      data: {
-        userId: offer.chef.userId,
-        type: 'PROPOSAL_REJECTED',
-        message: 'An offer you sent was declined by the client.',
-      },
-    });
+    // Create notification with preference checking
+    await createNotification(
+      offer.chef.userId,
+      'PROPOSAL_REJECTED',
+      'An offer you sent was declined by the client.'
+    );
 
     return NextResponse.json({ offer: updatedOffer });
   } catch (error) {

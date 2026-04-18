@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { shouldSendNotification, type NotificationTopic } from '@/lib/notification-preferences';
 
 export type NotificationType =
   | 'PROPOSAL_RECEIVED'
@@ -6,10 +7,51 @@ export type NotificationType =
   | 'PROPOSAL_REJECTED'
   | 'BOOKING_CREATED'
   | 'PAYMENT_SUCCESS'
-  | 'MESSAGE_RECEIVED';
+  | 'PAYMENT_CONFIRMED'
+  | 'PAYMENT_RECEIVED'
+  | 'PAYMENT_FAILED'
+  | 'MESSAGE_RECEIVED'
+  | 'VERIFICATION_APPROVED'
+  | 'VERIFICATION_REJECTED'
+  | 'NEW_REQUEST_ALERT'
+  | 'BOOKING_CANCELLED'
+  | 'PAYOUT_RELEASED';
+
+function getNotificationTopic(type: NotificationType): NotificationTopic {
+  switch (type) {
+    case 'MESSAGE_RECEIVED':
+      return 'messages';
+    case 'BOOKING_CREATED':
+    case 'BOOKING_CANCELLED':
+    case 'PAYMENT_SUCCESS':
+    case 'PAYMENT_CONFIRMED':
+    case 'PAYMENT_RECEIVED':
+    case 'PAYMENT_FAILED':
+    case 'PAYOUT_RELEASED':
+      return 'bookings';
+    case 'PROPOSAL_RECEIVED':
+    case 'PROPOSAL_ACCEPTED':
+    case 'PROPOSAL_REJECTED':
+    case 'VERIFICATION_APPROVED':
+    case 'VERIFICATION_REJECTED':
+    case 'NEW_REQUEST_ALERT':
+    default:
+      return 'requests';
+  }
+}
 
 export async function createNotification(userId: string, type: NotificationType, message: string) {
   try {
+    const topic = getNotificationTopic(type)
+    const canNotify = await shouldSendNotification(userId, 'in_app', topic);
+
+    if (!canNotify) {
+      console.log(`[NOTIFICATIONS] In-app notification skipped for user ${userId}, type ${type}, topic ${topic} - preference disabled`);
+      return null;
+    }
+
+    console.log(`[NOTIFICATIONS] Creating in-app notification for user ${userId}, type ${type}, topic ${topic}`);
+
     const notification = await (prisma as any).notification.create({
       data: {
         userId,
@@ -18,6 +60,7 @@ export async function createNotification(userId: string, type: NotificationType,
       },
     });
 
+    console.log(`[NOTIFICATIONS] In-app notification created: ${notification.id}`);
     return notification;
   } catch (error) {
     console.error('Error creating notification:', error);

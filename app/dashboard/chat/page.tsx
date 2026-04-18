@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { Button } from '@/components/ui/button';
 import { ConversationList, Conversation } from '@/components/chat/conversation-list';
 import { ChatWindow } from '@/components/chat/chat-window';
 import type { ChatMessage } from '@/components/chat/types';
@@ -13,6 +14,7 @@ export default function ChatPage() {
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
+  const [conversationError, setConversationError] = useState<string | null>(null);
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [selectedUserName, setSelectedUserName] = useState<string>('');
@@ -45,12 +47,14 @@ export default function ChatPage() {
 
     try {
       setLoadingConversations(true);
-      const response = await fetch(`/api/messages/conversations?userId=${currentUserId}`);
+      setConversationError(null);
+      const response = await fetch(`/api/messages/conversations`, { cache: 'no-store' });
       if (!response.ok) throw new Error('Failed to fetch conversations');
       const data: Conversation[] = await response.json();
       setConversations(data);
     } catch (error) {
       console.error('Error fetching conversations:', error);
+      setConversationError(error instanceof Error ? error.message : 'Failed to load conversations');
     } finally {
       setLoadingConversations(false);
     }
@@ -107,13 +111,21 @@ export default function ChatPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Conversation List - Always visible on desktop, hidden when chat is open on mobile */}
         <div className={`${selectedUserId ? 'hidden lg:block' : 'block'}`}>
-          <ConversationList
-            conversations={conversations}
-            loading={loadingConversations}
-            currentUserId={currentUserId}
-            onSelectConversation={handleSelectConversation}
-            selectedUserId={selectedUserId || undefined}
-          />
+          {conversationError ? (
+            <div className="flex h-[500px] flex-col items-center justify-center rounded-lg border gap-3 text-center">
+              <p className="font-medium">Unable to load conversations</p>
+              <p className="text-sm text-muted-foreground">{conversationError}</p>
+              <Button type="button" variant="outline" onClick={fetchConversations}>Retry</Button>
+            </div>
+          ) : (
+            <ConversationList
+              conversations={conversations}
+              loading={loadingConversations}
+              currentUserId={currentUserId}
+              onSelectConversation={handleSelectConversation}
+              selectedUserId={selectedUserId || undefined}
+            />
+          )}
         </div>
 
         {/* Chat Window - Hidden on mobile until conversation is selected */}

@@ -2,34 +2,70 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { Role } from '@/types';
+import { formatDateOnly, getDateRange, getMonthDateRange, toUtcDateOnly } from '@/lib/date-utils';
+
+function serializeAvailability(slot: {
+  id: string
+  date: Date
+  startTime: string
+  endTime: string
+  isAvailable: boolean
+  maxBookings: number
+  currentBookings: number
+  recurringPattern: string | null
+  chefId: string
+  chef?: {
+    user?: {
+      name: string | null
+      email: string | null
+    }
+  }
+}) {
+  return {
+    ...slot,
+    date: formatDateOnly(slot.date),
+  };
+}
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
     const { searchParams } = new URL(request.url);
-    const chefId = searchParams.get('chefId');
+    const requestedChefId = searchParams.get('chefId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const month = searchParams.get('month'); // Format: YYYY-MM
 
-    const where: any = {
-      isAvailable: true,
-    };
+    const where: Record<string, unknown> = {};
 
-    if (chefId) where.chefId = chefId;
-    
+    if (requestedChefId) {
+      where.chefId = requestedChefId;
+    } else if (session?.user?.id && session.user.role === Role.CHEF) {
+      const chefProfile = await prisma.chefProfile.findUnique({
+        where: { userId: session.user.id },
+        select: { id: true },
+      });
+
+      if (!chefProfile) {
+        return NextResponse.json([], { status: 200 });
+      }
+
+      where.chefId = chefProfile.id;
+    }
+
     if (startDate && endDate) {
+      const { start, endExclusive } = getDateRange(startDate, endDate);
       where.date = {
-        gte: new Date(startDate),
-        lte: new Date(endDate),
+        gte: start,
+        lt: endExclusive,
       };
     } else if (month) {
-      const [year, monthNum] = month.split('-').map(Number);
-      const startOfMonth = new Date(year, monthNum - 1, 1);
-      const endOfMonth = new Date(year, monthNum, 0);
-      
+      const { start, endExclusive } = getMonthDateRange(month);
+
       where.date = {
-        gte: startOfMonth,
-        lte: endOfMonth,
+        gte: start,
+        lt: endExclusive,
       };
     }
 
@@ -52,7 +88,7 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(availability);
+    return NextResponse.json(availability.map(serializeAvailability));
   } catch (error) {
     console.error('Error fetching availability:', error);
     return NextResponse.json(
@@ -90,6 +126,7 @@ export async function POST(request: NextRequest) {
       endTime,
       recurringPattern,
       maxBookings,
+      isAvailable,
     } = body;
 
     // Validate required fields
@@ -99,6 +136,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const normalizedDate = toUtcDateOnly(date);
+    const availabilityState = typeof isAvailable === 'boolean' ? isAvailable : true;
 
     // Validate time format (HH:MM)
     const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
@@ -112,7 +152,7 @@ export async function POST(request: NextRequest) {
     // Check if end time is after start time
     const startMinutes = parseInt(startTime.split(':')[0]) * 60 + parseInt(startTime.split(':')[1]);
     const endMinutes = parseInt(endTime.split(':')[0]) * 60 + parseInt(endTime.split(':')[1]);
-    
+
     if (endMinutes <= startMinutes) {
       return NextResponse.json(
         { error: 'End time must be after start time' },
@@ -124,8 +164,7 @@ export async function POST(request: NextRequest) {
     const overlapping = await prisma.availability.findFirst({
       where: {
         chefId: chefProfile.id,
-        date: new Date(date),
-        isAvailable: true,
+        date: normalizedDate,
         OR: [
           {
             AND: [
@@ -158,9 +197,10 @@ export async function POST(request: NextRequest) {
 
     const availability = await prisma.availability.create({
       data: {
-        date: new Date(date),
+        date: normalizedDate,
         startTime,
         endTime,
+        isAvailable: availabilityState,
         recurringPattern,
         maxBookings: maxBookings ? parseInt(maxBookings) : 1,
         chefId: chefProfile.id,
@@ -179,7 +219,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(availability, { status: 201 });
+    return NextResponse.json(serializeAvailability(availability), { status: 201 });
   } catch (error) {
     console.error('Error creating availability:', error);
     return NextResponse.json(

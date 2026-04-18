@@ -1,81 +1,49 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { geocodeAddress } from "@/lib/geo"
 import { z } from "zod"
 
+import { apiSuccess } from "@/lib/api-response"
+import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
+import { handleApiError } from "@/lib/error-handler"
+import { chefProfileService } from "@/lib/services/chef-profile-service"
+import { Role } from "@/types"
+
 const profileSchema = z.object({
+  phone: z.string().min(7, "Phone must be at least 7 characters").optional(),
   bio: z.string().optional(),
   experience: z.number().int().min(0).optional(),
   location: z.string().min(1, "Location is required"),
   radius: z.number().min(1, "Radius must be at least 1 km").max(500, "Radius cannot exceed 500 km"),
   profileImage: z.string().url().optional(),
+  chefType: z.string().optional(),
+  certifications: z.string().optional(),
+  eventsPerMonth: z.number().int().min(0).optional(),
+  stripeAccountId: z.string().optional(),
+  stripeOnboardingComplete: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    if (session.user.role !== "CHEF") {
-      return NextResponse.json({ error: "Only chefs can create profiles" }, { status: 403 })
-    }
-
-    // Verify user exists
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    // Check if profile already exists
-    const existingProfile = await prisma.chefProfile.findUnique({
-      where: { userId: session.user.id },
-    })
-
-    if (existingProfile) {
-      return NextResponse.json({ error: "Profile already exists" }, { status: 409 })
-    }
+    const session = await getRequiredSession(Role.CHEF)
 
     const body = await request.json()
     const validatedData = profileSchema.parse(body)
-    const coordinates = await geocodeAddress(validatedData.location)
+    const chefProfile = await chefProfileService.create(getSessionUserId(session), validatedData)
 
-    const chefProfile = await prisma.chefProfile.create({
-      data: {
-        ...validatedData,
-        latitude: coordinates?.latitude ?? null,
-        longitude: coordinates?.longitude ?? null,
-        user: { connect: { id: session.user.id } },
-        isApproved: true, // Auto-approve for development
-      },
-      include: {
-        user: {
-          select: {
-            name: true,
-            email: true,
+    return apiSuccess(chefProfile, 201)
+  } catch (error) {
+    if (error instanceof Error && error.message === "USER_NOT_FOUND") {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "USER_NOT_FOUND",
+            message: "Your session has expired. Please log out and log back in.",
           },
         },
-      },
-    })
-
-    return NextResponse.json(chefProfile, { status: 201 })
-  } catch (error) {
-    console.error("Error creating chef profile:", error)
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { error: "Validation failed", details: error.errors },
-        { status: 400 }
+        { status: 401 }
       )
     }
 
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return handleApiError(error, "Chef Profile Create POST")
   }
 }

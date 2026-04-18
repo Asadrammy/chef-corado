@@ -24,6 +24,7 @@ interface Notification {
 export default function NotificationDropdown() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
   const { data: session } = useSession();
 
   useEffect(() => {
@@ -34,10 +35,11 @@ export default function NotificationDropdown() {
 
   const fetchNotifications = async () => {
     try {
-      const response = await fetch(`/api/notifications?userId=${session?.user?.id}`);
+      const response = await fetch(`/api/notifications?userId=${session?.user?.id}`, { cache: "no-store" });
       if (response.ok) {
         const data = await response.json();
         setNotifications(data.notifications || []);
+        setUnreadCount(data.unreadCount ?? 0);
       }
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
@@ -51,15 +53,22 @@ export default function NotificationDropdown() {
       await fetch(`/api/notifications/${notificationId}?action=mark-read`, {
         method: 'PATCH',
       });
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
       );
+      setUnreadCount((current) => Math.max(current - 1, 0));
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const notificationTypeLabel: Record<string, string> = {
+    PROPOSAL_RECEIVED: "Requests",
+    PROPOSAL_ACCEPTED: "Bookings",
+    BOOKING_CREATED: "Bookings",
+    PAYMENT_SUCCESS: "Payments",
+    MESSAGE: "Messages",
+  };
 
   return (
     <DropdownMenu>
@@ -95,31 +104,39 @@ export default function NotificationDropdown() {
               </Badge>
             )}
           </div>
+          <p className="mt-1 text-xs text-muted-foreground">Latest updates across your bookings and messages.</p>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <div className="max-h-96 overflow-y-auto">
           {loading ? (
-            <div className="px-3 py-4 text-center text-muted-foreground text-sm">
-              Loading...
+            <div className="px-3 py-6 text-center text-muted-foreground text-sm">
+              Loading your updates...
             </div>
           ) : notifications.length === 0 ? (
-            <div className="px-3 py-4 text-center text-muted-foreground text-sm">
-              No notifications
+            <div className="px-3 py-6 text-center text-muted-foreground text-sm">
+              All clear. New alerts will appear here.
             </div>
           ) : (
             notifications.map((notification) => (
               <DropdownMenuItem
                 key={notification.id}
-                className="flex flex-col items-start p-3 cursor-pointer hover:bg-muted/50"
+                className={`flex flex-col items-start p-3 cursor-pointer transition-colors hover:bg-muted/50 ${
+                  notification.isRead ? "opacity-80" : "bg-primary/5"
+                }`}
                 onClick={() => !notification.isRead && markAsRead(notification.id)}
               >
                 <div className="flex items-start gap-2 w-full">
-                  <div className="flex-1">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge variant="outline" className="rounded-full text-[10px]">
+                        {notificationTypeLabel[notification.type] ?? "Update"}
+                      </Badge>
+                      <span className="text-[11px] text-muted-foreground">
+                        {new Date(notification.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
                     <p className="text-sm text-foreground leading-relaxed">
                       {notification.message}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(notification.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                   {!notification.isRead && (

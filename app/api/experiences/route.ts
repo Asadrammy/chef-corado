@@ -46,6 +46,8 @@ export async function GET(request: NextRequest) {
     const location = searchParams.get('location');
     const hasAvailability = searchParams.get('hasAvailability');
     const verifiedOnly = searchParams.get('verifiedOnly');
+    const minGuests = searchParams.get('minGuests');
+    const maxGuests = searchParams.get('maxGuests');
     const sortBy = searchParams.get('sortBy') || 'createdAt';
     const sortOrder = searchParams.get('sortOrder') || 'desc';
     const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
@@ -101,6 +103,13 @@ export async function GET(request: NextRequest) {
       where.price = {};
       if (minPrice) where.price.gte = parseFloat(minPrice);
       if (maxPrice) where.price.lte = parseFloat(maxPrice);
+    }
+
+    // Guest count filtering
+    if (minGuests || maxGuests) {
+      where.maxGuests = {};
+      if (minGuests) where.maxGuests.gte = parseInt(minGuests);
+      if (maxGuests) where.maxGuests.lte = parseInt(maxGuests);
     }
 
     // Optimized search - only search in title and description for performance

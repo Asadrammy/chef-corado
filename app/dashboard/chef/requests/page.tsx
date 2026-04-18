@@ -69,5 +69,12 @@ export default async function ChefRequestsPage() {
     }))
     .filter((request) => request.distanceKm <= chefProfile.radius)
 
-  return <ChefRequestsMarketplace requests={requests} />
+  return (
+    <ChefRequestsMarketplace
+      requests={requests}
+      serviceRadiusKm={chefProfile.radius}
+      baseLocation={chefProfile.location || undefined}
+      useSmartMatching={true}
+    />
+  )
 }

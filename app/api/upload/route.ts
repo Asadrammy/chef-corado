@@ -1,7 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { mkdir, writeFile } from 'fs/promises';
+import path from 'path';
+import { randomUUID } from 'crypto';
+import { getServerSession } from 'next-auth';
+
+import { authOptions } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     
@@ -21,17 +33,19 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'File too large. Maximum size is 5MB.' }, { status: 400 });
     }
 
-    // Convert file to base64 for local storage fallback
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const base64 = buffer.toString('base64');
-    const dataUrl = `data:${file.type};base64,${base64}`;
+    const extension = file.name.split('.').pop()?.toLowerCase() || 'bin';
+    const uploadDirectory = path.join(process.cwd(), 'public', 'uploads', 'images');
+    const fileName = `${randomUUID()}.${extension}`;
+    const filePath = path.join(uploadDirectory, fileName);
 
-    // For now, return the base64 data URL
-    // In production, you might want to use a proper image hosting service
+    await mkdir(uploadDirectory, { recursive: true });
+    await writeFile(filePath, buffer);
+
     return NextResponse.json({
-      url: dataUrl,
-      publicId: `local_${Date.now()}`,
+      url: `/uploads/images/${fileName}`,
+      publicId: fileName,
     });
   } catch (error) {
     console.error('Error uploading image:', error);

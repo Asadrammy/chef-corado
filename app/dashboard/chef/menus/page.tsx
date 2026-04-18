@@ -24,16 +24,27 @@ import { Card, CardContent } from "@/components/ui/card"
 export const dynamic = 'force-dynamic'
 
 export default function MenusPage() {
-  const [menus, setMenus] = useState<Menu[]>([])
-  const [loading, setLoading] = useState(true)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingMenu, setEditingMenu] = useState<Menu | null>(null)
-  const [formData, setFormData] = useState<MenuFormData>({
+  const createInitialFormData = (): MenuFormData => ({
     title: "",
     description: "",
     price: "",
     menuImage: "",
+    cuisineType: "",
+    eventType: "",
+    sections: [
+      {
+        title: "Starter",
+        sortOrder: 0,
+        items: [],
+      },
+    ],
   })
+
+  const [menus, setMenus] = useState<Menu[]>([])
+  const [loading, setLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [editingMenu, setEditingMenu] = useState<Menu | null>(null)
+  const [formData, setFormData] = useState<MenuFormData>(createInitialFormData)
   const [saving, setSaving] = useState(false)
   const [deletingMenu, setDeletingMenu] = useState<Menu | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -61,12 +72,7 @@ export default function MenusPage() {
   }
 
   const resetForm = () => {
-    setFormData({
-      title: "",
-      description: "",
-      price: "",
-      menuImage: "",
-    })
+    setFormData(createInitialFormData())
     setEditingMenu(null)
     setError("")
   }
@@ -87,6 +93,21 @@ export default function MenusPage() {
         description: menu.description || "",
         price: menu.price.toString(),
         menuImage: menu.menuImage || "",
+        cuisineType: menu.cuisineType || "",
+        eventType: menu.eventType || "",
+        sections: menu.sections?.length
+          ? menu.sections.map((section, sectionIndex) => ({
+              id: section.id,
+              title: section.title,
+              sortOrder: section.sortOrder ?? sectionIndex,
+              items: section.items.map((item, itemIndex) => ({
+                id: item.id,
+                name: item.name,
+                description: item.description || "",
+                sortOrder: item.sortOrder ?? itemIndex,
+              })),
+            }))
+          : createInitialFormData().sections,
       })
     } else {
       resetForm()
@@ -97,6 +118,10 @@ export default function MenusPage() {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleSectionsChange = (sections: MenuFormData["sections"]) => {
+    setFormData((prev) => ({ ...prev, sections }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,6 +135,21 @@ export default function MenusPage() {
         description: formData.description || undefined,
         price: parseFloat(formData.price),
         menuImage: formData.menuImage || undefined,
+        cuisineType: formData.cuisineType || undefined,
+        eventType: formData.eventType || undefined,
+        sections: formData.sections
+          .filter((section) => section.title.trim())
+          .map((section, sectionIndex) => ({
+            title: section.title.trim(),
+            sortOrder: sectionIndex,
+            items: section.items
+              .filter((item) => item.name.trim())
+              .map((item, itemIndex) => ({
+                name: item.name.trim(),
+                description: item.description?.trim() || undefined,
+                sortOrder: itemIndex,
+              })),
+          })),
       }
 
       const url = editingMenu ? `/api/menus/${editingMenu.id}` : "/api/menus"
@@ -233,6 +273,7 @@ export default function MenusPage() {
           onChange={handleChange}
           onImageChange={(url) => setFormData((prev) => ({ ...prev, menuImage: url }))}
           onImageRemove={() => setFormData((prev) => ({ ...prev, menuImage: "" }))}
+          onSectionsChange={handleSectionsChange}
           onSubmit={handleSubmit}
         />
 

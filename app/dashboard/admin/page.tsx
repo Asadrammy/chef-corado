@@ -13,6 +13,22 @@ import { Button } from "@/components/ui/button"
 import { Users, Calendar, DollarSign, ChefHat, ArrowRight } from "lucide-react"
 import Link from "next/link"
 
+type AdminChef = {
+  id: string
+  isApproved: boolean
+}
+
+type AdminBooking = {
+  id: string
+  status: string
+}
+
+type AdminPayment = {
+  id: string
+  status: string
+  commissionAmount: number
+}
+
 export const metadata: Metadata = generateMeta({
   title: "Admin Dashboard",
   description: "Keep the marketplace healthy by approving chefs, monitoring bookings, and managing payouts.",
@@ -44,19 +60,19 @@ export default async function AdminDashboardPage() {
     }),
   ])
 
-  const chefs = chefsResponse.ok ? await chefsResponse.json() : []
-  const bookings = bookingsResponse.ok ? await bookingsResponse.json() : []
-  const payments = paymentsResponse.ok ? await paymentsResponse.json() : []
+  const chefs: AdminChef[] = chefsResponse.ok ? ((await chefsResponse.json()) as AdminChef[]) : []
+  const bookings: AdminBooking[] = bookingsResponse.ok ? ((await bookingsResponse.json()) as AdminBooking[]) : []
+  const payments: AdminPayment[] = paymentsResponse.ok ? ((await paymentsResponse.json()) as AdminPayment[]) : []
 
   // Calculate stats
   const totalChefs = chefs.length
-  const pendingChefs = chefs.filter((c: any) => !c.isApproved).length
+  const pendingChefs = chefs.filter((chef) => !chef.isApproved).length
   const totalBookings = bookings.length
-  const activeBookings = bookings.filter((b: any) => b.status === "CONFIRMED").length
+  const activeBookings = bookings.filter((booking) => booking.status === "CONFIRMED").length
   const totalRevenue = payments
-    .filter((p: any) => p.status === "COMPLETED")
-    .reduce((sum: number, p: any) => sum + p.commission, 0)
-  const pendingPayouts = payments.filter((p: any) => p.status === "PENDING").length
+    .filter((payment) => payment.status === "COMPLETED")
+    .reduce((sum, payment) => sum + payment.commissionAmount, 0)
+  const pendingPayouts = payments.filter((payment) => payment.status === "PENDING").length
 
   return (
     <div className="space-y-8">

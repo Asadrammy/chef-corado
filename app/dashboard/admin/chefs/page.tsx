@@ -22,7 +22,7 @@ interface ChefProfile {
     email: string
   }
   _count: {
-    menus: number
+    experiences: number
     bookings: number
   }
 }
@@ -36,7 +36,7 @@ export default function AdminChefsPage() {
 
   const approvedChefs = chefs.filter((chef) => chef.isApproved).length
   const pendingChefs = chefs.filter((chef) => !chef.isApproved).length
-  const totalMenus = chefs.reduce((total, chef) => total + chef._count.menus, 0)
+  const totalExperiences = chefs.reduce((total, chef) => total + chef._count.experiences, 0)
   const totalBookings = chefs.reduce((total, chef) => total + chef._count.bookings, 0)
 
   useEffect(() => {
@@ -196,8 +196,8 @@ export default function AdminChefsPage() {
                   Activity
                 </Badge>
               </div>
-              <div className="text-3xl font-semibold tracking-tight text-foreground">{totalMenus}</div>
-              <p className="mt-1 text-sm text-muted-foreground">Menus published across chef profiles</p>
+              <div className="text-3xl font-semibold tracking-tight text-foreground">{totalExperiences}</div>
+              <p className="mt-1 text-sm text-muted-foreground">Experiences published across chef profiles</p>
             </div>
           </div>
         </div>
@@ -234,9 +234,9 @@ export default function AdminChefsPage() {
               <span className="text-lg font-semibold text-foreground">{totalBookings}</span>
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-border/50 bg-muted/25 px-4 py-3">
-              <span className="text-sm text-muted-foreground">Average menus / chef</span>
+              <span className="text-sm text-muted-foreground">Average experiences / chef</span>
               <span className="text-lg font-semibold text-foreground">
-                {chefs.length > 0 ? (totalMenus / chefs.length).toFixed(1) : "0.0"}
+                {chefs.length > 0 ? (totalExperiences / chefs.length).toFixed(1) : "0.0"}
               </span>
             </div>
           </div>
@@ -302,7 +302,7 @@ export default function AdminChefsPage() {
                     <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Chef</TableHead>
                     <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Location</TableHead>
                     <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Experience</TableHead>
-                    <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Menus</TableHead>
+                    <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Experiences</TableHead>
                     <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Bookings</TableHead>
                     <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Status</TableHead>
                     <TableHead className="h-14 bg-muted/40 px-5 text-right text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Actions</TableHead>
@@ -345,7 +345,7 @@ export default function AdminChefsPage() {
                       </TableCell>
                       <TableCell className="px-5 py-5 align-top">
                         <Badge variant="secondary" className="rounded-full border-border/60 bg-muted/40 px-3 py-1 text-xs font-medium text-foreground">
-                          {chef._count.menus} menus
+                          {chef._count.experiences} experiences
                         </Badge>
                       </TableCell>
                       <TableCell className="px-5 py-5 align-top">

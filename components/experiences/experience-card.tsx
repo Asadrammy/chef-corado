@@ -90,8 +90,7 @@ export function ExperienceCard({
   };
 
   const handleBookingComplete = (booking: any) => {
-    // Optional: Handle booking completion
-    console.log('Booking completed:', booking);
+    // Optional: Handle booking completion (redirect, refresh, etc.)
   };
 
   return (

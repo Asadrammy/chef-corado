@@ -16,9 +16,7 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  Gift,
-  Zap,
-  Heart
+  Zap
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -222,135 +220,6 @@ export function RetentionHooks({ userRole, userId, className }: RetentionHooksPr
   );
 }
 
-interface GamificationProps {
-  userRole: 'CLIENT' | 'CHEF';
-  userId: string;
-  className?: string;
-}
-
-export function Gamification({ userRole, userId, className }: GamificationProps) {
-  const [userLevel, setUserLevel] = useState(1);
-  const [userPoints, setUserPoints] = useState(0);
-  const [achievements, setAchievements] = useState<any[]>([]);
-  const [nextLevelPoints, setNextLevelPoints] = useState(100);
-
-  useEffect(() => {
-    fetchGamificationData();
-  }, [userRole, userId]);
-
-  const fetchGamificationData = async () => {
-    try {
-      const response = await fetch(`/api/user/${userId}/gamification`);
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch gamification data');
-      }
-      
-      setUserLevel(data.level || 1);
-      setUserPoints(data.points || 0);
-      setAchievements(data.achievements || []);
-      setNextLevelPoints(data.nextLevelPoints || 100);
-    } catch (error) {
-      console.error('Error fetching gamification data:', error);
-      // Show empty state when API fails
-      setUserLevel(1);
-      setUserPoints(0);
-      setAchievements([]);
-      setNextLevelPoints(100);
-    }
-  };
-
-  const getLevelColor = (level: number) => {
-    if (level >= 10) return 'text-purple-600';
-    if (level >= 5) return 'text-blue-600';
-    return 'text-green-600';
-  };
-
-  const getLevelTitle = (level: number) => {
-    if (level >= 10) return 'Expert';
-    if (level >= 7) return 'Advanced';
-    if (level >= 5) return 'Experienced';
-    if (level >= 3) return 'Intermediate';
-    return 'Beginner';
-  };
-
-  const progressToNextLevel = nextLevelPoints > 0 
-    ? (userPoints / nextLevelPoints) * 100 
-    : 0;
-
-  return (
-    <Card className={className}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Gift className="w-5 h-5" />
-          Your Progress
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Level and Points */}
-        <div className="text-center">
-          <div className={`text-3xl font-bold ${getLevelColor(userLevel)}`}>
-            Level {userLevel}
-          </div>
-          <div className="text-sm text-gray-600 mb-2">{getLevelTitle(userLevel)}</div>
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <Star className="w-4 h-4 text-yellow-500" />
-            <span className="text-lg font-semibold">{userPoints} points</span>
-          </div>
-          
-          {/* Progress to Next Level */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-xs text-gray-600">
-              <span>Progress to Level {userLevel + 1}</span>
-              <span>{userPoints}/{nextLevelPoints}</span>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div 
-                className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-300"
-                style={{ width: `${progressToNextLevel}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Achievements */}
-        <div className="space-y-3">
-          <h4 className="text-sm font-medium">Recent Achievements</h4>
-          <div className="grid grid-cols-3 gap-2">
-            {achievements.slice(0, 6).map((achievement, index) => (
-              <div key={index} className="text-center">
-                <div className="w-12 h-12 mx-auto mb-1 rounded-full bg-yellow-100 flex items-center justify-center">
-                  {achievement.icon === 'star' && <Star className="w-6 h-6 text-yellow-600" />}
-                  {achievement.icon === 'heart' && <Heart className="w-6 h-6 text-red-600" />}
-                  {achievement.icon === 'zap' && <Zap className="w-6 h-6 text-blue-600" />}
-                  {achievement.icon === 'award' && <Gift className="w-6 h-6 text-purple-600" />}
-                </div>
-                <div className="text-xs text-gray-600">{achievement.name}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Rewards */}
-        <div className="bg-green-50 p-3 rounded-lg">
-          <h4 className="text-sm font-medium text-green-900 mb-2">Available Rewards</h4>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span>5% off next booking</span>
-              <Badge variant="outline" className="text-green-600">500 pts</Badge>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span>Priority support</span>
-              <Badge variant="outline" className="text-green-600">1000 pts</Badge>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 interface EngagementPromptsProps {
   userRole: 'CLIENT' | 'CHEF';
   userId: string;
@@ -391,7 +260,7 @@ export function EngagementPrompts({ userRole, userId, className }: EngagementPro
       case 'browse_experiences': return <Star className="w-5 h-5" />;
       case 'send_proposal': return <MessageSquare className="w-5 h-5" />;
       case 'leave_review': return <Star className="w-5 h-5" />;
-      case 'refer_friend': return <Gift className="w-5 h-5" />;
+      case 'refer_friend': return <Users className="w-5 h-5" />;
       default: return <Bell className="w-5 h-5" />;
     }
   };

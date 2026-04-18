@@ -105,7 +105,7 @@ export function useRealtime<T = any>({
 // Hook for real-time notifications
 export function useRealtimeNotifications(userId: string, enabled = true) {
   return useRealtime({
-    endpoint: `/api/notifications?userId=${userId}`,
+    endpoint: `/api/notifications`, // Uses session, not userId param
     interval: 30000, // 30 seconds for notifications
     enabled,
   });
@@ -114,7 +114,7 @@ export function useRealtimeNotifications(userId: string, enabled = true) {
 // Hook for real-time messages
 export function useRealtimeMessages(userId: string, otherUserId: string, enabled = true) {
   return useRealtime({
-    endpoint: `/api/messages?userId=${userId}&otherUserId=${otherUserId}`,
+    endpoint: `/api/messages?otherUserId=${otherUserId}`, // API ignores userId, uses session
     interval: 10000, // 10 seconds for messages
     enabled,
   });
@@ -123,7 +123,7 @@ export function useRealtimeMessages(userId: string, otherUserId: string, enabled
 // Hook for real-time conversations
 export function useRealtimeConversations(userId: string, enabled = true) {
   return useRealtime({
-    endpoint: `/api/messages/conversations?userId=${userId}`,
+    endpoint: `/api/messages/conversations`, // Uses session, not userId param
     interval: 15000, // 15 seconds for conversations
     enabled,
   });
@@ -161,12 +161,12 @@ export function useRealtimeBookings(userId: string, userRole: 'CLIENT' | 'CHEF',
   });
 }
 
-// Hook for real-time payments
-export function useRealtimePayments(bookingId: string, enabled = true) {
+// Hook for real-time payments - disabled since endpoint doesn't exist
+export function useRealtimePayments(bookingId: string, enabled = false) {
   return useRealtime({
-    endpoint: `/api/payments?bookingId=${bookingId}`,
-    interval: 5000, // 5 seconds for payments (more frequent)
-    enabled,
+    endpoint: `/api/bookings/${bookingId}`, // Use bookings endpoint instead
+    interval: 5000,
+    enabled: false, // Disabled until proper payments endpoint exists
   });
 }
 

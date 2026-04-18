@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowRight, CalendarRange, ClipboardList, Sparkles, Zap } from "lucide-react"
+import { ArrowRight, CalendarRange, ClipboardList, Send, Sparkles, Zap } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,9 +18,21 @@ interface ChefActionPanelProps {
   pendingTasks: PendingTask[]
   activeBookings: number
   availableRequests: number
+  quotesSentToday: number
+  quotesTarget: number
+  menusCount: number
+  menusTarget: number
+  responseRate: number
+  responseRateWindowDays: number
 }
 
 const quickLinks = [
+  {
+    title: "Send Quote",
+    href: "/dashboard/chef/requests",
+    icon: Send,
+    highlight: true,
+  },
   {
     title: "Manage experiences",
     href: "/dashboard/chef/experiences",
@@ -54,7 +66,44 @@ export function ChefActionPanel({
   pendingTasks,
   activeBookings,
   availableRequests,
+  quotesSentToday,
+  quotesTarget,
+  menusCount,
+  menusTarget,
+  responseRate,
+  responseRateWindowDays,
 }: ChefActionPanelProps) {
+  const suggestions = [
+    quotesSentToday < quotesTarget
+      ? {
+          id: "quotes",
+          title: `Send ${Math.max(quotesTarget - quotesSentToday, 0)} more quotes today`,
+          description: "Hitting your daily proposal target lifts booking conversion.",
+        }
+      : null,
+    menusCount < menusTarget
+      ? {
+          id: "menus",
+          title: `Add ${Math.max(menusTarget - menusCount, 0)} more menus`,
+          description: "More menus improve marketplace visibility and search ranking.",
+        }
+      : null,
+    responseRate < 60
+      ? {
+          id: "responses",
+          title: "Reply faster to open requests",
+          description: `Your response rate is ${responseRate.toFixed(1)}% over the last ${responseRateWindowDays} days.`,
+        }
+      : null,
+    availableRequests === 0
+      ? {
+          id: "availability",
+          title: "Your calendar is quiet next week",
+          description: "Open more availability or expand your radius to boost demand.",
+        }
+      : null,
+  ].filter(Boolean) as Array<{ id: string; title: string; description: string }>
+
   return (
     <div className="space-y-4">
       <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
@@ -127,6 +176,25 @@ export function ChefActionPanel({
               ))
             )}
           </div>
+
+          <div className="space-y-3">
+            <p className="text-foreground text-sm font-medium tracking-tight">Smart suggestions</p>
+            {suggestions.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-primary/20 bg-primary/5 p-4 shadow-inner">
+                <p className="text-foreground text-sm font-medium tracking-tight">You’re on track</p>
+                <p className="text-muted-foreground mt-1 text-xs leading-5">
+                  Keep responding quickly and update availability as new requests arrive.
+                </p>
+              </div>
+            ) : (
+              suggestions.map((suggestion) => (
+                <div key={suggestion.id} className="rounded-3xl border border-white/60 bg-white/70 p-4 text-sm text-muted-foreground shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5">
+                  <p className="text-foreground text-sm font-medium tracking-tight">{suggestion.title}</p>
+                  <p className="mt-1 text-xs leading-5">{suggestion.description}</p>
+                </div>
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -141,18 +209,25 @@ export function ChefActionPanel({
             return (
               <Button
                 key={item.href}
-                variant="outline"
-                className="text-foreground h-12 w-full justify-between rounded-2xl border-white/70 bg-white/70 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                variant={item.highlight ? "default" : "outline"}
+                className={
+                  item.highlight
+                    ? "h-12 w-full justify-between rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25"
+                    : "text-foreground h-12 w-full justify-between rounded-2xl border-white/70 bg-white/70 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+                }
                 asChild
               >
                 <Link href={item.href}>
                   <span className="flex items-center gap-2">
-                    <span className="from-primary/15 to-background flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br shadow-sm">
-                      <Icon className="text-primary h-4 w-4" />
+                    <span className={item.highlight 
+                      ? "flex h-8 w-8 items-center justify-center rounded-xl bg-white/20 shadow-sm" 
+                      : "from-primary/15 to-background flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br shadow-sm"
+                    }>
+                      <Icon className={item.highlight ? "h-4 w-4 text-white" : "text-primary h-4 w-4"} />
                     </span>
                     {item.title}
                   </span>
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className={item.highlight ? "h-4 w-4 text-white" : "h-4 w-4"} />
                 </Link>
               </Button>
             )

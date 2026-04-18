@@ -165,13 +165,13 @@ export async function GET(request: NextRequest) {
 
       const completedBookings = chefProfile.bookings.filter((b: any) => b.status === 'COMPLETED');
       const totalEarnings = completedBookings.reduce((sum: number, booking: any) => {
-        const payment = booking.payments.find((p: any) => p.status === 'RELEASED');
+        const payment = booking.payments.find((p: any) => p.status === 'RELEASED' || p.status === 'COMPLETED');
         return sum + (payment ? payment.chefAmount : 0);
       }, 0);
 
       const previousCompletedBookings = previousPeriodProfile?.bookings?.filter((b: any) => b.status === 'COMPLETED') || [];
       const previousEarnings = previousCompletedBookings.reduce((sum: number, booking: any) => {
-        const payment = booking.payments.find((p: any) => p.status === 'RELEASED');
+        const payment = booking.payments.find((p: any) => p.status === 'RELEASED' || p.status === 'COMPLETED');
         return sum + (payment ? payment.chefAmount : 0);
       }, 0);
 
@@ -184,7 +184,7 @@ export async function GET(request: NextRequest) {
         : 0;
 
       const earningsTrends = completedBookings.map((booking: any) => {
-        const payment = booking.payments.find((p: any) => p.status === 'RELEASED');
+        const payment = booking.payments.find((p: any) => p.status === 'RELEASED' || p.status === 'COMPLETED');
         return {
           date: booking.createdAt.toISOString().split('T')[0],
           amount: payment ? payment.chefAmount : 0,
