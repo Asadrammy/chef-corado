@@ -14,20 +14,28 @@ export class StripeWebhookHandler {
   private stripe: Stripe
 
   constructor() {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error('STRIPE_SECRET_KEY not configured')
-    }
+    // Lazy initialization - don't validate or initialize Stripe here
+    this.stripe = null as any
+  }
 
-    // Check for placeholder keys
-    if (process.env.STRIPE_SECRET_KEY.includes('placeholder') || 
-        process.env.STRIPE_SECRET_KEY === 'sk_test_placeholder' ||
-        process.env.STRIPE_SECRET_KEY === 'sk_live_placeholder') {
-      throw new Error('STRIPE_SECRET_KEY is a placeholder. Please configure a real Stripe API key in your .env file.')
-    }
+  private ensureInitialized() {
+    if (!this.stripe) {
+      if (!process.env.STRIPE_SECRET_KEY) {
+        throw new Error('STRIPE_SECRET_KEY not configured')
+      }
 
-    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-      apiVersion: '2026-03-25.dahlia' as Stripe.LatestApiVersion,
-    })
+      // Check for placeholder keys only at runtime
+      if (process.env.STRIPE_SECRET_KEY.includes('placeholder') || 
+          process.env.STRIPE_SECRET_KEY === 'sk_test_placeholder' ||
+          process.env.STRIPE_SECRET_KEY === 'sk_live_placeholder') {
+        throw new Error('STRIPE_SECRET_KEY is a placeholder. Please configure a real Stripe API key in your .env file.')
+      }
+
+      this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+        apiVersion: '2026-03-25.dahlia' as Stripe.LatestApiVersion,
+      })
+    }
+    return this.stripe
   }
 
   async handleWebhook(event: Stripe.Event): Promise<{ processed: boolean; error?: string }> {
@@ -338,4 +346,11 @@ export class StripeWebhookHandler {
   }
 }
 
-export const stripeWebhookHandler = new StripeWebhookHandler()
+let instance: StripeWebhookHandler | null = null
+
+export function getStripeWebhookHandler(): StripeWebhookHandler {
+  if (!instance) {
+    instance = new StripeWebhookHandler()
+  }
+  return instance
+}

@@ -106,7 +106,7 @@ export function ChefActionPanel({
 
   return (
     <div className="space-y-4">
-      <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
+      <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10">
         <CardHeader className="space-y-1 pb-3">
           <div className="text-primary inline-flex w-fit items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-xs font-medium shadow-sm">
             <Zap className="h-3.5 w-3.5" />
@@ -198,7 +198,7 @@ export function ChefActionPanel({
         </CardContent>
       </Card>
 
-      <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
+      <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10">
         <CardHeader className="pb-3">
           <CardTitle className="text-foreground text-lg font-semibold tracking-tight">Shortcuts</CardTitle>
         </CardHeader>

@@ -88,7 +88,7 @@ export function RevenueIntelligence({
   ]
 
   return (
-    <Card className="overflow-hidden rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
+    <Card className="overflow-hidden rounded-[28px] border border-white/60 bg-card/95 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10">
       <CardHeader className="space-y-2 pb-4">
         <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
           <TrendingUp className="h-3.5 w-3.5" />

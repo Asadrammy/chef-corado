@@ -5,7 +5,11 @@
     "moduleResolution": "node",
     "isolatedModules": false,
     "types": ["jest", "node"],
-    "noEmit": true
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
   "include": [
     "jest.setup.ts",

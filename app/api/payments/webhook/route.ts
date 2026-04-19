@@ -5,27 +5,9 @@ import { NextResponse } from "next/server"
 import { apiError, apiSuccess } from "@/lib/api-response"
 import { handleApiError } from "@/lib/error-handler"
 import { applyRateLimit } from "@/lib/redis-rate-limiter"
-import { stripeWebhookHandler } from "@/lib/services/stripe-webhook-handler"
+import { getStripeWebhookHandler } from "@/lib/services/stripe-webhook-handler"
 import { paymentService } from "@/lib/services/payment-service"
 import { logger } from "@/lib/logger"
-
-// Initialize Stripe with safety check
-const getStripeClient = () => {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error("STRIPE_SECRET_KEY not configured")
-  }
-
-  // Check for placeholder keys
-  if (process.env.STRIPE_SECRET_KEY.includes('placeholder') || 
-      process.env.STRIPE_SECRET_KEY === 'sk_test_placeholder' ||
-      process.env.STRIPE_SECRET_KEY === 'sk_live_placeholder') {
-    throw new Error("STRIPE_SECRET_KEY is a placeholder. Please configure a real Stripe API key in your .env file.")
-  }
-
-  return new Stripe(process.env.STRIPE_SECRET_KEY, {
-    apiVersion: "2026-03-25.dahlia" as Stripe.LatestApiVersion,
-  })
-}
 
 export const runtime = "nodejs"
 export const revalidate = 0
@@ -67,9 +49,26 @@ export async function POST(request: Request) {
     return apiError('BAD_REQUEST', 'Invalid signature', 400)
   }
 
+  // Initialize Stripe client only at runtime
+  const secretKey = process.env.STRIPE_SECRET_KEY
+  if (!secretKey) {
+    logger.error('[WEBHOOK] Stripe secret key not configured')
+    return apiError('INTERNAL_SERVER_ERROR', 'Stripe configuration error', 500)
+  }
+
+  if (secretKey.includes('placeholder') || 
+      secretKey === 'sk_test_placeholder' ||
+      secretKey === 'sk_live_placeholder') {
+    logger.error('[WEBHOOK] Stripe secret key is a placeholder')
+    return apiError('INTERNAL_SERVER_ERROR', 'Stripe configuration error', 500)
+  }
+
+  const stripe = new Stripe(secretKey, {
+    apiVersion: "2026-03-25.dahlia" as Stripe.LatestApiVersion,
+  })
+
   let event: Stripe.Event
   try {
-    const stripe = getStripeClient()
     event = stripe.webhooks.constructEvent(rawBody, signature, process.env.STRIPE_WEBHOOK_SECRET)
   } catch (error) {
     logger.error('[WEBHOOK] Stripe event construction failed', { error })
@@ -116,6 +115,7 @@ export async function POST(request: Request) {
   }
 
   // Handle ALL Stripe events with comprehensive handler
+  const stripeWebhookHandler = getStripeWebhookHandler()
   const result = await stripeWebhookHandler.handleWebhook(event)
   
   if (!result.processed && result.error) {

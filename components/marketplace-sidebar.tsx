@@ -18,6 +18,7 @@ import {
   IconChefHat, 
   IconFileText, 
   IconCalendar, 
+  IconClock,
   IconUsers, 
   IconMessageCircle,
   IconHelp,
@@ -84,6 +85,7 @@ const getChefNavGroups = (pathname: string): NavGroup[] => [
     items: [
       createNavItem("Requests", "/dashboard/chef/requests", IconUsers, pathname),
       createNavItem("Bookings", "/dashboard/chef/bookings", IconCalendar, pathname),
+      createNavItem("Availability", "/dashboard/chef/availability", IconClock, pathname),
       createNavItem("Messages", "/dashboard/chef/messages", IconMessageCircle, pathname),
       createNavItem("Menus", "/dashboard/chef/menus", IconFileText, pathname),
     ],
@@ -133,15 +135,6 @@ export function MarketplaceSidebar() {
 
   const navSecondary = [
     {
-      title: "Settings",
-      url: userRole === Role.CHEF ? "/dashboard/chef/settings" : "/dashboard/settings",
-      icon: IconSettings,
-      isActive:
-        userRole === Role.CHEF
-          ? pathname === "/dashboard/chef/settings" || pathname.startsWith("/dashboard/chef/settings/")
-          : pathname === "/dashboard/settings" || pathname.startsWith("/dashboard/settings/"),
-    },
-    {
       title: "Logout",
       url: "/login",
       icon: IconMenu2,
@@ -184,7 +177,7 @@ export function MarketplaceSidebar() {
 
           <div className="space-y-2">
             <SidebarGroupLabel className="px-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground/80 select-none">
-              Settings
+              Account
             </SidebarGroupLabel>
             <NavSecondary items={navSecondary} />
           </div>

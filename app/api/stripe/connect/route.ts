@@ -4,7 +4,7 @@ import { z } from "zod"
 
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { stripeService, StripeService } from "@/lib/services/stripe-service"
+import { getStripeService, StripeService } from "@/lib/services/stripe-service"
 import { Role } from "@/types"
 
 const connectActionSchema = z.object({
@@ -47,6 +47,7 @@ async function getStripeStatus(userId: string) {
     }
   }
 
+  const stripeService = getStripeService()
   const account = await stripeService.retrieveConnectAccount(chefProfile.stripeAccountId)
   const onboardingComplete = Boolean(account.details_submitted && account.charges_enabled)
 
@@ -128,6 +129,7 @@ export async function POST(request: NextRequest) {
       }, { status: 503 })
     }
 
+    const stripeService = getStripeService()
     let accountId = chefProfile.stripeAccountId
 
     if (!accountId) {

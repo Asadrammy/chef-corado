@@ -17,7 +17,7 @@ export function ChefHero({ userName, activeBookings, availableRequests, totalEar
   const averageRating = activeBookings > 0 ? Math.min(5, 4.6 + activeBookings / 50).toFixed(1) : "4.8"
 
   return (
-    <Card className="overflow-hidden rounded-[32px] border border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(244,247,255,0.92))] shadow-2xl shadow-slate-900/10 backdrop-blur-2xl dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(17,24,39,0.98),rgba(24,24,34,0.96))]">
+    <Card className="overflow-hidden rounded-[28px] border border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(244,247,255,0.92))] shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(17,24,39,0.98),rgba(24,24,34,0.96))]">
       <CardContent className="relative overflow-hidden p-0">
         <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.20),transparent_42%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.16),transparent_36%)]" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.42))] dark:bg-[linear-gradient(180deg,transparent,rgba(255,255,255,0.02))]" />

@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll } from '@jest/globals'
 import { prisma } from '@/lib/prisma'
-import { stripeService } from '@/lib/services/stripe-service'
+import { getStripeService } from '@/lib/services/stripe-service'
 import { ledgerService } from '@/lib/services/ledger-service'
 import { circuitBreakers } from '@/lib/utils/circuit-breaker'
 
@@ -15,6 +15,7 @@ describe('Failure Simulation Chaos Tests', () => {
   describe('Stripe API Failure Simulation', () => {
     it('should handle Stripe API timeouts gracefully', async () => {
       // Mock Stripe timeout
+      const stripeService = getStripeService()
       const originalCreate = stripeService.createPaymentIntent
       stripeService.createPaymentIntent = jest.fn().mockRejectedValue(
         new Error('ETIMEDOUT: Stripe API timeout after 30s')
@@ -41,6 +42,7 @@ describe('Failure Simulation Chaos Tests', () => {
       expect(initialStatus).toBe('CLOSED')
 
       // Simulate multiple failures
+      const stripeService = getStripeService()
       const originalCreate = stripeService.createPaymentIntent
       stripeService.createPaymentIntent = jest.fn().mockRejectedValue(
         new Error('Stripe API Error')
@@ -68,6 +70,7 @@ describe('Failure Simulation Chaos Tests', () => {
 
     it('should retry with exponential backoff', async () => {
       let callCount = 0
+      const stripeService = getStripeService()
       const originalCreate = stripeService.createPaymentIntent
       
       stripeService.createPaymentIntent = jest.fn().mockImplementation(() => {

@@ -4,7 +4,7 @@ import { z } from "zod"
 
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { stripeService, StripeService } from "@/lib/services/stripe-service"
+import { getStripeService, StripeService } from "@/lib/services/stripe-service"
 import { Role } from "@/types"
 
 const notificationPreferenceSchema = z.object({
@@ -55,6 +55,7 @@ export async function GET() {
     let stripeAccount = null
     if (stripeConfigured && chefProfile?.stripeAccountId) {
       try {
+        const stripeService = getStripeService()
         stripeAccount = await stripeService.retrieveConnectAccount(chefProfile.stripeAccountId)
       } catch (error) {
         console.error("Failed to retrieve Stripe account", error)

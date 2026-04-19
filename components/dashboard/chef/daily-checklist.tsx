@@ -122,7 +122,7 @@ export function DailyChecklist({
   }
 
   return (
-    <Card className="overflow-hidden rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
+    <Card className="overflow-hidden rounded-[28px] border border-white/60 bg-card/95 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10">
       <CardHeader className="space-y-4 pb-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
@@ -174,7 +174,7 @@ export function DailyChecklist({
                 <p
                   className={cn(
                     "font-medium",
-                    item.completed && "text-emerald-700 line-through dark:text-emerald-400"
+                    item.completed && "text-emerald-700 opacity-60 dark:text-emerald-400"
                   )}
                 >
                   {item.title}

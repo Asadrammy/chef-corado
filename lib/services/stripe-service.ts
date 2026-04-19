@@ -17,15 +17,24 @@ export class StripeService {
   private static instance: StripeService
 
   private constructor() {
-    if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error('STRIPE_SECRET_KEY not configured')
-    }
+    // Lazy initialization - don't validate or initialize Stripe here
+    // It will be initialized on first use
+    this.stripe = null as any
+  }
 
-    this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
-      apiVersion: '2026-03-25.dahlia' as Stripe.LatestApiVersion,
-      // Add timeout to prevent hanging requests
-      timeout: 30000, // 30 seconds
-    })
+  private ensureInitialized() {
+    if (!this.stripe) {
+      if (!process.env.STRIPE_SECRET_KEY) {
+        throw new Error('STRIPE_SECRET_KEY not configured')
+      }
+
+      this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+        apiVersion: '2026-03-25.dahlia' as Stripe.LatestApiVersion,
+        // Add timeout to prevent hanging requests
+        timeout: 30000, // 30 seconds
+      })
+    }
+    return this.stripe
   }
 
   static getInstance(): StripeService {
@@ -44,10 +53,13 @@ export class StripeService {
       return false
     }
 
-    // Check for placeholder keys
-    if (process.env.STRIPE_SECRET_KEY.includes('placeholder') || 
-        process.env.STRIPE_SECRET_KEY === 'sk_test_placeholder' ||
-        process.env.STRIPE_SECRET_KEY === 'sk_live_placeholder') {
+    const key = process.env.STRIPE_SECRET_KEY
+
+    // Only check for obvious placeholder strings
+    // Allow test keys from deployment environments
+    if (key.includes('placeholder') || 
+        key === 'sk_test_placeholder' ||
+        key === 'sk_live_placeholder') {
       return false
     }
 
@@ -68,6 +80,7 @@ export class StripeService {
    */
   async createPaymentIntent(params: Stripe.PaymentIntentCreateParams): Promise<Stripe.PaymentIntent> {
     StripeService.validateConfigured()
+    const stripe = this.ensureInitialized()
     return withCircuitBreaker('stripe', async () => {
       logger.info('[STRIPE] Creating payment intent', { 
         amount: params.amount,
@@ -75,7 +88,7 @@ export class StripeService {
         metadata: params.metadata
       })
 
-      const paymentIntent = await this.stripe.paymentIntents.create(params)
+      const paymentIntent = await stripe.paymentIntents.create(params)
       
       logger.info('[STRIPE] Payment intent created successfully', {
         paymentIntentId: paymentIntent.id,
@@ -91,6 +104,7 @@ export class StripeService {
    */
   async createCheckoutSession(params: Stripe.Checkout.SessionCreateParams): Promise<Stripe.Checkout.Session> {
     StripeService.validateConfigured()
+    const stripe = this.ensureInitialized()
     return withCircuitBreaker('stripe', async () => {
       logger.info('[STRIPE] Creating checkout session', {
         successUrl: params.success_url,
@@ -98,7 +112,7 @@ export class StripeService {
         metadata: params.metadata
       })
 
-      const session = await this.stripe.checkout.sessions.create(params)
+      const session = await stripe.checkout.sessions.create(params)
       
       logger.info('[STRIPE] Checkout session created successfully', {
         sessionId: session.id,
@@ -111,10 +125,11 @@ export class StripeService {
 
   async createConnectAccount(params?: Stripe.AccountCreateParams): Promise<Stripe.Account> {
     StripeService.validateConfigured()
+    const stripe = this.ensureInitialized()
     return withCircuitBreaker('stripe', async () => {
       logger.info('[STRIPE] Creating connect account')
 
-      const account = await this.stripe.accounts.create({
+      const account = await stripe.accounts.create({
         type: 'express',
         capabilities: {
           transfers: { requested: true },
@@ -132,12 +147,13 @@ export class StripeService {
 
   async createConnectAccountLink(params: Stripe.AccountLinkCreateParams): Promise<Stripe.AccountLink> {
     StripeService.validateConfigured()
+    const stripe = this.ensureInitialized()
     return withCircuitBreaker('stripe', async () => {
       logger.info('[STRIPE] Creating account onboarding link', {
         account: params.account,
       })
 
-      const link = await this.stripe.accountLinks.create(params)
+      const link = await stripe.accountLinks.create(params)
 
       logger.info('[STRIPE] Account onboarding link created successfully', {
         account: params.account,
@@ -149,10 +165,11 @@ export class StripeService {
 
   async retrieveConnectAccount(accountId: string): Promise<Stripe.Account> {
     StripeService.validateConfigured()
+    const stripe = this.ensureInitialized()
     return withCircuitBreaker('stripe', async () => {
       logger.debug('[STRIPE] Retrieving connect account', { accountId })
 
-      const account = await this.stripe.accounts.retrieve(accountId)
+      const account = await stripe.accounts.retrieve(accountId)
 
       logger.debug('[STRIPE] Connect account retrieved successfully', {
         accountId,
@@ -169,10 +186,11 @@ export class StripeService {
    */
   async retrievePaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
     StripeService.validateConfigured()
+    const stripe = this.ensureInitialized()
     return withCircuitBreaker('stripe', async () => {
       logger.debug('[STRIPE] Retrieving payment intent', { paymentIntentId })
 
-      const paymentIntent = await this.stripe.paymentIntents.retrieve(paymentIntentId)
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId)
       
       logger.debug('[STRIPE] Payment intent retrieved successfully', {
         paymentIntentId,
@@ -188,10 +206,11 @@ export class StripeService {
    */
   async confirmPaymentIntent(paymentIntentId: string): Promise<Stripe.PaymentIntent> {
     StripeService.validateConfigured()
+    const stripe = this.ensureInitialized()
     return withCircuitBreaker('stripe', async () => {
       logger.info('[STRIPE] Confirming payment intent', { paymentIntentId })
 
-      const paymentIntent = await this.stripe.paymentIntents.confirm(paymentIntentId)
+      const paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId)
       
       logger.info('[STRIPE] Payment intent confirmed successfully', {
         paymentIntentId,
@@ -207,6 +226,7 @@ export class StripeService {
    */
   async createRefund(params: Stripe.RefundCreateParams): Promise<Stripe.Refund> {
     StripeService.validateConfigured()
+    const stripe = this.ensureInitialized()
     return withCircuitBreaker('stripe', async () => {
       logger.info('[STRIPE] Creating refund', {
         paymentIntentId: params.payment_intent,
@@ -214,7 +234,7 @@ export class StripeService {
         reason: params.reason
       })
 
-      const refund = await this.stripe.refunds.create(params)
+      const refund = await stripe.refunds.create(params)
       
       logger.info('[STRIPE] Refund created successfully', {
         refundId: refund.id,
@@ -230,6 +250,7 @@ export class StripeService {
    * Create a transfer (for payouts) with circuit breaker protection
    */
   async createTransfer(params: Stripe.TransferCreateParams): Promise<Stripe.Transfer> {
+    const stripe = this.ensureInitialized()
     return withCircuitBreaker('stripe', async () => {
       logger.info('[STRIPE] Creating transfer', {
         amount: params.amount,
@@ -237,7 +258,7 @@ export class StripeService {
         metadata: params.metadata
       })
 
-      const transfer = await this.stripe.transfers.create(params)
+      const transfer = await stripe.transfers.create(params)
       
       logger.info('[STRIPE] Transfer created successfully', {
         transferId: transfer.id,
@@ -253,10 +274,11 @@ export class StripeService {
    * Retrieve a balance with circuit breaker protection
    */
   async retrieveBalance(): Promise<Stripe.Balance> {
+    const stripe = this.ensureInitialized()
     return withCircuitBreaker('stripe', async () => {
       logger.debug('[STRIPE] Retrieving account balance')
 
-      const balance = await this.stripe.balance.retrieve()
+      const balance = await stripe.balance.retrieve()
       
       logger.debug('[STRIPE] Balance retrieved successfully', {
         available: balance.available,
@@ -271,10 +293,11 @@ export class StripeService {
    * List payment intents with circuit breaker protection
    */
   async listPaymentIntents(params?: Stripe.PaymentIntentListParams): Promise<Stripe.ApiList<Stripe.PaymentIntent>> {
+    const stripe = this.ensureInitialized()
     return withCircuitBreaker('stripe', async () => {
       logger.debug('[STRIPE] Listing payment intents', { params })
 
-      const paymentIntents = await this.stripe.paymentIntents.list(params)
+      const paymentIntents = await stripe.paymentIntents.list(params)
       
       logger.debug('[STRIPE] Payment intents listed successfully', {
         count: paymentIntents.data.length,
@@ -295,7 +318,8 @@ export class StripeService {
         throw new Error('STRIPE_WEBHOOK_SECRET not configured')
       }
 
-      const event = this.stripe.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET)
+      const stripe = this.ensureInitialized()
+      const event = stripe.webhooks.constructEvent(payload, signature, process.env.STRIPE_WEBHOOK_SECRET)
       
       logger.info('[STRIPE] Webhook event constructed successfully', {
         eventId: event.id,
@@ -332,5 +356,7 @@ export class StripeService {
   }
 }
 
-// Export singleton instance
-export const stripeService = StripeService.getInstance()
+// Export factory function for lazy initialization
+export function getStripeService(): StripeService {
+  return StripeService.getInstance()
+}

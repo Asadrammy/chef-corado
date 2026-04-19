@@ -1,23 +1,26 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Badge } from "@/components/ui/badge";
-import { AvailabilityCalendar } from "@/components/availability/availability-calendar";
-import { Calendar, Clock, TrendingUp, Users } from "lucide-react";
+import { format, isWithinInterval, startOfDay, endOfDay, subWeeks } from "date-fns";
 import { toast } from "sonner";
 import axios from "axios";
-import { format, isWithinInterval, startOfDay, endOfDay } from "date-fns";
+import { motion } from "framer-motion";
+import { ProductHeader } from "@/components/availability/product-header";
+import { ElegantStats } from "@/components/availability/elegant-stats";
+import { ProductCalendar } from "@/components/availability/product-calendar";
+import { AlivePanel } from "@/components/availability/alive-panel";
+import { ModernAddDialog } from "@/components/availability/modern-add-dialog";
+import { ModernBulkDialog } from "@/components/availability/modern-bulk-dialog";
 
 interface AvailabilitySlot {
   id: string;
   date: string;
   startTime: string;
   endTime: string;
+  isAvailable: boolean;
   maxBookings: number;
   currentBookings: number;
-  recurringPattern?: string | null;
+  recurringPattern?: string;
 }
 
 interface ChefBooking {
@@ -46,7 +49,13 @@ export default function ChefAvailabilityPage() {
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
   const [bookings, setBookings] = useState<ChefBooking[]>([]);
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [loading, setLoading] = useState(true);
+
+  // Dialog states
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<AvailabilitySlot | null>(null);
 
   useEffect(() => {
     fetchAvailabilityData(currentMonth);
@@ -104,190 +113,180 @@ export default function ChefAvailabilityPage() {
     fetchAvailabilityData(currentMonth);
   };
 
-  const listViewSlots = [...availability].sort((a, b) => {
-    const left = `${a.date}T${a.startTime}`;
-    const right = `${b.date}T${b.startTime}`;
-    return left.localeCompare(right);
-  });
+  const handleAddAvailability = () => {
+    setEditingSlot(null);
+    setIsAddDialogOpen(true);
+  };
+
+  const handleBulkBlock = () => {
+    setIsBulkDialogOpen(true);
+  };
+
+  const handleCopyPreviousWeek = async () => {
+    if (!selectedDate) {
+      toast.error("Please select a date first");
+      return;
+    }
+
+    try {
+      const previousWeekDate = subWeeks(selectedDate, 1);
+      const monthStr = format(previousWeekDate, "yyyy-MM");
+      const response = await axios.get(`/api/availability?month=${monthStr}`);
+      const previousWeekSlots = response.data || [];
+
+      if (previousWeekSlots.length === 0) {
+        toast.error("No availability found for previous week");
+        return;
+      }
+
+      const createPromises = previousWeekSlots.map((slot: AvailabilitySlot) => {
+        const slotDate = new Date(slot.date);
+        const daysDiff = Math.floor((selectedDate.getTime() - previousWeekDate.getTime()) / (1000 * 60 * 60 * 24));
+        const newDate = new Date(slotDate.getTime() + daysDiff * 24 * 60 * 60 * 1000);
+        
+        return axios.post("/api/availability", {
+          date: format(newDate, "yyyy-MM-dd"),
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          maxBookings: slot.maxBookings,
+          isAvailable: slot.isAvailable,
+          recurringPattern: null,
+        });
+      });
+
+      await Promise.all(createPromises);
+      toast.success(`Copied ${previousWeekSlots.length} slot(s) from previous week`);
+      handleAvailabilityChanged();
+    } catch (error: any) {
+      console.error("Error copying previous week:", error);
+      toast.error(error.response?.data?.error || "Failed to copy previous week");
+    }
+  };
+
+  const handleClearAvailability = async () => {
+    if (!confirm("Are you sure you want to clear all availability for this month?")) return;
+
+    try {
+      const monthStr = format(currentMonth, "yyyy-MM");
+      const response = await axios.get(`/api/availability?month=${monthStr}`);
+      const slots = response.data || [];
+
+      const deletePromises = slots.map((slot: AvailabilitySlot) =>
+        axios.delete(`/api/availability/${slot.id}`)
+      );
+
+      await Promise.all(deletePromises);
+      toast.success(`Cleared ${slots.length} slot(s)`);
+      handleAvailabilityChanged();
+    } catch (error: any) {
+      console.error("Error clearing availability:", error);
+      toast.error(error.response?.data?.error || "Failed to clear availability");
+    }
+  };
+
+  const handleSlotEdited = (slot: AvailabilitySlot) => {
+    setEditingSlot(slot);
+    setIsAddDialogOpen(true);
+  };
+
+  const getSlotsForSelectedDate = () => {
+    if (!selectedDate) return [];
+    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    return availability.filter(slot => slot.date === dateStr);
+  };
 
   if (loading) {
     return (
-      <div className="container mx-auto py-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded"></div>
-            ))}
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+        <div className="max-w-7xl mx-auto px-6 py-12">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="space-y-8"
+          >
+            <div className="h-16 bg-gray-200 rounded-2xl animate-pulse" />
+            <div className="h-20 bg-gray-200 rounded-2xl animate-pulse" />
+            <div className="h-96 bg-gray-200 rounded-3xl animate-pulse" />
+          </motion.div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Availability Management</h1>
-        <p className="text-gray-600">Manage your schedule and available time slots</p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      {/* Product Header */}
+      <ProductHeader
+        onAddAvailability={handleAddAvailability}
+        onBulkBlock={handleBulkBlock}
+        onCopyPreviousWeek={handleCopyPreviousWeek}
+        onClearAvailability={handleClearAvailability}
+      />
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Time Slots</CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalSlots}</div>
-            <p className="text-xs text-muted-foreground">
-              This month
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Available Slots</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.availableSlots}</div>
-            <p className="text-xs text-muted-foreground">
-              Ready for booking
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Booked Slots</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.bookedSlots}</div>
-            <p className="text-xs text-muted-foreground">
-              This month
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Upcoming Bookings</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{stats.upcomingBookings}</div>
-            <p className="text-xs text-muted-foreground">
-              Next 7 days
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Elegant Stats */}
+      <ElegantStats
+        totalSlots={stats.totalSlots}
+        availableSlots={stats.availableSlots}
+        bookedSlots={stats.bookedSlots}
+        upcomingBookings={stats.upcomingBookings}
+      />
 
-      {/* Availability Calendar */}
-      <Tabs defaultValue="calendar" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="calendar">Calendar View</TabsTrigger>
-          <TabsTrigger value="list">List View</TabsTrigger>
-        </TabsList>
-        
-        <TabsContent value="calendar">
-          <Card>
-            <CardHeader>
-              <CardTitle>Availability Calendar</CardTitle>
-              <CardDescription>
-                Click on any date to add or manage time slots for that day
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <AvailabilityCalendar
-                onAvailabilityChanged={handleAvailabilityChanged}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
-        
-        <TabsContent value="list">
-          <Card>
-            <CardHeader>
-              <CardTitle>Time Slots List</CardTitle>
-              <CardDescription>
-                View all your availability slots in a list format
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {listViewSlots.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>No time slots yet</p>
-                  <p className="text-sm">Add availability from the calendar tab to start accepting bookings.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {listViewSlots.map((slot) => (
-                    <div key={slot.id} className="rounded-xl border border-border/60 p-4">
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                          <p className="font-medium text-foreground">{format(new Date(`${slot.date}T00:00:00`), "EEE, MMM d, yyyy")}</p>
-                          <p className="text-sm text-muted-foreground">{slot.startTime} - {slot.endTime}</p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={slot.currentBookings === 0 ? "default" : slot.currentBookings < slot.maxBookings ? "secondary" : "destructive"}>
-                            {slot.currentBookings}/{slot.maxBookings} booked
-                          </Badge>
-                          {slot.recurringPattern ? <Badge variant="outline">{slot.recurringPattern}</Badge> : null}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* Product Workspace */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3, duration: 0.5 }}
+        className="max-w-7xl mx-auto px-6 py-12"
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
+          {/* Calendar - 70% */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4, duration: 0.5 }}
+            className="lg:col-span-8"
+          >
+            <ProductCalendar
+              selectedDate={selectedDate}
+              onDateSelect={setSelectedDate}
+              onMonthChange={setCurrentMonth}
+              currentMonth={currentMonth}
+              availability={availability}
+            />
+          </motion.div>
 
-      {/* Tips */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Pro Tips</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-start gap-3">
-            <div className="w-2 h-2 rounded-full bg-blue-500 mt-2"></div>
-            <div>
-              <p className="font-medium">Set recurring availability</p>
-              <p className="text-sm text-gray-600">
-                Use recurring patterns for regular working hours to save time
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-start gap-3">
-            <div className="w-2 h-2 rounded-full bg-green-500 mt-2"></div>
-            <div>
-              <p className="font-medium">Block time strategically</p>
-              <p className="text-sm text-gray-600">
-                Set realistic time slots that include preparation and cleanup time
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-start gap-3">
-            <div className="w-2 h-2 rounded-full bg-purple-500 mt-2"></div>
-            <div>
-              <p className="font-medium">Update regularly</p>
-              <p className="text-sm text-gray-600">
-                Keep your availability up-to-date to maintain a good response rate
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          {/* Alive Panel - 30% */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.5, duration: 0.5 }}
+            className="lg:col-span-4"
+          >
+            <AlivePanel
+              selectedDate={selectedDate}
+              slots={getSlotsForSelectedDate()}
+              onSlotDeleted={handleAvailabilityChanged}
+              onSlotEdited={handleSlotEdited}
+              onAddSlot={handleAddAvailability}
+            />
+          </motion.div>
+        </div>
+      </motion.div>
+
+      {/* Dialogs */}
+      <ModernAddDialog
+        open={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        selectedDate={selectedDate}
+        onSuccess={handleAvailabilityChanged}
+        editingSlot={editingSlot}
+      />
+
+      <ModernBulkDialog
+        open={isBulkDialogOpen}
+        onOpenChange={setIsBulkDialogOpen}
+        onSuccess={handleAvailabilityChanged}
+      />
     </div>
   );
 }
