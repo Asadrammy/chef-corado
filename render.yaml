@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: chef-marketplace
+    env: node
+    buildCommand: npm install && npm run build
+    startCommand: npx prisma db push && npx ts-node prisma/seed-production.ts && npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: NEXTAUTH_URL
+        sync: false
+      - key: NEXTAUTH_SECRET
+        sync: false
+      - key: NODE_ENV
+        value: production

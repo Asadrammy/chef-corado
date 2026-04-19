@@ -6,7 +6,10 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "postinstall": "prisma generate",
+    "migrate": "prisma db push",
+    "seed": "ts-node prisma/seed-production.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
