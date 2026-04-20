@@ -5,7 +5,7 @@
  * Tests ledger integrity, payment flows, and money tracking
  */
 
-import { describe, it, expect, beforeAll, afterAll } from '@jest/globals'
+import { describe, it, expect, beforeAll, afterAll, jest } from '@jest/globals'
 import { prisma } from '@/lib/prisma'
 import { ledgerService } from '@/lib/services/ledger-service'
 import { paymentService } from '@/lib/services/payment-service'
@@ -123,18 +123,22 @@ describe('Financial Integrity Chaos Tests', () => {
           actual: 500
         }]
       }
-      
-      // Mock the verifyBalance method
-      const originalVerifyBalance = ledgerService.verifyBalance
-      ledgerService.verifyBalance = jest.fn().mockResolvedValue(mockBalance)
+
+      // Mock the verifyBalance method using spyOn with proper typing
+      const mockVerifyBalance = jest.spyOn(ledgerService, 'verifyBalance').mockResolvedValue(mockBalance as {
+        verified: boolean
+        expectedBalance: number
+        actualBalance: number
+        discrepancies: Array<{ type: string; expected: number; actual: number }>
+      })
 
       // Verify balance should detect inconsistency
       const balance = await ledgerService.verifyBalance()
       expect(balance.verified).toBe(false)
       expect(balance.discrepancies.length).toBeGreaterThan(0)
-      
+
       // Restore original method
-      ledgerService.verifyBalance = originalVerifyBalance
+      mockVerifyBalance.mockRestore()
     })
   })
 
