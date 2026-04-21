@@ -7,9 +7,13 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+        # Add connection pool parameters for Render's PgBouncer
+        # Render will append: ?connection_limit=10&pool_timeout=20&connect_timeout=10
       - key: NEXTAUTH_URL
         sync: false
       - key: NEXTAUTH_SECRET
         sync: false
       - key: NODE_ENV
         value: production
+      - key: PRISMA_ENGINE_BINARY
+        value: ./node_modules/.prisma/client
