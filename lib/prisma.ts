@@ -25,10 +25,6 @@ export const prisma =
         url: getDatabaseUrl(),
       },
     },
-    // Connection pool settings for production
-    ...(process.env.NODE_ENV === "production" && {
-      connectionLimit: 10,
-    }),
   })
 
 // Handle connection errors in production with retry logic
