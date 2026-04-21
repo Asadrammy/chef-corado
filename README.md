@@ -55,4 +55,101 @@ Get lifetime use of the premium version of Shadcn UI Kit with hundreds of UI com
 
 Toby Belhome - [@TobyBelhome](https://x.com/TobyBelhome)
 
+## 🚀 Quick Start
+
+### Prerequisites
+- Node.js 18+ 
+- Docker (for local PostgreSQL)
+- PostgreSQL (or use Docker)
+
+### Database Setup
+
+This project uses PostgreSQL for both local development and production (Render).
+
+#### Option 1: Using Docker (Recommended)
+
+```bash
+# Start PostgreSQL container
+docker-compose up -d
+
+# Verify it's running
+docker ps
+```
+
+#### Option 2: Local PostgreSQL Installation
+
+If you have PostgreSQL installed locally, create a database:
+
+```bash
+createdb chef_marketplace
+```
+
+Then update your `.env` file with your connection string.
+
+### Environment Setup
+
+1. Copy the example environment file:
+```bash
+cp .env.example .env
+```
+
+2. Update `.env` with your configuration:
+```
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/chef_marketplace"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="your-secret-key"
+```
+
+### Installation & Setup
+
+```bash
+# Install dependencies
+npm install
+
+# Generate Prisma client
+npx prisma generate
+
+# Push database schema
+npm run migrate
+
+# Seed database (optional - creates test data)
+npm run seed
+
+# Start development server
+npm run dev
+```
+
+### Deployment to Render
+
+1. **Push schema changes to PostgreSQL**:
+   - The schema has been updated from SQLite to PostgreSQL
+   - Commit the changes to `prisma/schema.prisma`
+
+2. **Configure Render environment variables**:
+   - Render automatically provides `DATABASE_URL` (PostgreSQL)
+   - Set `NEXTAUTH_URL=https://chef-management.onrender.com`
+   - Set `NEXTAUTH_SECRET` (generate with: `openssl rand -base64 32`)
+   - Set `NODE_ENV=production`
+   - Configure Stripe keys if using payments
+
+3. **Deploy**:
+   - Push your changes to Git
+   - Render will automatically build and deploy
+   - Prisma migrations will run automatically during build
+
+### Test Accounts
+
+After seeding, you can use these accounts:
+- **Admin**: admin@example.com / admin123
+- **Chef**: chef@example.com / chef123
+- **Client**: client@example.com / client123
+
+## 📚 Available Scripts
+
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm start` - Start production server
+- `npm run migrate` - Push database schema changes
+- `npm run seed` - Seed database with test data
+
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
