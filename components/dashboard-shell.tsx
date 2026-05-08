@@ -26,7 +26,14 @@ export function DashboardShell({ children, legalNotice }: DashboardShellProps) {
   const handleAcknowledgeLatestTerms = async () => {
     setAcknowledging(true)
     try {
-      const response = await fetch("/api/account/legal-acceptance", { method: "PUT" })
+      const response = await fetch("/api/account/legal-acceptance", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          acceptedTerms: true,
+          acceptedVia: "modal",
+        }),
+      })
       if (!response.ok) {
         throw new Error("Failed to confirm the latest terms")
       }
