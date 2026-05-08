@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma"
 
+const MAX_PROPOSALS_PER_REQUEST = 10
+
 export const messageRepository = {
   findUserById(userId: string) {
     return prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, name: true, role: true, phone: true },
+      select: { id: true, name: true, role: true },
     })
   },
 
@@ -114,6 +116,7 @@ export const messageRepository = {
             location: true,
             budget: true,
             details: true,
+            currency: true,
           },
         },
       },
@@ -165,6 +168,7 @@ export const messageRepository = {
               location: true,
               budget: true,
               details: true,
+              currency: true,
             },
           },
         },
@@ -200,6 +204,7 @@ export const messageRepository = {
                   location: true,
                   budget: true,
                   details: true,
+                  currency: true,
                 },
               },
             },
@@ -246,6 +251,12 @@ export const messageRepository = {
             email: true,
           },
         },
+        proposals: {
+          select: {
+            id: true,
+          },
+          take: 1,
+        },
       },
     })
   },
@@ -254,6 +265,7 @@ export const messageRepository = {
     requestId: string
     chefId: string
     price: number
+    currency: string
     message: string
     expiresAt: Date
   }) {
@@ -262,6 +274,7 @@ export const messageRepository = {
         requestId: input.requestId,
         chefId: input.chefId,
         price: input.price,
+        currency: input.currency,
         message: input.message,
         expiresAt: input.expiresAt,
       },
@@ -274,9 +287,55 @@ export const messageRepository = {
             location: true,
             budget: true,
             details: true,
+            currency: true,
           },
         },
       },
+    })
+  },
+
+  createProposalForConversationAtomically(input: {
+    requestId: string
+    chefId: string
+    price: number
+    currency: string
+    message: string
+    expiresAt: Date
+  }) {
+    return prisma.$transaction(async (tx) => {
+      const existingProposalCount = await tx.proposal.count({
+        where: { requestId: input.requestId },
+      })
+
+      if (existingProposalCount >= MAX_PROPOSALS_PER_REQUEST) {
+        throw new Error("REQUEST_PROPOSAL_LIMIT_REACHED")
+      }
+
+      return tx.proposal.create({
+        data: {
+          requestId: input.requestId,
+          chefId: input.chefId,
+          price: input.price,
+          currency: input.currency,
+          message: input.message,
+          expiresAt: input.expiresAt,
+        },
+        include: {
+          request: {
+            select: {
+              id: true,
+              title: true,
+              eventDate: true,
+              location: true,
+              budget: true,
+              details: true,
+              currency: true,
+            },
+          },
+        },
+      })
+    }, {
+      isolationLevel: "Serializable",
     })
   },
 
@@ -307,6 +366,7 @@ export const messageRepository = {
               location: true,
               budget: true,
               details: true,
+              currency: true,
             },
           },
         },
@@ -332,6 +392,7 @@ export const messageRepository = {
             location: true,
             budget: true,
             details: true,
+            currency: true,
           },
         },
       },

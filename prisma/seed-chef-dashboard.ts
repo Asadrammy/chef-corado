@@ -123,10 +123,12 @@ async function main() {
         clientId: client.id,
         title: 'Anniversary Dinner for 6',
         description: 'Romantic anniversary celebration with intimate Italian cuisine',
+        eventType: 'Anniversary',
         eventDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
         location: 'Manhattan, New York',
         latitude: 40.7200, // Close to chef's location
         longitude: -74.0000, // Close to chef's location
+        guestCount: 6,
         budget: 1200,
         details: 'Wine pairing and dessert special requested'
       },
@@ -134,10 +136,12 @@ async function main() {
         clientId: client.id,
         title: 'Corporate Team Building Event',
         description: 'Interactive cooking class for 15 team members',
+        eventType: 'Corporate Event',
         eventDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
         location: 'Brooklyn, New York',
         latitude: 40.7000, // Close to chef's location
         longitude: -73.9900, // Close to chef's location
+        guestCount: 15,
         budget: 3000,
         details: 'Vegetarian options needed for 3 participants'
       },
@@ -145,10 +149,12 @@ async function main() {
         clientId: client.id,
         title: 'Birthday Party Celebration',
         description: 'Fun birthday party with Italian themed menu',
+        eventType: 'Birthday',
         eventDate: new Date(Date.now() + 21 * 24 * 60 * 60 * 1000), // 21 days from now
         location: 'Queens, New York',
         latitude: 40.7300, // Close to chef's location
         longitude: -74.0100, // Close to chef's location
+        guestCount: 10,
         budget: 800,
         details: 'Birthday cake and party favors included'
       },
@@ -156,10 +162,12 @@ async function main() {
         clientId: client.id,
         title: 'Private Dinner Party',
         description: 'Exclusive dinner party for close friends',
+        eventType: 'Get Together',
         eventDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days from now
         location: 'Upper East Side, Manhattan',
         latitude: 40.7700, // Close to chef's location
         longitude: -73.9500, // Close to chef's location
+        guestCount: 8,
         budget: 1500,
         details: 'Five-course tasting menu experience'
       },
@@ -167,14 +175,16 @@ async function main() {
         clientId: client.id,
         title: 'Weekend Brunch Gathering',
         description: 'Casual weekend brunch with Italian specialties',
+        eventType: 'Get Together',
         eventDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
         location: 'West Village, Manhattan',
         latitude: 40.7300, // Close to chef's location
         longitude: -74.0030, // Close to chef's location
+        guestCount: 8,
         budget: 600,
         details: 'Mimosa bar and pasta making station'
       }
-    ]
+    ] as any
   });
 
   console.log('✅ Created 5 open requests');

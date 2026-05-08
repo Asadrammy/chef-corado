@@ -4,7 +4,7 @@ import type { Prisma } from "@prisma/client"
 type UserAction = "ban" | "unban"
 
 export const adminUserService = {
-  async updateUserBanStatus(userId: string, action: UserAction) {
+  async updateUserBanStatus(userId: string, action: UserAction, input?: { reason?: string; adminNotes?: string; bannedBy?: string }) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -17,12 +17,20 @@ export const adminUserService = {
     }
 
     const isBanned = action === "ban"
+    const bannedAt = isBanned ? new Date() : null
+    const reason = isBanned ? input?.reason?.trim() || null : null
+    const adminNotes = isBanned ? input?.adminNotes?.trim() || null : null
+    const bannedBy = isBanned ? input?.bannedBy || null : null
 
     await prisma.user.update({
       where: { id: userId },
       data: {
         isBanned,
-      },
+        banReason: reason,
+        banAdminNotes: adminNotes,
+        bannedAt,
+        bannedBy,
+      } as any,
     })
 
     if (user.chefProfile) {
@@ -30,7 +38,12 @@ export const adminUserService = {
         where: { id: user.chefProfile.id },
         data: {
           isBanned,
-        },
+          banReason: reason,
+          banAdminNotes: adminNotes,
+          bannedAt,
+          bannedBy,
+          isApproved: isBanned ? false : user.chefProfile.isApproved,
+        } as any,
       })
     }
 

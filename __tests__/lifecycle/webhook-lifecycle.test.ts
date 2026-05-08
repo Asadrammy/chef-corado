@@ -53,10 +53,13 @@ describe("Webhook Lifecycle Tests", () => {
       data: {
         clientId: testClient.id,
         title: "Test Request",
+        description: "Webhook lifecycle request",
+        eventType: "Other",
         eventDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         location: "Test Location",
+        guestCount: 2,
         budget: 100,
-      },
+      } as any,
     })
 
     testProposal = await prisma.proposal.create({

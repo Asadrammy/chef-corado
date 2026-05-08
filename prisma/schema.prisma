@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -15,9 +15,16 @@ model User {
   phone             String?
   role              String         @default("CLIENT")
   isBanned          Boolean        @default(false)
+  banReason         String?
+  banAdminNotes     String?
+  bannedAt          DateTime?
+  bannedBy          String?
   verified          Boolean        @default(false)
   profileCompletion Int            @default(0)
   experienceLevel   String         @default("BEGINNER")
+  termsAcceptedAt   DateTime?
+  termsVersion      String?
+  acceptedVia       String?
   resetToken        String?        @unique
   resetTokenExpires DateTime?
   createdAt         DateTime       @default(now())
@@ -40,6 +47,8 @@ model ChefProfile {
   latitude          Float?
   longitude         Float?
   radius            Float       @default(50)
+  baseCountryCode   String      @default("GB")
+  preferredCurrency String      @default("GBP")
   bio               String?
   specialties       String?
   cuisineTypes       String?
@@ -47,6 +56,9 @@ model ChefProfile {
   isApproved        Boolean     @default(false)
   isBanned          Boolean     @default(false)
   banReason         String?
+  banAdminNotes     String?
+  bannedAt          DateTime?
+  bannedBy          String?
   profileCompletion Int         @default(0)
   verificationStatus String      @default("PENDING")
   certifications    String?
@@ -59,6 +71,13 @@ model ChefProfile {
   stripeAccountId   String?
   stripeOnboardingComplete Boolean?
   verified          Boolean     @default(false)
+  insuranceAcknowledgedAt DateTime?
+  insuranceVersion  String?
+  insuranceStatus   String      @default("pending")
+  insuranceDocumentUrl String?
+  insuranceExpiryDate DateTime?
+  insuranceVerifiedAt DateTime?
+  insuranceVerifiedBy String?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
@@ -84,6 +103,7 @@ model Menu {
   title       String
   description String?
   price       Float
+  currency    String      @default("GBP")
   menuImage   String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -121,12 +141,17 @@ model Experience {
   title            String
   description      String
   price            Float
+  currency         String      @default("GBP")
   duration         Int
   includedServices String
   eventType        String?
   cuisineType      String?
   maxGuests        Int?
   minGuests        Int?
+  serviceType      String      @default("DINING")
+  offersCookingClasses Boolean @default(false)
+  classType        String?
+  pricePerStudent  Float?
   difficulty       String      @default("EASY")
   tags             String?
   experienceImage  String?
@@ -151,10 +176,18 @@ model Experience {
 model Request {
   id          String     @id @default(cuid())
   clientId    String
-  title       String
+  title       String?
+  eventType   String
+  cuisineTypes String?
+  dietaryRequirements String?
   description String?
   eventDate   DateTime
+  eventTime   String?
   location    String
+  countryCode String      @default("GB")
+  currency    String      @default("GBP")
+  guestCount  Int
+  studentCount Int?
   latitude    Float?
   longitude   Float?
   budget      Float
@@ -184,6 +217,7 @@ model Proposal {
   chefId    String
   menuId    String?
   price     Float
+  currency  String      @default("GBP")
   message   String?
   status    String      @default("PENDING")
   expiresAt DateTime?
@@ -208,7 +242,9 @@ model Booking {
   latitude        Float?
   longitude       Float?
   guestCount      Int
+  studentCount    Int?
   totalPrice      Float
+  currency        String      @default("GBP")
   bookingType     String      @default("PROPOSAL")
   status          String      @default("PENDING")
   specialRequests String?
@@ -238,9 +274,11 @@ model Payment {
   totalAmount           Float     @default(0)
   commissionAmount      Float     @default(0)
   chefAmount            Float     @default(0)
+  currency              String    @default("GBP")
   status                String    @default("HELD")
   stripePaymentIntentId String?   @unique
   stripeChargeId        String?   @unique
+  stripeCheckoutSessionId String? @unique
   idempotencyKey        String?   @unique
   releasedAt            DateTime?
   releasedBy            String?
@@ -308,6 +346,23 @@ model Message {
   isRead     Boolean  @default(false)
   receiver   User     @relation("MessageReceiver", fields: [receiverId], references: [id])
   sender     User     @relation("MessageSender", fields: [senderId], references: [id])
+}
+
+model ModerationFlag {
+  id          String   @id @default(cuid())
+  entityType  String
+  entityId    String
+  fieldName   String?
+  violationType String
+  excerpt     String?
+  status      String   @default("OPEN")
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([entityType, entityId])
+  @@index([status])
+  @@index([violationType])
 }
 
 model Availability {
@@ -410,7 +465,7 @@ model Ledger {
   id              String   @id @default(cuid())
   transactionType String
   amount          Float
-  currency        String   @default("USD")
+  currency        String   @default("GBP")
   bookingId       String?
   paymentId       String?
   refundId        String?

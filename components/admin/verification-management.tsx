@@ -19,7 +19,7 @@ import {
   MapPin, 
   Calendar,
   Users,
-  DollarSign,
+  Wallet,
   Award,
   AlertTriangle
 } from "lucide-react";

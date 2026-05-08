@@ -10,7 +10,7 @@ import {
   MessageSquare, 
   Calendar, 
   Star, 
-  DollarSign,
+  Wallet,
   Users,
   TrendingUp,
   Clock,
@@ -96,11 +96,11 @@ export function RetentionHooks({ userRole, userId, className }: RetentionHooksPr
       case 'PROPOSAL_RECEIVED': return <MessageSquare className="w-4 h-4" />;
       case 'PROPOSAL_ACCEPTED': return <CheckCircle className="w-4 h-4" />;
       case 'BOOKING_CREATED': return <Calendar className="w-4 h-4" />;
-      case 'PAYMENT_SUCCESS': return <DollarSign className="w-4 h-4" />;
+      case 'PAYMENT_SUCCESS': return <Wallet className="w-4 h-4" />;
       case 'REVIEW_RECEIVED': return <Star className="w-4 h-4" />;
       case 'NEW_MESSAGE': return <MessageSquare className="w-4 h-4" />;
       case 'CHEF_APPROVED': return <CheckCircle className="w-4 h-4" />;
-      case 'PAYOUT_PROCESSED': return <DollarSign className="w-4 h-4" />;
+      case 'PAYOUT_PROCESSED': return <Wallet className="w-4 h-4" />;
       default: return <Bell className="w-4 h-4" />;
     }
   };

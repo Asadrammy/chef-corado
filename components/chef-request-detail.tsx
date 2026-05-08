@@ -4,11 +4,12 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CalendarDays, MapPin, DollarSign, Users, Clock, ArrowLeft } from "lucide-react"
+import { CalendarDays, MapPin, Wallet, Users, Clock, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { formatCurrency } from "@/lib/currency"
 
 type ProposalErrorPayload = {
   error?: string
@@ -67,6 +68,7 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
   })
 
   const hasProposal = request.proposals && request.proposals.length > 0
+  const quoteLimitReached = (request.totalProposalCount ?? 0) >= 10
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -118,11 +120,11 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
 
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="h-5 w-5 text-purple-600" />
+                <Wallet className="h-5 w-5 text-purple-600" />
               </div>
               <div>
                 <p className="text-sm text-gray-500">Budget</p>
-                <p className="font-medium">${request.budget}</p>
+                <p className="font-medium">{formatCurrency(request.budget, request.currency ?? "GBP")}</p>
               </div>
             </div>
 
@@ -132,9 +134,17 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
               </div>
               <div>
                 <p className="text-sm text-gray-500">Guests</p>
-                <p className="font-medium">TBD</p>
+                <p className="font-medium">{request.guestCount ?? "TBD"}</p>
               </div>
             </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3 border-t pt-6">
+            <Badge variant="secondary">{request.eventType ?? "Event"}</Badge>
+            <Badge variant="outline">{request.totalProposalCount ?? 0}/10 quotes received</Badge>
+            {quoteLimitReached ? (
+              <Badge variant="destructive">Quote limit reached</Badge>
+            ) : null}
           </div>
 
           {/* Additional Details */}
@@ -173,9 +183,14 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
+            {quoteLimitReached ? (
+              <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                Quote limit reached. This request is no longer accepting proposals.
+              </div>
+            ) : null}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="price">Your Price ($)</Label>
+                <Label htmlFor="price">Your Price ({request.currency ?? "GBP"})</Label>
                 <Input
                   id="price"
                   type="number"
@@ -197,7 +212,7 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
             </div>
             <Button 
               onClick={handleSubmitProposal}
-              disabled={isSubmitting}
+              disabled={isSubmitting || quoteLimitReached}
               className="w-full md:w-auto"
             >
               {isSubmitting ? "Sending..." : "Send Proposal"}
@@ -219,7 +234,7 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500">Price</p>
-                <p className="font-medium text-lg">${request.proposals[0].price}</p>
+                <p className="font-medium text-lg">{formatCurrency(request.proposals[0].price, request.currency ?? "GBP")}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Status</p>

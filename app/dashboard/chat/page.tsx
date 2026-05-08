@@ -107,7 +107,12 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="container mx-auto py-6">
+    <div className="container mx-auto py-6 space-y-4">
+      <div className="rounded-xl border border-amber-200/70 bg-amber-50/80 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100">
+        <p className="font-medium text-foreground">Platform-only communication</p>
+        <p className="mt-1 text-xs">Keep all booking coordination, proposals, scheduling updates, and payments inside the platform. Sharing personal contact details or arranging active bookings off-site is not allowed under the platform terms.</p>
+        <p className="mt-2 text-xs">If you need to arrange a call, keep the request inside chat and schedule it through the platform conversation without sharing private phone details.</p>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Conversation List - Always visible on desktop, hidden when chat is open on mobile */}
         <div className={`${selectedUserId ? 'hidden lg:block' : 'block'}`}>

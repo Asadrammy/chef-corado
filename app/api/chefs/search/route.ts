@@ -18,8 +18,10 @@ export async function GET(request: NextRequest) {
     // Build the where clause
     const where: any = {
       isApproved: true,
+      isBanned: false,
       user: {
         role: 'CHEF',
+        isBanned: false,
       },
     };
 
@@ -88,7 +90,6 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
-            email: true,
           },
         },
         menus: {

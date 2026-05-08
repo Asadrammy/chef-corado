@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { experienceSchema } from '@/lib/validation-schemas';
+import { enforceUserModeration } from '@/lib/security/moderation-guard';
+import { enforceChefCompliance } from '@/lib/security/legal-compliance';
+import { validatePolicyFields } from '@/lib/security/communication-policy';
 
 // Simple in-memory cache for popular queries
 const cache = new Map();
@@ -90,6 +94,13 @@ export async function GET(request: NextRequest) {
     // Build optimized where clause
     const where: any = {
       isActive: true,
+      chef: {
+        isApproved: true,
+        isBanned: false,
+        user: {
+          isBanned: false,
+        },
+      },
     };
 
     // Add filters efficiently
@@ -258,6 +269,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    await enforceUserModeration(session.user.id || '');
+    await enforceChefCompliance(session.user.id || '');
+
     const chefProfile = await prisma.chefProfile.findUnique({
       where: { userId: session.user?.id || '' },
     });
@@ -270,45 +284,43 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const {
-      title,
-      description,
-      price,
-      duration,
-      includedServices,
-      eventType,
-      cuisineType,
-      maxGuests,
-      minGuests,
-      difficulty,
-      tags,
-      experienceImage,
-    } = body;
 
-    // Validate required fields
-    if (!title || !description || !price || !duration || !includedServices) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
-    }
+    validatePolicyFields({
+      title: body.title,
+      description: body.description,
+      tags: Array.isArray(body.tags) ? body.tags.join(', ') : body.tags,
+    });
+
+    const validated = experienceSchema.parse({
+      ...body,
+      price: Number(body.price),
+      duration: Number(body.duration),
+      maxGuests: body.maxGuests ? Number(body.maxGuests) : undefined,
+      minGuests: body.minGuests ? Number(body.minGuests) : undefined,
+      pricePerStudent: body.pricePerStudent ? Number(body.pricePerStudent) : undefined,
+    });
 
     const experience = await prisma.experience.create({
       data: {
-        title,
-        description,
-        price: parseFloat(price),
-        duration: parseInt(duration),
-        includedServices: JSON.stringify(includedServices),
-        eventType,
-        cuisineType,
-        maxGuests: maxGuests ? parseInt(maxGuests) : null,
-        minGuests: minGuests ? parseInt(minGuests) : null,
-        difficulty: difficulty || 'EASY',
-        tags: tags ? JSON.stringify(tags) : null,
-        experienceImage,
+        title: validated.title,
+        description: validated.description,
+        price: validated.price,
+        currency: validated.currency,
+        duration: validated.duration,
+        includedServices: JSON.stringify(body.includedServices || []),
+        eventType: validated.eventType,
+        cuisineType: validated.cuisineType,
+        maxGuests: validated.maxGuests ?? null,
+        minGuests: validated.minGuests ?? null,
+        serviceType: validated.serviceType,
+        offersCookingClasses: validated.offersCookingClasses ?? validated.serviceType === 'COOKING_CLASS',
+        classType: validated.classType ?? null,
+        pricePerStudent: validated.pricePerStudent ?? null,
+        difficulty: validated.difficulty || 'EASY',
+        tags: body.tags ? JSON.stringify(body.tags) : null,
+        experienceImage: validated.experienceImage,
         chefId: chefProfile.id,
-      },
+      } as any,
       include: {
         chef: {
           include: {

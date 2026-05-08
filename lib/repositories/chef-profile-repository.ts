@@ -12,6 +12,8 @@ export const chefProfileRepository = {
             phone: true,
             verified: true,
             experienceLevel: true,
+            termsAcceptedAt: true,
+            termsVersion: true,
           },
         },
         _count: {
@@ -34,6 +36,8 @@ export const chefProfileRepository = {
     experience?: number
     location: string
     radius: number
+    baseCountryCode?: string
+    preferredCurrency?: string
     profileImage?: string
     chefType?: string
     certifications?: string
@@ -57,6 +61,8 @@ export const chefProfileRepository = {
           experience: data.experience,
           location: data.location,
           radius: data.radius,
+          baseCountryCode: data.baseCountryCode,
+          preferredCurrency: data.preferredCurrency,
           profileImage: data.profileImage,
           chefType: data.chefType,
           certifications: data.certifications,
@@ -66,7 +72,7 @@ export const chefProfileRepository = {
           latitude: data.latitude,
           longitude: data.longitude,
           user: { connect: { id: userId } },
-        },
+        } as any,
         include: {
           user: {
             select: {
@@ -75,6 +81,8 @@ export const chefProfileRepository = {
               phone: true,
               verified: true,
               experienceLevel: true,
+              termsAcceptedAt: true,
+              termsVersion: true,
             },
           },
           _count: {
@@ -98,6 +106,8 @@ export const chefProfileRepository = {
     experience?: number
     location: string
     radius: number
+    baseCountryCode?: string
+    preferredCurrency?: string
     profileImage?: string
     chefType?: string
     certifications?: string
@@ -122,6 +132,8 @@ export const chefProfileRepository = {
           experience: data.experience,
           location: data.location,
           radius: data.radius,
+          baseCountryCode: data.baseCountryCode,
+          preferredCurrency: data.preferredCurrency,
           profileImage: data.profileImage,
           chefType: data.chefType,
           certifications: data.certifications,
@@ -130,7 +142,7 @@ export const chefProfileRepository = {
           stripeOnboardingComplete: data.stripeOnboardingComplete,
           latitude: data.latitude,
           longitude: data.longitude,
-        },
+        } as any,
         include: {
           user: {
             select: {
@@ -139,6 +151,8 @@ export const chefProfileRepository = {
               phone: true,
               verified: true,
               experienceLevel: true,
+              termsAcceptedAt: true,
+              termsVersion: true,
             },
           },
           _count: {

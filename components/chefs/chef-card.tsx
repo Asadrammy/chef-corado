@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Star, MapPin, DollarSign, Calendar, MessageCircle, ChefHat } from 'lucide-react';
+import { Star, MapPin, Calendar, MessageCircle, ChefHat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatDistanceToNow } from 'date-fns';
+import { formatCurrency } from '@/lib/currency';
 
 interface Chef {
   id: string;
@@ -28,6 +29,7 @@ interface Chef {
     title: string;
     description?: string;
     price: number;
+    currency?: string;
     menuImage?: string;
   }>;
   averageRating: number;
@@ -62,6 +64,7 @@ export function ChefCard({ chef }: ChefCardProps) {
   const maxPrice = chef.menus.length > 0 
     ? Math.max(...chef.menus.map(m => m.price))
     : 0;
+  const currency = chef.menus[0]?.currency || 'GBP';
 
   return (
     <Card className="overflow-hidden hover:shadow-lg transition-shadow">
@@ -126,12 +129,11 @@ export function ChefCard({ chef }: ChefCardProps) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium">Menu Pricing</span>
-              <div className="flex items-center gap-1 text-sm">
-                <DollarSign className="h-3 w-3" />
+              <div className="text-sm font-medium">
                 <span>
                   {minPrice === maxPrice 
-                    ? `$${minPrice}`
-                    : `$${minPrice} - $${maxPrice}`
+                    ? formatCurrency(minPrice, currency)
+                    : `${formatCurrency(minPrice, currency)} - ${formatCurrency(maxPrice, currency)}`
                   }
                 </span>
               </div>
@@ -140,7 +142,7 @@ export function ChefCard({ chef }: ChefCardProps) {
               {chef.menus.slice(0, 2).map((menu) => (
                 <div key={menu.id} className="flex items-center justify-between text-sm">
                   <span className="truncate font-medium">{menu.title}</span>
-                  <span className="text-muted-foreground">${menu.price}</span>
+                  <span className="text-muted-foreground">{formatCurrency(menu.price, menu.currency || currency)}</span>
                 </div>
               ))}
               {chef.menus.length > 2 && (

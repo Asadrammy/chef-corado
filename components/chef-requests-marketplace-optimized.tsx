@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Search, MapPin, Calendar, DollarSign, Clock, Users, Star, Zap, TrendingUp } from "lucide-react"
+import { Search, MapPin, Calendar, Wallet, Clock, Users, Star, Zap, TrendingUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { ChefRequestRow } from "@/components/chef-request-table"
 import Link from "next/link"
 import { growthAnalytics } from "@/lib/analytics"
+import { formatCurrency } from "@/lib/currency"
 
 export type OptimizedChefRequestRow = ChefRequestRow & {
   title?: string
@@ -161,10 +162,10 @@ export function OptimizedChefRequestsMarketplace({ requests }: OptimizedChefRequ
                 <div>
                   <p className="text-sm text-green-600 font-medium">Avg Budget</p>
                   <p className="text-2xl font-bold text-green-900">
-                    ${requests.length > 0 ? Math.round(requests.reduce((sum, r) => sum + r.budget, 0) / requests.length) : 0}
+                    {formatCurrency(requests.length > 0 ? Math.round(requests.reduce((sum, r) => sum + r.budget, 0) / requests.length) : 0, 'GBP')}
                   </p>
                 </div>
-                <DollarSign className="w-8 h-8 text-green-500" />
+                <Wallet className="w-8 h-8 text-green-500" />
               </div>
             </CardContent>
           </Card>
@@ -317,7 +318,7 @@ function OptimizedRequestCard({ request }: { request: OptimizedChefRequestRow })
           )}
         </div>
         <div className="text-right">
-          <div className="text-lg font-bold text-gray-900">${request.budget}</div>
+          <div className="text-lg font-bold text-gray-900">{formatCurrency(request.budget, 'GBP')}</div>
           {isHighBudget && (
             <div className="text-xs text-green-600">Great budget!</div>
           )}

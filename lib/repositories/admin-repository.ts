@@ -9,6 +9,12 @@ export const adminRepository = {
             id: true,
             name: true,
             email: true,
+            isBanned: true,
+            banReason: true,
+            banAdminNotes: true,
+            bannedAt: true,
+            termsAcceptedAt: true,
+            termsVersion: true,
           },
         },
         _count: {

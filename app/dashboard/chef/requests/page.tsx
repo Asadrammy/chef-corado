@@ -57,6 +57,7 @@ export default async function ChefRequestsPage() {
       eventDate: request.eventDate.toISOString(),
       location: request.location,
       budget: request.budget,
+      currency: request.currency,
       details: request.details,
       distanceKm: Math.round(
         calculateDistance(

@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card"
 import { ChefRequestRow } from "@/components/chef-request-table"
 import { MatchBadge, MatchScoreRing, MatchReasonsList } from "@/components/matching/match-badge"
 import { MatchResult } from "@/lib/services/smart-matching-service"
+import { formatCurrency } from "@/lib/currency"
 
 interface ChefRequestCardProps {
   request: ChefRequestRow & {
@@ -137,7 +138,7 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
               Budget
             </p>
             <p className="text-foreground mt-2 text-2xl font-semibold tracking-tight">
-              ${request.budget.toLocaleString()}
+              {formatCurrency(request.budget, request.currency || 'GBP')}
             </p>
             </div>
           </div>
@@ -180,7 +181,7 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
               <p className="font-medium text-foreground">{matchScore}% Match</p>
               <p className="text-muted-foreground">
                 {matchData?.priceEstimate && matchData.priceEstimate.confidence > 0.5
-                  ? `Est. quote: $${matchData.priceEstimate.min.toLocaleString()}-$${matchData.priceEstimate.max.toLocaleString()}`
+                  ? `Est. quote: ${formatCurrency(matchData.priceEstimate.min, request.currency || 'GBP')}-${formatCurrency(matchData.priceEstimate.max, request.currency || 'GBP')}`
                   : "Review details and send a proposal"}
               </p>
             </div>

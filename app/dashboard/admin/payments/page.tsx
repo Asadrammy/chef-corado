@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/lib/currency"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Loader2,
-  DollarSign,
   Calendar,
   User,
   ChefHat,
@@ -24,6 +24,7 @@ interface Payment {
   totalAmount: number
   commissionAmount: number
   chefAmount: number
+  currency?: string
   status: "PENDING" | "HELD" | "RELEASED" | "COMPLETED"
   stripePaymentIntentId?: string
   createdAt: string
@@ -31,6 +32,7 @@ interface Payment {
   booking: {
     id: string
     totalPrice: number
+    currency?: string
     status: string
     createdAt: string
     client: {
@@ -186,7 +188,7 @@ export default function AdminPaymentsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-[1440px] flex-col gap-8 pb-10">
-      <section className="relative overflow-hidden rounded-[28px] border border-border/60 bg-gradient-to-br from-background via-background to-muted/40 shadow-sm shadow-black/5">
+      <section className="brand-surface relative overflow-hidden rounded-[28px] shadow-sm shadow-black/5">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(59,130,246,0.10),transparent_28%),radial-gradient(circle_at_left,rgba(16,185,129,0.08),transparent_24%)]" />
         <div className="relative flex flex-col gap-6 px-6 py-7 md:px-8 lg:flex-row lg:items-end lg:justify-between lg:py-8">
           <div className="max-w-3xl space-y-4">
@@ -217,7 +219,7 @@ export default function AdminPaymentsPage() {
                 Total volume
               </div>
               <div className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                ${totalVolume.toFixed(2)}
+                {formatCurrency(totalVolume, payments[0]?.currency ?? "GBP")}
               </div>
               <div className="mt-1 text-sm text-muted-foreground">
                 Across {payments.length} tracked payment records
@@ -276,7 +278,7 @@ export default function AdminPaymentsPage() {
                       {stat.title}
                     </CardDescription>
                     <CardTitle className={cn("text-3xl font-semibold tracking-tight", stat.valueClassName)}>
-                      ${stat.value.toFixed(2)}
+                      {formatCurrency(stat.value, payments[0]?.currency ?? "GBP")}
                     </CardTitle>
                   </div>
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/60 bg-background/80 shadow-sm shadow-black/5 transition-transform duration-300 group-hover:scale-105">
@@ -287,7 +289,7 @@ export default function AdminPaymentsPage() {
               <CardContent className="relative px-6 pb-6">
                 <div className="flex items-center justify-between gap-3 rounded-2xl border border-border/50 bg-background/70 px-4 py-3 shadow-sm shadow-black/5">
                   <p className="text-sm text-muted-foreground">{stat.meta}</p>
-                  <DollarSign className="h-4 w-4 text-muted-foreground/70" />
+                  <Wallet className="h-4 w-4 text-muted-foreground/70" />
                 </div>
               </CardContent>
             </Card>
@@ -424,16 +426,16 @@ export default function AdminPaymentsPage() {
 
                                 <div>
                                   <div className="text-lg font-semibold tracking-tight text-foreground">
-                                    ${payment.totalAmount?.toFixed(2) || "0.00"}
+                                    {formatCurrency(payment.totalAmount ?? 0, payment.currency ?? "GBP")}
                                   </div>
                                   <div className="mt-1 text-xs text-muted-foreground">
-                                    Booking total ${payment.booking?.totalPrice?.toFixed(2) || "0.00"}
+                                    Booking total {formatCurrency(payment.booking?.totalPrice ?? 0, payment.booking?.currency ?? payment.currency ?? "GBP")}
                                   </div>
                                 </div>
 
                                 <div>
                                   <div className="text-base font-semibold text-sky-600 dark:text-sky-300">
-                                    ${payment.commissionAmount?.toFixed(2) || "0.00"}
+                                    {formatCurrency(payment.commissionAmount ?? 0, payment.currency ?? "GBP")}
                                   </div>
                                   <div className="mt-1 text-xs text-muted-foreground">
                                     {payment.booking?.totalPrice

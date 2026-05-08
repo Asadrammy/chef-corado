@@ -5,10 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import Link from "next/link";
 import { BookingStatus } from "@/types";
+import { formatCurrency } from "@/lib/currency";
 
 interface Booking {
   id: string;
   totalPrice: number;
+  currency?: string | null;
   status: BookingStatus;
   createdAt: string;
   client: {
@@ -305,7 +307,7 @@ export function RecentBookings() {
                     {booking.proposal?.menu?.title || booking.experience?.title || "Custom Menu"}
                   </td>
                   <td className="py-3 text-gray-900 font-medium text-theme-sm dark:text-white">
-                    ${booking.totalPrice.toLocaleString()}
+                    {formatCurrency(booking.totalPrice, booking.currency ?? "GBP")}
                   </td>
                   <td className="py-3">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>

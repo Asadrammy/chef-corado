@@ -124,7 +124,10 @@ export function ClientProposalsList() {
 
         if (!response.ok) {
           const payload = await response.json().catch(() => null)
-          throw new Error(payload?.error || "Unable to load proposals")
+          const errorMessage = typeof payload?.error === 'string'
+            ? payload.error
+            : payload?.error?.message || "Unable to load proposals"
+          throw new Error(errorMessage)
         }
 
         const payload: { proposals: ProposalPayload[] } = await response.json()
@@ -169,7 +172,10 @@ export function ClientProposalsList() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
-        throw new Error(payload?.error || "Unable to update proposal")
+        const errorMessage = typeof payload?.error === 'string'
+          ? payload.error
+          : payload?.error?.message || "Unable to update proposal"
+        throw new Error(errorMessage)
       }
 
       const payload: { proposal: ProposalPayload } = await response.json()

@@ -24,6 +24,11 @@
   --muted-foreground: 215.4 16.3% 46.9%;
   --accent: 217.2 91.2% 59.8%; /* Light indigo accent */
   --accent-foreground: 222.2 47.4% 11.2%;
+  --brand-primary: 221.2 83.2% 53.3%;
+  --brand-secondary: 249 90% 68%;
+  --brand-highlight: 190 95% 55%;
+  --brand-surface: 221 100% 98%;
+  --brand-card: 0 0% 100%;
   --destructive: 0 84.2% 60.2%;
   --destructive-foreground: 210 40% 98%;
   --border: 214.3 31.8% 91.4%;
@@ -68,6 +73,11 @@
   --muted-foreground: 215 20.2% 65.1%;
   --accent: 217.2 32.6% 25.1%; /* Dark indigo accent */
   --accent-foreground: 210 40% 98%;
+  --brand-primary: 217.2 91.2% 59.8%;
+  --brand-secondary: 249 90% 72%;
+  --brand-highlight: 190 95% 65%;
+  --brand-surface: 224 55% 10%;
+  --brand-card: 222.2 84% 6%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 210 40% 98%;
   --border: 217.2 32.6% 17.5%;
@@ -102,7 +112,7 @@ body {
 html,
 body {
   height: 100%;
-  overflow: hidden;
+  /* Removed global overflow: hidden - use safe container scrolling instead */
 }
 
 /* Text overflow and wrapping fixes */
@@ -199,15 +209,74 @@ p {
 }
 
 .brand-gradient {
-  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+  background: linear-gradient(135deg, hsl(var(--brand-primary)), hsl(var(--brand-highlight)));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
+.brand-gradient-surface {
+  background: linear-gradient(135deg, hsl(var(--brand-primary)), hsl(var(--brand-secondary)));
+}
+
+.brand-gradient-subtle {
+  background: linear-gradient(135deg, hsl(var(--brand-primary) / 0.12), hsl(var(--brand-secondary) / 0.08));
+}
+
+.brand-gradient-button {
+  background: linear-gradient(135deg, hsl(var(--brand-primary)), hsl(var(--brand-secondary)));
+  color: hsl(var(--primary-foreground));
+}
+
+.brand-surface {
+  background:
+    radial-gradient(circle at top right, hsl(var(--brand-highlight) / 0.12), transparent 30%),
+    linear-gradient(135deg, hsl(var(--brand-surface) / 0.95), hsl(var(--background) / 0.98));
+  border: 1px solid hsl(var(--border) / 0.75);
+}
+
+.brand-card-surface {
+  background: linear-gradient(180deg, hsl(var(--brand-card) / 0.95), hsl(var(--background) / 0.92));
+  border: 1px solid hsl(var(--border) / 0.75);
+  box-shadow: 0 20px 50px hsl(222 47% 11% / 0.08);
+}
+
+.brand-soft-panel {
+  background: linear-gradient(135deg, hsl(var(--brand-primary) / 0.08), hsl(var(--brand-highlight) / 0.05));
+  border: 1px solid hsl(var(--brand-primary) / 0.12);
+}
+
+.brand-gradient-border {
+  border-image: linear-gradient(135deg, hsl(var(--brand-primary) / 0.45), hsl(var(--brand-secondary) / 0.35)) 1;
+}
+
+.brand-highlight-ring {
+  box-shadow: 0 0 0 4px hsl(var(--brand-primary) / 0.12), 0 18px 38px hsl(var(--brand-primary) / 0.18);
+}
+
 .brand-accent {
-  background: linear-gradient(to right, hsl(var(--primary) / 0.05), hsl(var(--accent) / 0.02));
-  border: 1px solid hsl(var(--primary) / 0.08);
+  background: linear-gradient(to right, hsl(var(--brand-primary) / 0.05), hsl(var(--accent) / 0.02));
+  border: 1px solid hsl(var(--brand-primary) / 0.08);
+}
+
+.brand-auth-surface {
+  border: 1px solid hsl(var(--border) / 0.9);
+  background: linear-gradient(180deg, hsl(var(--background) / 0.98), hsl(var(--muted) / 0.55));
+  box-shadow: 0 30px 80px hsl(222 47% 11% / 0.12);
+}
+
+.brand-auth-divider {
+  background: linear-gradient(90deg, hsl(var(--brand-primary) / 0), hsl(var(--brand-primary) / 0.34), hsl(var(--brand-secondary) / 0.26), hsl(var(--brand-primary) / 0));
+}
+
+.brand-auth-orb {
+  background: radial-gradient(circle, hsl(var(--brand-primary) / 0.12) 0%, hsl(var(--brand-primary) / 0.03) 56%, hsl(var(--brand-primary) / 0) 74%);
+}
+
+.brand-auth-chip {
+  border: 1px solid hsl(var(--border) / 0.95);
+  background: hsl(var(--muted) / 0.7);
+  color: hsl(var(--muted-foreground));
 }
 
 /* Custom Animations for Premium Login Page */

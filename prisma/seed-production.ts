@@ -42,9 +42,9 @@ async function seedUsers() {
   const clientPwd = await bcrypt.hash('client123', 10);
 
   const admins = await Promise.all([
-    prisma.user.create({ data: { name: 'Sarah Mitchell', email: 'admin@example.com', password: adminPwd, role: 'ADMIN', verified: true, profileCompletion: 100, experienceLevel: 'EXPERT' } }),
-    prisma.user.create({ data: { name: 'James Wilson', email: 'james.admin@chefmarket.com', password: adminPwd, role: 'ADMIN', verified: true, profileCompletion: 100 } }),
-    prisma.user.create({ data: { name: 'Emily Chen', email: 'emily.admin@chefmarket.com', password: adminPwd, role: 'ADMIN', verified: true, profileCompletion: 100 } }),
+    prisma.user.create({ data: { name: 'Sarah Mitchell', email: 'admin@example.com', password: adminPwd, role: 'ADMIN', verified: true, profileCompletion: 100, experienceLevel: 'EXPERT', termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register' } as any }),
+    prisma.user.create({ data: { name: 'James Wilson', email: 'james.admin@chefmarket.com', password: adminPwd, role: 'ADMIN', verified: true, profileCompletion: 100, termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register' } as any }),
+    prisma.user.create({ data: { name: 'Emily Chen', email: 'emily.admin@chefmarket.com', password: adminPwd, role: 'ADMIN', verified: true, profileCompletion: 100, termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register' } as any }),
   ]);
 
   const chefData = [
@@ -56,11 +56,11 @@ async function seedUsers() {
   ];
 
   const chefs = await Promise.all(chefData.map((chef, i) => prisma.user.create({
-    data: { name: chef.name, email: chef.email, password: chefPwd, role: 'CHEF', verified: true, profileCompletion: 100, experienceLevel: chef.level, chefProfile: { create: { bio: chef.bio, experience: chef.experience, location: chef.location, latitude: chef.lat, longitude: chef.lng, radius: chef.radius, cuisineType: chef.cuisine, chefType: chef.type, certifications: chef.cert, eventsPerMonth: chef.events, experienceLevel: chef.level, profileImage: chef.img, isApproved: true, verified: true, profileCompletion: 100, verificationStatus: i < 3 ? 'APPROVED' : i < 4 ? 'PENDING' : 'REJECTED', stripeAccountId: `acct_${chef.name.split(' ')[0].toLowerCase()}123`, stripeOnboardingComplete: true } } }
+    data: { name: chef.name, email: chef.email, password: chefPwd, role: 'CHEF', verified: true, profileCompletion: 100, experienceLevel: chef.level, termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register', chefProfile: { create: { bio: chef.bio, experience: chef.experience, location: chef.location, latitude: chef.lat, longitude: chef.lng, radius: chef.radius, cuisineType: chef.cuisine, chefType: chef.type, certifications: chef.cert, eventsPerMonth: chef.events, experienceLevel: chef.level, profileImage: chef.img, isApproved: true, verified: true, profileCompletion: 100, verificationStatus: i < 3 ? 'APPROVED' : i < 4 ? 'PENDING' : 'REJECTED', stripeAccountId: `acct_${chef.name.split(' ')[0].toLowerCase()}123`, stripeOnboardingComplete: true } } } as any
   })));
 
   const clientNames = ['Michael Thompson', 'Jennifer Williams', 'David Martinez', 'Lisa Anderson', 'Robert Taylor', 'Amanda Brown', 'Christopher Lee', 'Jessica Garcia', 'Daniel Rodriguez', 'Michelle Kim'];
-  const clients = await Promise.all(clientNames.map((name, i) => prisma.user.create({ data: { name, email: `${name.split(' ')[0].toLowerCase()}.${name.split(' ')[1].toLowerCase()}@example.com`, password: clientPwd, role: 'CLIENT', verified: true, profileCompletion: 85, experienceLevel: ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'][i % 3] } })));
+  const clients = await Promise.all(clientNames.map((name, i) => prisma.user.create({ data: { name, email: `${name.split(' ')[0].toLowerCase()}.${name.split(' ')[1].toLowerCase()}@example.com`, password: clientPwd, role: 'CLIENT', verified: true, profileCompletion: 85, experienceLevel: ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'][i % 3], termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register' } as any })));
 
   console.log(`✅ Created ${admins.length} admins, ${chefs.length} chefs, ${clients.length} clients\n`);
   return { admins, chefs, clients };
@@ -183,7 +183,7 @@ async function seedRequests(clients: any[]) {
     { cIdx: 9, t: 'Charcuterie & Wine Night', d: 'Charcuterie board dinner for 8. Wine pairing focus.', days: 10, locIdx: 0, budget: 450, det: 'Charcuterie focus, wine pairing.' },
   ];
 
-  const requests = await prisma.request.createMany({ data: reqData.map(req => { const loc = locs[req.locIdx]; const eventDate = new Date(today); eventDate.setDate(eventDate.getDate() + req.days); return { clientId: clients[req.cIdx].id, title: req.t, description: req.d, eventDate, location: loc.l, latitude: loc.lat, longitude: loc.lng, budget: req.budget, details: req.det }; }) });
+  const requests = await prisma.request.createMany({ data: reqData.map(req => { const loc = locs[req.locIdx]; const eventDate = new Date(today); eventDate.setDate(eventDate.getDate() + req.days); return { clientId: clients[req.cIdx].id, title: req.t, description: req.d, eventType: 'Other', eventDate, location: loc.l, latitude: loc.lat, longitude: loc.lng, guestCount: 10, budget: req.budget, details: req.det }; }) });
   console.log(`✅ Created ${reqData.length} requests\n`);
   return reqData;
 }

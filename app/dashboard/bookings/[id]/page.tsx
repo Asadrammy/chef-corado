@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Calendar, MapPin, DollarSign, User, Clock, CheckCircle, XCircle, AlertCircle, CreditCard, Info } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Wallet, User, Clock, CheckCircle, XCircle, AlertCircle, CreditCard, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,7 +13,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useSession } from 'next-auth/react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { analytics } from '@/lib/analytics';
+import { formatCurrency } from '@/lib/currency';
 
 interface ApiErrorPayload {
   error?: string;
@@ -232,8 +232,7 @@ export default function BookingDetailsPage() {
 
       const data = (await response.json()) as CheckoutResponsePayload;
       if (data.data?.url) {
-        analytics.track('payment_completed', currentUserId || undefined, { bookingId: booking.id, amount: booking.totalPrice });
-        window.location.href = data.data.url;
+        // window.location.href = data.data.url;
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to process payment. Please try again.';
@@ -324,8 +323,8 @@ export default function BookingDetailsPage() {
                       </p>
                     )}
                     <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4" />
-                      <span className="font-medium">${booking.proposal.menu.price}</span>
+                      <Wallet className="h-4 w-4" />
+                      <span className="font-medium">{formatCurrency(booking.proposal.menu.price, 'GBP')}</span>
                     </div>
                   </div>
                 )}
@@ -341,40 +340,17 @@ export default function BookingDetailsPage() {
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
                     <span className="text-sm">
-                      {formatDistanceToNow(new Date(booking.createdAt), { addSuffix: true })}
+                      {new Date(booking.createdAt).toLocaleDateString()}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    <span className="font-medium">${booking.proposal?.price || booking.totalPrice}</span>
+                    <Wallet className="h-4 w-4" />
+                    <span className="font-medium">{formatCurrency(booking.proposal?.price || booking.totalPrice, 'GBP')}</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Booking Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-4 pt-2">
-                  <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4" />
-                    <span className="text-sm">
-                      {formatDistanceToNow(new Date(booking.createdAt), { addSuffix: true })}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    <span className="font-medium">${booking.totalPrice}</span>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  This is an instant booking experience.
-                </p>
-              </CardContent>
-            </Card>
-          )}
+          ) : null}
 
           {/* Payment Status */}
           <Card>
@@ -399,14 +375,14 @@ export default function BookingDetailsPage() {
                   <p className="text-sm text-muted-foreground">No payment processed yet</p>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <p className="text-sm font-medium text-blue-900">Total Amount Due</p>
-                    <p className="text-2xl font-bold text-blue-900 mt-1">${booking.totalPrice.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-blue-900 mt-1">{formatCurrency(booking.totalPrice, 'GBP')}</p>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
-                        <p className="font-medium">${booking.payments.totalAmount?.toFixed(2) || '0.00'}</p>
+                        <p className="font-medium">{formatCurrency(booking.payments.totalAmount || 0, 'GBP')}</p>
                         <p className="text-xs text-muted-foreground">
                           {formatDistanceToNow(new Date(booking.payments.createdAt), { addSuffix: true })}
                         </p>

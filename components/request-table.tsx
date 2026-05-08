@@ -3,12 +3,14 @@ import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { FileText, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { formatCurrency } from "@/lib/currency"
 
 export type RequestRow = {
   id: string
   eventDate: string
   location: string
   budget: number
+  currency: string
   status?: string
 }
 
@@ -50,7 +52,7 @@ export function RequestTable({ data }: { data: RequestRow[] }) {
           <TableRow key={request.id}>
             <TableCell>{format(new Date(request.eventDate), "MMM d, yyyy")}</TableCell>
             <TableCell>{request.location}</TableCell>
-            <TableCell>${request.budget.toFixed(2)}</TableCell>
+            <TableCell>{formatCurrency(request.budget, request.currency)}</TableCell>
             <TableCell>{request.status ?? "Pending"}</TableCell>
           </TableRow>
         ))}

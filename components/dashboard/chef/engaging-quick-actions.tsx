@@ -1,6 +1,6 @@
 "use client"
 
-import { FileText, ChefHat, Calendar, DollarSign, ArrowRight, Search, Edit, Clock, TrendingUp } from "lucide-react"
+import { FileText, ChefHat, Calendar, ArrowRight, Search, Edit, Clock, TrendingUp } from "lucide-react"
 import Link from "next/link"
 
 interface EngagingQuickActionsProps {

@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
-import { LucideIcon, FileText, Users, Calendar, DollarSign, TrendingUp, Activity, Star, ArrowUp, ArrowDown } from "lucide-react"
+import { LucideIcon, FileText, Users, Calendar, Wallet, TrendingUp, Activity, Star, ArrowUp, ArrowDown } from "lucide-react"
 
 interface DashboardStatsProps {
   title: string
@@ -19,7 +19,7 @@ const iconMap: Record<string, LucideIcon> = {
   FileText: FileText,
   Users: Users,
   Calendar: Calendar,
-  DollarSign: DollarSign,
+  DollarSign: Wallet,
   TrendingUp: TrendingUp,
   Activity: Activity,
   Star: Star,

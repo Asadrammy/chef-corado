@@ -1,15 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { hash } from "bcrypt"
-import { z } from "zod"
 import { prisma } from "@/lib/prisma"
+import { registerSchema } from "@/lib/validation-schemas"
 import { Role } from "@/types"
-
-const registerSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  role: z.enum([Role.CLIENT, Role.CHEF]).default(Role.CLIENT),
-})
 
 export async function POST(request: NextRequest) {
   try {
@@ -38,7 +31,7 @@ export async function POST(request: NextRequest) {
         email: validatedData.email.toLowerCase(),
         password: hashedPassword,
         role: validatedData.role,
-      },
+      } as any,
       select: {
         id: true,
         name: true,
@@ -55,7 +48,8 @@ export async function POST(request: NextRequest) {
           userId: user.id,
           location: "",
           radius: 50, // Default radius
-        },
+          insuranceStatus: "pending",
+        } as any,
       })
     }
 
@@ -69,9 +63,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Registration error:", error)
 
-    if (error instanceof z.ZodError) {
+    if (error && typeof error === "object" && "errors" in error) {
       return NextResponse.json(
-        { error: "Validation failed", details: error.errors },
+        { error: "Validation failed", details: (error as { errors: unknown }).errors },
         { status: 400 }
       )
     }

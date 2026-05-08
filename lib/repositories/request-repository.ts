@@ -4,26 +4,42 @@ export const requestRepository = {
   createRequest(input: {
     clientId: string
     title: string
+    eventType: string
+    cuisineTypes?: string
+    dietaryRequirements?: string
     description?: string
     eventDate: Date
+    eventTime?: string
     location: string
+    countryCode: string
+    currency: string
+    guestCount: number
     latitude?: number
     longitude?: number
     budget: number
     details?: string
   }) {
+    const data = {
+      clientId: input.clientId,
+      title: input.title,
+      eventType: input.eventType,
+      cuisineTypes: input.cuisineTypes || null,
+      dietaryRequirements: input.dietaryRequirements || null,
+      description: input.description || null,
+      eventDate: input.eventDate,
+      eventTime: input.eventTime || null,
+      location: input.location,
+      countryCode: input.countryCode,
+      currency: input.currency,
+      guestCount: input.guestCount,
+      latitude: input.latitude ?? null,
+      longitude: input.longitude ?? null,
+      budget: input.budget,
+      details: input.details || null,
+    } as any
+
     return prisma.request.create({
-      data: {
-        clientId: input.clientId,
-        title: input.title,
-        description: input.description || null,
-        eventDate: input.eventDate,
-        location: input.location,
-        latitude: input.latitude ?? null,
-        longitude: input.longitude ?? null,
-        budget: input.budget,
-        details: input.details || null,
-      },
+      data,
     })
   },
 

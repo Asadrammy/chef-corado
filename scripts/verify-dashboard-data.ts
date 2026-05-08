@@ -62,8 +62,9 @@ async function verifyDashboardData() {
     
     // Convert to approximate miles (1 degree ≈ 69 miles)
     const distanceInMiles = distance * 69;
+    const requestLabel = (request.title ?? 'Untitled request').substring(0, 20);
     
-    console.log(`Request "${request.title.substring(0, 20)}..." - Distance: ${distanceInMiles.toFixed(2)} miles (Radius: ${chef.chefProfile.radius} miles)`);
+    console.log(`Request "${requestLabel}..." - Distance: ${distanceInMiles.toFixed(2)} miles (Radius: ${chef.chefProfile.radius} miles)`);
     
     return distanceInMiles <= chef.chefProfile.radius;
   });

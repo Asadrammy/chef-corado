@@ -7,6 +7,7 @@ import { AlertCircle, ArrowRight, Code, LockKeyhole, Sparkles } from "lucide-rea
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -23,11 +24,15 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
     email: string
     password: string
     role: Role
+    acceptedTerms: boolean
+    acceptedInsurance: boolean
   }>({
     name: "",
     email: "",
     password: "",
     role: Role.CLIENT,
+    acceptedTerms: false,
+    acceptedInsurance: false,
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -42,10 +47,26 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
     setFormData((prev) => ({ ...prev, role: value as Role }))
   }
 
+  const handleCheckboxChange = (field: "acceptedTerms" | "acceptedInsurance", checked: boolean) => {
+    setFormData((prev) => ({ ...prev, [field]: checked }))
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
+
+    if (!formData.acceptedTerms) {
+      setError("You must accept the Terms & Conditions to create an account")
+      setLoading(false)
+      return
+    }
+
+    if (formData.role === Role.CHEF && !formData.acceptedInsurance) {
+      setError("Chefs must acknowledge the insurance requirement to create an account")
+      setLoading(false)
+      return
+    }
 
     try {
       const response = await fetch("/api/auth/register", {
@@ -84,15 +105,15 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
 
   if (success) {
     return (
-      <div className="relative w-full overflow-hidden rounded-[32px] border border-[rgba(209,218,232,0.95)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,251,254,0.94))] p-4 shadow-[0_30px_80px_rgba(15,23,42,0.12)] md:p-5">
-        <div className="absolute inset-x-8 top-0 h-px bg-[linear-gradient(90deg,rgba(30,78,195,0),rgba(30,78,195,0.34),rgba(103,76,197,0.26),rgba(30,78,195,0))]" />
-        <div className="absolute right-[-3rem] top-[-2rem] h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(31,78,216,0.12)_0%,rgba(31,78,216,0.03)_56%,rgba(31,78,216,0)_74%)] blur-3xl" />
+      <div className="brand-auth-surface relative w-full overflow-hidden rounded-[32px] p-4 md:p-5">
+        <div className="brand-auth-divider absolute inset-x-8 top-0 h-px" />
+        <div className="brand-auth-orb absolute right-[-3rem] top-[-2rem] h-32 w-32 rounded-full blur-3xl" />
 
         <div className="relative space-y-4">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(214,222,234,0.96)] bg-[rgba(247,249,252,0.95)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#667085]">
-                <LockKeyhole className="h-3.5 w-3.5 text-[#1849be]" />
+              <div className="brand-auth-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em]">
+                <LockKeyhole className="h-3.5 w-3.5 text-primary" />
                 Secure access
               </div>
               <div className="space-y-2">
@@ -121,25 +142,25 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
   }
 
   return (
-    <div className="relative w-full overflow-hidden rounded-[32px] border border-[rgba(209,218,232,0.95)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,251,254,0.94))] p-4 shadow-[0_30px_80px_rgba(15,23,42,0.12)] md:p-5">
-      <div className="absolute inset-x-8 top-0 h-px bg-[linear-gradient(90deg,rgba(30,78,195,0),rgba(30,78,195,0.34),rgba(103,76,197,0.26),rgba(30,78,195,0))]" />
-      <div className="absolute right-[-3rem] top-[-2rem] h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(31,78,216,0.12)_0%,rgba(31,78,216,0.03)_56%,rgba(31,78,216,0)_74%)] blur-3xl" />
+    <div className="brand-auth-surface relative w-full overflow-hidden rounded-[32px] p-4 md:p-5">
+      <div className="brand-auth-divider absolute inset-x-8 top-0 h-px" />
+      <div className="brand-auth-orb absolute right-[-3rem] top-[-2rem] h-32 w-32 rounded-full blur-3xl" />
 
       <div className="relative space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-2.5">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(214,222,234,0.96)] bg-[rgba(247,249,252,0.95)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#667085]">
-              <LockKeyhole className="h-3.5 w-3.5 text-[#1849be]" />
+            <div className="brand-auth-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em]">
+              <LockKeyhole className="h-3.5 w-3.5 text-primary" />
               Secure access
             </div>
             <div className="space-y-1.5">
-              <h1 className="text-[1.75rem] font-semibold tracking-[-0.07em] text-[#0f172a] md:text-[2.05rem] md:leading-[0.96]">Create account</h1>
-              <p className="max-w-sm text-[13px] leading-5 text-[#667085] md:text-[14px]">
+              <h1 className="text-[1.75rem] font-semibold tracking-[-0.07em] text-foreground md:text-[2.05rem] md:leading-[0.96]">Create account</h1>
+              <p className="max-w-sm text-[13px] leading-5 text-muted-foreground md:text-[14px]">
                 Create a new account to access your workspace with a cleaner, more focused control surface.
               </p>
             </div>
           </div>
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(145deg,#1849be_0%,#6854d2_100%)] text-white shadow-[0_14px_28px_rgba(36,74,184,0.24)]">
+          <div className="brand-gradient-button flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-[0_14px_28px_hsl(var(--primary)/0.24)]">
             <Sparkles className="h-4.5 w-4.5" />
           </div>
         </div>
@@ -155,7 +176,7 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
 
         <form className="space-y-3" onSubmit={handleSubmit}>
           <div className="space-y-1.5">
-            <Label htmlFor="name" className="text-[13px] font-semibold text-[#162033]">Name</Label>
+            <Label htmlFor="name" className="text-[13px] font-semibold text-foreground">Name</Label>
             <Input
               id="name"
               name="name"
@@ -170,7 +191,7 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-[13px] font-semibold text-[#162033]">Email</Label>
+            <Label htmlFor="email" className="text-[13px] font-semibold text-foreground">Email</Label>
             <Input
               id="email"
               name="email"
@@ -186,7 +207,7 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password" className="text-[13px] font-semibold text-[#162033]">Password</Label>
+            <Label htmlFor="password" className="text-[13px] font-semibold text-foreground">Password</Label>
             <Input
               id="password"
               name="password"
@@ -202,7 +223,7 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="role" className="text-[13px] font-semibold text-[#162033]">I want to register as</Label>
+            <Label htmlFor="role" className="text-[13px] font-semibold text-foreground">I want to register as</Label>
             <Select value={formData.role} onValueChange={handleRoleChange} disabled={loading}>
               <SelectTrigger className="h-11 rounded-[16px] border border-[#d7dfeb] bg-[#ffffff] px-4 text-[14px] text-[#0f172a] shadow-[0_1px_2px_rgba(16,24,40,0.03)] transition-all duration-200 hover:border-[#c5d0df] focus:ring-[4px] focus:ring-[rgba(33,89,214,0.12)] focus:ring-offset-0">
                 <SelectValue placeholder="Select your role" />
@@ -214,9 +235,37 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
             </Select>
           </div>
 
+          <div className="space-y-3 rounded-[16px] border border-[#d7dfeb] bg-white px-4 py-3 text-sm text-[#344054]">
+            <label className="flex items-start gap-3">
+              <Checkbox
+                checked={formData.acceptedTerms}
+                onCheckedChange={(checked) => handleCheckboxChange("acceptedTerms", Boolean(checked))}
+                disabled={loading}
+              />
+              <span>
+                I agree to the <Link href="/terms/client" className="font-semibold text-[#1849be] hover:underline">Client Terms & Conditions</Link>
+                {formData.role === Role.CHEF ? <> and the <Link href="/terms/chef" className="font-semibold text-[#1849be] hover:underline">Chef Terms & Conditions</Link></> : null}.
+                I understand that communication, scheduling, and payments must remain inside the platform, and I have reviewed the <Link href="/privacy" className="font-semibold text-[#1849be] hover:underline">Privacy Policy</Link>.
+              </span>
+            </label>
+
+            {formData.role === Role.CHEF && (
+              <label className="flex items-start gap-3 rounded-2xl border border-primary/15 bg-primary/5 px-3 py-3 text-muted-foreground">
+                <Checkbox
+                  checked={formData.acceptedInsurance}
+                  onCheckedChange={(checked) => handleCheckboxChange("acceptedInsurance", Boolean(checked))}
+                  disabled={loading}
+                />
+                <span>
+                  Chefs must acknowledge the platform&apos;s insurance and legal requirements before offering services. I confirm that I have reviewed those requirements, will keep my profile accurate, and understand that communication, coordination, and payments for active bookings must remain on-platform.
+                </span>
+              </label>
+            )}
+          </div>
+
           <Button
             type="submit"
-            className="group h-11 w-full rounded-[16px] border-0 bg-[linear-gradient(135deg,#123a9f_0%,#2159d6_48%,#6a4fd3_100%)] text-white shadow-[0_18px_38px_rgba(33,89,214,0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_46px_rgba(33,89,214,0.34)] focus-visible:ring-[4px] focus-visible:ring-[rgba(33,89,214,0.16)]"
+            className="brand-gradient-button group h-11 w-full rounded-[16px] border-0 shadow-[0_18px_38px_hsl(var(--primary)/0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_46px_hsl(var(--primary)/0.34)] focus-visible:ring-[4px] focus-visible:ring-[hsl(var(--primary)/0.16)]"
             disabled={loading}
           >
             <span className="inline-flex items-center justify-center gap-2">

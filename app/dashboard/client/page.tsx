@@ -5,6 +5,7 @@ import { redirect } from "next/navigation"
 import { cookies } from "next/headers"
 
 import { authOptions } from "@/lib/auth"
+import { formatCurrency } from "@/lib/currency"
 import { MarketplaceMetrics } from "@/components/dashboard/MarketplaceMetrics"
 import { RecentBookings } from "@/components/dashboard/RecentBookings"
 import LazyChart from "@/components/dashboard/LazyChart"
@@ -37,6 +38,7 @@ type DashboardExperience = {
   title: string
   description: string
   price: number
+  currency?: string | null
   duration: number
   experienceImage?: string | null
   images?: string[]
@@ -152,13 +154,17 @@ export default async function ClientDashboardPage() {
             </div>
             
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <Button size="lg" className="bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-200 text-white px-8 py-3">
-                <ArrowRight className="mr-2 h-5 w-5" />
-                Create Request
+              <Button asChild size="lg" className="bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-200 text-white px-8 py-3">
+                <Link href="/dashboard/client/create-request">
+                  <ArrowRight className="mr-2 h-5 w-5" />
+                  Create Request
+                </Link>
               </Button>
-              <Button variant="outline" size="lg" className="border-border hover:bg-muted/50 hover:border-border/80 px-8 py-3">
-                <Search className="mr-2 h-5 w-5" />
-                Browse Chefs
+              <Button asChild variant="outline" size="lg" className="border-border hover:bg-muted/50 hover:border-border/80 px-8 py-3">
+                <Link href="/experiences">
+                  <Search className="mr-2 h-5 w-5" />
+                  Browse Chefs
+                </Link>
               </Button>
             </div>
           </div>
@@ -461,14 +467,17 @@ export default async function ClientDashboardPage() {
                     )}
                     
                     {/* Gradient overlay for text readability */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                    
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none"></div>
+
                     {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-blue-600/80 via-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <div className="absolute inset-0 bg-gradient-to-t from-blue-600/80 via-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto">
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <Button className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg rounded-xl">
+                        <Link
+                          href={`/experiences/${experience.id}`}
+                          className="relative z-10 inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 text-sm font-semibold text-blue-600 shadow-lg hover:bg-blue-50 transition-colors"
+                        >
                           View Details
-                        </Button>
+                        </Link>
                       </div>
                     </div>
                   </div>
@@ -506,7 +515,7 @@ export default async function ClientDashboardPage() {
                         
                         <div className="text-right">
                           <p className="text-2xl font-bold">
-                            ${experience.pricePerPerson || 99}
+                            {formatCurrency(experience.pricePerPerson ?? experience.price ?? 0, experience.currency ?? "GBP")}
                           </p>
                           <p className="text-xs text-white/70">per person</p>
                         </div>

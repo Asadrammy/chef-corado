@@ -3,11 +3,14 @@ import { z } from "zod"
 
 import { authOptions } from "@/lib/auth"
 import { apiError, apiSuccess } from "@/lib/api-response"
+import { normalizeCurrency } from "@/lib/currency"
 import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { sendEmail, emailTemplates } from "@/lib/email"
 import { paymentGuarantee } from "@/lib/services/payment-guarantee"
 import { logger } from "@/lib/logger"
+import { enforceUserModeration, enforceChefModeration } from "@/lib/security/moderation-guard"
+import { enforceClientCompliance, enforceChefCompliance } from "@/lib/security/legal-compliance"
 
 // Initialize Stripe with safety check
 const getStripeClient = () => {
@@ -36,6 +39,12 @@ export async function POST(request: Request) {
   if (!session?.user?.id || session.user.role !== "CLIENT") {
     return apiError("UNAUTHORIZED", "Unauthorized", 401)
   }
+
+  // Enforce moderation - client must not be banned
+  await enforceUserModeration(session.user.id)
+
+  // Enforce client compliance (terms acceptance)
+  await enforceClientCompliance(session.user.id)
 
   if (!process.env.STRIPE_SECRET_KEY || 
       process.env.STRIPE_SECRET_KEY.includes('placeholder') ||
@@ -74,6 +83,12 @@ export async function POST(request: Request) {
   if (!proposal) {
     return apiError("NOT_FOUND", "Proposal not found", 404)
   }
+
+  // Enforce chef moderation - chef must not be banned
+  await enforceChefModeration(proposal.chefId)
+
+  // Enforce chef compliance (terms + insurance)
+  await enforceChefCompliance(proposal.chef.userId)
 
   if (proposal.request.clientId !== session.user.id) {
     return apiError("UNAUTHORIZED", "Unauthorized", 401)
@@ -148,8 +163,11 @@ export async function POST(request: Request) {
   if (!Number.isFinite(amount)) {
     return apiError("BAD_REQUEST", "Invalid proposal price", 400)
   }
+  const currency = normalizeCurrency((proposal.request as any)?.currency || "GBP")
 
-  const successUrl = process.env.STRIPE_SUCCESS_URL ?? `${process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/dashboard/client/bookings/payment-success`
+  const appBaseUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"
+  const successUrlBase = process.env.STRIPE_SUCCESS_URL ?? `${appBaseUrl}/dashboard/client/bookings/payment-success`
+  const successUrl = `${successUrlBase}?proposalId=${proposal.id}&session_id={CHECKOUT_SESSION_ID}`
   const cancelUrl = process.env.STRIPE_CANCEL_URL ?? `${process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/dashboard/client/bookings?status=cancelled`
 
   try {
@@ -160,7 +178,7 @@ export async function POST(request: Request) {
       line_items: [
         {
           price_data: {
-            currency: "usd",
+            currency,
             unit_amount: Math.round(amount * 100),
             product_data: {
               name: `Booking with ${proposal.chef?.user?.name ?? "Chef"}`,
@@ -175,7 +193,25 @@ export async function POST(request: Request) {
       cancel_url: cancelUrl,
       metadata: {
         proposalId: proposal.id,
+        currency,
       },
+      payment_intent_data: {
+        metadata: {
+          proposalId: proposal.id,
+          currency,
+        },
+      },
+    })
+
+    await prisma.payment.updateMany({
+      where: {
+        booking: {
+          proposalId: proposal.id,
+        },
+      },
+      data: {
+        stripeCheckoutSessionId: checkoutSession.id,
+      } as never,
     })
 
     logger.info('[PAYMENT_CHECKOUT] Stripe session created', { 

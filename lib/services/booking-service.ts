@@ -9,6 +9,9 @@ import { ApiError } from "@/lib/error-handler"
 import { BookingStatus, Role } from "@/types"
 import type { RefundReason } from "@/lib/services/refund-service"
 import { prisma } from "@/lib/prisma"
+import { enforceUserModeration, enforceChefModeration } from "@/lib/security/moderation-guard"
+import { enforceClientCompliance, enforceChefCompliance } from "@/lib/security/legal-compliance"
+import { validatePolicyFields } from "@/lib/security/communication-policy"
 
 const SORTABLE_BOOKING_FIELDS = new Set(["createdAt", "eventDate", "totalPrice", "status"])
 
@@ -159,6 +162,15 @@ export const bookingService = {
     const { prisma } = await import("@/lib/prisma")
     const bookingDate = new Date(input.eventDate)
 
+    // Enforce client moderation and compliance
+    await enforceUserModeration(input.userId)
+    await enforceClientCompliance(input.userId)
+
+    validatePolicyFields({
+      location: input.location,
+      specialRequests: input.specialRequests,
+    })
+
     if (bookingDate < new Date()) {
       throw new ApiError(400, 'Event date must be in the future')
     }
@@ -189,6 +201,16 @@ export const bookingService = {
 
       if (!experience.isActive) {
         throw new ApiError(400, 'Experience is not available for booking')
+      }
+
+      // Enforce chef moderation
+      if (experience.chef.isBanned || experience.chef.user?.id === undefined) {
+        throw new ApiError(403, 'This chef is not currently available for booking')
+      }
+      
+      // Enforce chef compliance (terms + insurance)
+      if (experience.chef.user?.id) {
+        await enforceChefCompliance(experience.chef.user.id)
       }
 
       if (experience.minGuests && input.guestCount < experience.minGuests) {
@@ -235,7 +257,13 @@ export const bookingService = {
         throw new ApiError(400, 'This time slot is already booked. Please select another date.')
       }
 
-      const totalPrice = experience.price * input.guestCount
+      const experienceCurrency = (experience as any).currency || 'GBP'
+      const serviceType = (experience as any).serviceType
+      const pricePerStudent = (experience as any).pricePerStudent
+      const pricePerUnit = serviceType === 'COOKING_CLASS'
+        ? (pricePerStudent ?? experience.price)
+        : experience.price
+      const totalPrice = pricePerUnit * input.guestCount
 
       // Create booking atomically
       const booking = await tx.booking.create({
@@ -249,10 +277,11 @@ export const bookingService = {
           longitude: input.longitude ?? null,
           guestCount: input.guestCount,
           totalPrice,
+          currency: experienceCurrency,
           bookingType: 'INSTANT',
           status: BookingStatus.PENDING,
           specialRequests: input.specialRequests ?? null,
-        },
+        } as any,
         include: {
           client: true,
           chef: { include: { user: true } },

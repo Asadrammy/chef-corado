@@ -15,11 +15,23 @@ interface ChefProfile {
   location: string
   radius: number
   isApproved: boolean
+  isBanned?: boolean
+  banReason?: string | null
+  banAdminNotes?: string | null
+  bannedAt?: string | null
+  insuranceAcknowledgedAt?: string | null
+  insuranceVersion?: string | null
   createdAt: string
   user: {
     id: string
     name: string
     email: string
+    isBanned?: boolean
+    banReason?: string | null
+    banAdminNotes?: string | null
+    bannedAt?: string | null
+    termsAcceptedAt?: string | null
+    termsVersion?: string | null
   }
   _count: {
     experiences: number
@@ -34,8 +46,9 @@ export default function AdminChefsPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
-  const approvedChefs = chefs.filter((chef) => chef.isApproved).length
+  const approvedChefs = chefs.filter((chef) => chef.isApproved && !chef.user.isBanned && !chef.isBanned).length
   const pendingChefs = chefs.filter((chef) => !chef.isApproved).length
+  const suspendedChefs = chefs.filter((chef) => chef.user.isBanned || chef.isBanned).length
   const totalExperiences = chefs.reduce((total, chef) => total + chef._count.experiences, 0)
   const totalBookings = chefs.reduce((total, chef) => total + chef._count.bookings, 0)
 
@@ -196,8 +209,8 @@ export default function AdminChefsPage() {
                   Activity
                 </Badge>
               </div>
-              <div className="text-3xl font-semibold tracking-tight text-foreground">{totalExperiences}</div>
-              <p className="mt-1 text-sm text-muted-foreground">Experiences published across chef profiles</p>
+              <div className="text-3xl font-semibold tracking-tight text-foreground">{suspendedChefs}</div>
+              <p className="mt-1 text-sm text-muted-foreground">Suspended chefs hidden from public discovery</p>
             </div>
           </div>
         </div>
@@ -357,13 +370,22 @@ export default function AdminChefsPage() {
                         <Badge
                           variant="secondary"
                           className={
-                            chef.isApproved
+                            chef.user.isBanned || chef.isBanned
+                              ? "rounded-full border-0 bg-red-100 px-3 py-1 text-xs font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                              : chef.isApproved
                               ? "rounded-full border-0 bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
                               : "rounded-full border-0 bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
                           }
                         >
-                          {chef.isApproved ? "Approved" : "Pending"}
+                          {chef.user.isBanned || chef.isBanned ? "Suspended" : chef.isApproved ? "Approved" : "Pending"}
                         </Badge>
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          <p><span className="font-medium text-foreground">Terms:</span> {chef.user.termsAcceptedAt ? `${new Date(chef.user.termsAcceptedAt).toLocaleDateString()} · ${chef.user.termsVersion ?? "current"}` : "Missing"}</p>
+                          <p><span className="font-medium text-foreground">Insurance:</span> {chef.insuranceAcknowledgedAt ? `${new Date(chef.insuranceAcknowledgedAt).toLocaleDateString()} · ${chef.insuranceVersion ?? "current"}` : "Missing"}</p>
+                          {chef.user.isBanned || chef.isBanned ? (
+                            <p><span className="font-medium text-foreground">Reason:</span> {chef.user.banReason || chef.banReason || "Not provided"}</p>
+                          ) : null}
+                        </div>
                       </TableCell>
                       <TableCell className="px-5 py-5 text-right align-top">
                         <div className="flex justify-end gap-2">

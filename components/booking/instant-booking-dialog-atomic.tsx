@@ -11,9 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { CalendarIcon, Clock, Users, DollarSign, MapPin, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { CalendarIcon, Clock, Users, Wallet, MapPin, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import axios from "axios";
+import { formatCurrency } from "@/lib/currency";
 
 interface Experience {
   id: string;
@@ -232,10 +233,10 @@ export function InstantBookingDialogAtomic({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1 text-sm text-gray-600 mb-1">
-                    <DollarSign className="h-4 w-4" />
+                    <Wallet className="h-4 w-4" />
                     <span>Price</span>
                   </div>
-                  <p className="font-semibold">${experience.price}</p>
+                  <p className="font-semibold">{formatCurrency(experience.price, 'GBP')}</p>
                   <p className="text-xs text-gray-500">per person</p>
                 </div>
                 
@@ -387,7 +388,7 @@ export function InstantBookingDialogAtomic({
                   <CardContent className="space-y-2">
                     <div className="flex justify-between">
                       <span>Price per person:</span>
-                      <span>${experience.price}</span>
+                      <span>{formatCurrency(experience.price, 'GBP')}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Number of guests:</span>
@@ -396,7 +397,7 @@ export function InstantBookingDialogAtomic({
                     <div className="border-t pt-2">
                       <div className="flex justify-between font-semibold text-lg">
                         <span>Total:</span>
-                        <span>${totalPrice}</span>
+                        <span>{formatCurrency(totalPrice, 'GBP')}</span>
                       </div>
                     </div>
                   </CardContent>

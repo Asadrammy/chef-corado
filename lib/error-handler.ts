@@ -39,6 +39,14 @@ export function handleApiError(error: unknown, context: string): NextResponse {
       return apiError('UNAUTHORIZED', 'Authentication required', 401);
     }
 
+    if (error.message === 'ACCOUNT_BANNED' || error.message === 'ACCOUNT_SUSPENDED') {
+      return apiError('ACCOUNT_SUSPENDED', 'Your account is suspended.', 403);
+    }
+
+    if (error.message === 'CHEF_ACCOUNT_SUSPENDED') {
+      return apiError('CHEF_ACCOUNT_SUSPENDED', 'This chef account is suspended.', 403);
+    }
+
     if (error.message === 'FORBIDDEN') {
       return apiError('FORBIDDEN', 'Insufficient permissions', 403);
     }
@@ -47,8 +55,63 @@ export function handleApiError(error: unknown, context: string): NextResponse {
       return apiError('NOT_FOUND', 'Resource not found', 404);
     }
 
+    if (error.message === 'TERMS_ACCEPTANCE_REQUIRED') {
+      return apiError('TERMS_ACCEPTANCE_REQUIRED', 'You must accept the latest terms before continuing.', 403);
+    }
+
+    if (error.message === 'TERMS_ACCEPTANCE_OUTDATED') {
+      return apiError('TERMS_ACCEPTANCE_OUTDATED', 'Your legal acceptance is outdated and must be renewed.', 403);
+    }
+
+    if (error.message === 'INSURANCE_DOCUMENT_REQUIRED') {
+      return apiError('INSURANCE_DOCUMENT_REQUIRED', 'An insurance document is required before continuing.', 403);
+    }
+
+    if (error.message === 'INSURANCE_VERIFICATION_REQUIRED') {
+      return apiError('INSURANCE_VERIFICATION_REQUIRED', 'Insurance verification is required before continuing.', 403);
+    }
+
+    if (error.message === 'INSURANCE_REJECTED') {
+      return apiError('INSURANCE_REJECTED', 'Your insurance submission was rejected. Please upload a new document.', 403);
+    }
+
+    if (error.message === 'INSURANCE_EXPIRED') {
+      return apiError('INSURANCE_EXPIRED', 'Your insurance verification has expired. Please upload a renewed document.', 403);
+    }
+
+    if (error.message === 'LEGAL_COMPLIANCE_REQUIRED') {
+      return apiError('LEGAL_COMPLIANCE_REQUIRED', 'Your account must complete legal compliance requirements before continuing.', 403);
+    }
+
+    if (error.message === 'REQUEST_PROPOSAL_LIMIT_REACHED') {
+      return apiError('REQUEST_PROPOSAL_LIMIT_REACHED', 'This request has already received the maximum of 10 quotes.', 409);
+    }
+
+    if (error.message.startsWith('COMMUNICATION_POLICY_VIOLATION')) {
+      const [, field, message] = error.message.split(':');
+      return NextResponse.json(
+        {
+          error: message || field || 'Content violates the platform communication policy.',
+          details: field && message
+            ? [{ field, message }]
+            : undefined,
+        },
+        { status: 422 }
+      );
+    }
+
     if (error.message.includes('ECONNREFUSED') || error.message.includes('ETIMEDOUT')) {
       return apiError('SERVICE_UNAVAILABLE', 'Service temporarily unavailable', 503);
+    }
+
+    if (error instanceof ApiError) {
+      return NextResponse.json(
+        {
+          error: error.message,
+          details: error.details,
+        },
+        { status: error.statusCode }
+      );
     }
   }
 

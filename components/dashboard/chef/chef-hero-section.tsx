@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { ChefHat, FileText, Calendar, DollarSign, ArrowRight, TrendingUp, Users, MapPin } from "lucide-react"
+import { ChefHat, FileText, Calendar, Wallet, ArrowRight, TrendingUp, Users, MapPin } from "lucide-react"
 import Link from "next/link"
+import { formatCurrency } from "@/lib/currency"
 
 interface ChefHeroSectionProps {
   userName: string
@@ -64,7 +65,7 @@ export function ChefHeroSection({
                 <div className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl p-6 border border-gray-200/50 dark:border-gray-700/50 hover:shadow-lg transition-all duration-300">
                   <div className="flex items-center justify-between mb-4">
                     <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
-                      <DollarSign className="h-6 w-6 text-white" />
+                      <Wallet className="h-6 w-6 text-white" />
                     </div>
                     {totalEarnings > 0 && (
                       <div className="flex items-center text-green-600 text-sm font-medium">
@@ -74,7 +75,7 @@ export function ChefHeroSection({
                     )}
                   </div>
                   <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                    ${totalEarnings.toLocaleString()}
+                    {formatCurrency(totalEarnings, 'GBP')}
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
                     Total Earnings

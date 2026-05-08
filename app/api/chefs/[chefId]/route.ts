@@ -29,11 +29,28 @@ function formatChefProfile(profile: any) {
       verified: profile.user.verified,
       experienceLevel: profile.user.experienceLevel,
     },
+    experiences: (profile.experiences ?? []).map((experience: any) => ({
+      id: experience.id,
+      title: experience.title,
+      description: experience.description,
+      price: experience.price,
+      currency: experience.currency,
+      duration: experience.duration,
+      eventType: experience.eventType,
+      cuisineType: experience.cuisineType,
+      minGuests: experience.minGuests,
+      maxGuests: experience.maxGuests,
+      serviceType: experience.serviceType,
+      offersCookingClasses: experience.offersCookingClasses,
+      classType: experience.classType,
+      pricePerStudent: experience.pricePerStudent,
+    })),
     menus: (profile.menus ?? []).map((menu: any) => ({
       id: menu.id,
       title: menu.title,
       description: menu.description,
       price: menu.price,
+      currency: menu.currency,
       menuImage: menu.menuImage,
       cuisineType: menu.cuisineType,
       eventType: menu.eventType,
@@ -85,6 +102,9 @@ export async function GET(
         id: chefId,
         ...(allowPreview ? {} : { isApproved: true }),
         isBanned: false,
+        user: {
+          isBanned: false,
+        },
       },
       include: {
         user: {
@@ -105,6 +125,13 @@ export async function GET(
             },
           },
           orderBy: { createdAt: "desc" },
+        },
+        experiences: {
+          where: {
+            isActive: true,
+          },
+          orderBy: { createdAt: "desc" },
+          take: 6,
         },
         reviews: {
           include: {

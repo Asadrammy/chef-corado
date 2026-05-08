@@ -19,6 +19,8 @@ import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
+import { formatCurrency } from "@/lib/currency"
+import { COMMUNICATION_POLICY } from "@/lib/request-options"
 import { cn } from "@/lib/utils"
 import { ProposalStatus, Role } from "@/types"
 
@@ -43,12 +45,14 @@ type ThreadRequestContext = {
   eventDate: string
   location: string
   budget: number | null
+  currency?: string | null
   details: string | null
 }
 
 type ThreadProposal = {
   id: string
   price: number
+  currency?: string | null
   message: string
   status: string
   createdAt: string
@@ -61,6 +65,7 @@ type ThreadBooking = {
   eventDate: string
   location: string
   totalPrice: number
+  currency?: string | null
   status: string
 }
 
@@ -380,7 +385,9 @@ export function ChefMessages({ initialUserId }: ChefMessagesProps) {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to send quote")
+        const payload = await response.json().catch(() => null)
+        const errorMessage = payload?.error || "Failed to send quote"
+        throw new Error(errorMessage)
       }
 
       toast.success(hasProposal ? "Quote updated and resent" : "Quote sent")
@@ -388,7 +395,7 @@ export function ChefMessages({ initialUserId }: ChefMessagesProps) {
       await Promise.all([fetchThread(activeUserId), fetchConversations()])
     } catch (error) {
       console.error(error)
-      toast.error("Failed to send quote")
+      toast.error(error instanceof Error ? error.message : "Failed to send quote")
     } finally {
       setQuoteSubmitting(false)
     }
@@ -415,6 +422,7 @@ export function ChefMessages({ initialUserId }: ChefMessagesProps) {
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
             Manage client conversations, review request context, and send updated quotes without leaving your dashboard.
             </p>
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{COMMUNICATION_POLICY}</p>
           </div>
           {activeUserId && thread?.context.request && (
             <Button type="button" variant="outline" className="rounded-2xl border-white/70 bg-white/70 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5" onClick={() => setQuoteOpen(true)}>
@@ -561,7 +569,7 @@ export function ChefMessages({ initialUserId }: ChefMessagesProps) {
                                     <p className="text-sm font-semibold text-foreground">Latest quote</p>
                                     <Badge variant="outline" className="rounded-full border-primary/20 bg-primary/5 text-primary">{thread.context.activeProposal.status}</Badge>
                                   </div>
-                                  <p className="text-2xl font-bold text-foreground">${thread.context.activeProposal.price.toFixed(2)}</p>
+                                  <p className="text-2xl font-bold text-foreground">{formatCurrency(thread.context.activeProposal.price, thread.context.activeProposal.currency || "GBP")}</p>
                                   <p className="line-clamp-3 text-sm text-muted-foreground">{thread.context.activeProposal.message}</p>
                                 </div>
                               )}
@@ -574,7 +582,7 @@ export function ChefMessages({ initialUserId }: ChefMessagesProps) {
                                       {format(new Date(thread.context.latestBooking.eventDate), "MMM d, yyyy")} · {thread.context.latestBooking.location}
                                     </p>
                                     <p className="text-sm text-muted-foreground">
-                                      ${thread.context.latestBooking.totalPrice.toFixed(2)} · {thread.context.latestBooking.status}
+                                      {formatCurrency(thread.context.latestBooking.totalPrice, thread.context.latestBooking.currency || "GBP")} · {thread.context.latestBooking.status}
                                     </p>
                                   </div>
                                 </>
@@ -618,7 +626,7 @@ export function ChefMessages({ initialUserId }: ChefMessagesProps) {
                                         </div>
                                         <Badge variant="secondary" className="rounded-full border border-primary/15 bg-primary/10 text-primary">{message.proposal.status}</Badge>
                                       </div>
-                                      <p className="mt-3 text-2xl font-bold text-foreground">${message.proposal.price.toFixed(2)}</p>
+                                      <p className="mt-3 text-2xl font-bold text-foreground">{formatCurrency(message.proposal.price, message.proposal.currency || "GBP")}</p>
                                       <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{message.proposal.message}</p>
                                       {isMine && isQuoteEditable(message.proposal) && (
                                         <Button
@@ -654,6 +662,7 @@ export function ChefMessages({ initialUserId }: ChefMessagesProps) {
                     </ScrollArea>
 
                     <div className="sticky bottom-0 border-t border-border/40 bg-white/82 p-4 backdrop-blur-xl dark:bg-slate-950/70">
+                      <p className="mb-3 text-xs leading-5 text-muted-foreground">{COMMUNICATION_POLICY}</p>
                       <div className="flex gap-3 rounded-[24px] border border-white/60 bg-white/80 p-2 shadow-sm dark:border-white/10 dark:bg-white/5">
                         <Input
                           value={draft}
@@ -707,7 +716,7 @@ export function ChefMessages({ initialUserId }: ChefMessagesProps) {
               <div className="rounded-2xl border border-border/60 bg-muted/20 p-4 text-sm text-muted-foreground">
                 <p className="font-semibold text-foreground">{thread.context.request.title}</p>
                 <p className="mt-1">{format(new Date(thread.context.request.eventDate), "MMM d, yyyy")} · {thread.context.request.location}</p>
-                {thread.context.request.budget ? <p className="mt-1">Client budget: ${thread.context.request.budget.toFixed(2)}</p> : null}
+                {thread.context.request.budget ? <p className="mt-1">Client budget: {formatCurrency(thread.context.request.budget, thread.context.request.currency || "GBP")}</p> : null}
               </div>
             )}
             <div className="space-y-2">

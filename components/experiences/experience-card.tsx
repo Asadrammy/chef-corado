@@ -1,19 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Clock, Users, DollarSign, MapPin, Star, Calendar } from "lucide-react";
+import { Clock, Users, MapPin, Star, Calendar } from "lucide-react";
 import Link from "next/link";
 import { InstantBookingDialog } from "@/components/booking/instant-booking-dialog";
+import { formatCurrency } from "@/lib/currency";
 
 interface Experience {
   id: string;
   title: string;
   description: string;
   price: number;
+  currency?: string;
   duration: number;
   includedServices: string;
   eventType?: string;
@@ -48,11 +51,14 @@ export function ExperienceCard({
   onBookNow, 
   showBookButton = true 
 }: ExperienceCardProps) {
+  const router = useRouter();
   const [imageError, setImageError] = useState(false);
   const [isBookingDialogOpen, setIsBookingDialogOpen] = useState(false);
   
   const includedServices = JSON.parse(experience.includedServices || '[]');
   const tags = JSON.parse(experience.tags || '[]');
+  const isCookingClass = experience.eventType === 'Cooking Class';
+  const displayCurrency = experience.currency || 'GBP';
   
   const formatDuration = (minutes: number) => {
     const hours = Math.floor(minutes / 60);
@@ -65,10 +71,10 @@ export function ExperienceCard({
 
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
-      case 'EASY': return 'bg-green-100 text-green-800';
-      case 'MEDIUM': return 'bg-yellow-100 text-yellow-800';
-      case 'HARD': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'EASY': return 'bg-green-100 text-green-700';
+      case 'MEDIUM': return 'bg-yellow-100 text-yellow-700';
+      case 'HARD': return 'bg-red-100 text-red-700';
+      default: return 'bg-gray-100 text-gray-700';
     }
   };
 
@@ -90,7 +96,8 @@ export function ExperienceCard({
   };
 
   const handleBookingComplete = (booking: any) => {
-    // Optional: Handle booking completion (redirect, refresh, etc.)
+    // Redirect to bookings page after successful booking
+    router.push('/dashboard/client/bookings');
   };
 
   return (
@@ -172,11 +179,10 @@ export function ExperienceCard({
         <div className="grid grid-cols-3 gap-4 text-center">
           <div className="space-y-1">
             <div className="flex items-center justify-center gap-1 text-sm text-gray-600">
-              <DollarSign className="h-4 w-4" />
-              <span>Price</span>
+              <span>{isCookingClass ? 'Price per student' : 'Price'}</span>
             </div>
-            <p className="font-semibold">${experience.price}</p>
-            <p className="text-xs text-gray-500">per person</p>
+            <p className="font-semibold">{formatCurrency(experience.price, displayCurrency)}</p>
+            <p className="text-xs text-gray-500">{isCookingClass ? 'per student' : 'per person'}</p>
           </div>
           
           <div className="space-y-1">
@@ -190,7 +196,7 @@ export function ExperienceCard({
           <div className="space-y-1">
             <div className="flex items-center justify-center gap-1 text-sm text-gray-600">
               <Users className="h-4 w-4" />
-              <span>Guests</span>
+              <span>{isCookingClass ? 'Students' : 'Guests'}</span>
             </div>
             <p className="font-semibold">
               {experience.minGuests || 1}-{experience.maxGuests || '∞'}

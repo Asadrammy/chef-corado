@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Loader2, Save, CheckCircle, Star, MapPin, Award, Edit, User, FileText, MapPin as LocationIcon, Briefcase } from "lucide-react"
 import { ReviewList } from "@/components/reviews/review-list"
+import { CHEF_LEGAL_ACKNOWLEDGEMENT, COUNTRY_OPTIONS, getCurrencyForCountry } from "@/lib/request-options"
 
 interface ChefProfile {
   id: string
@@ -20,11 +21,17 @@ interface ChefProfile {
   experience?: number
   location: string
   radius: number
+  baseCountryCode?: string
+  preferredCurrency?: string
   isApproved: boolean
   profileImage?: string
   chefType?: string
   certifications?: string
   eventsPerMonth?: number
+  termsAcceptedAt?: string | null
+  termsVersion?: string | null
+  insuranceAcknowledgedAt?: string | null
+  insuranceVersion?: string | null
   user: {
     name: string
     email: string
@@ -57,6 +64,8 @@ const applyProfileToForm = (
     experience: string
     location: string
     radius: string
+    baseCountryCode: string
+    preferredCurrency: string
     profileImage: string
     chefType: string
     certifications: string
@@ -70,6 +79,8 @@ const applyProfileToForm = (
     experience: chefProfile.experience?.toString() || "",
     location: chefProfile.location || "",
     radius: chefProfile.radius?.toString() || "",
+    baseCountryCode: chefProfile.baseCountryCode || "GB",
+    preferredCurrency: chefProfile.preferredCurrency || getCurrencyForCountry(chefProfile.baseCountryCode || "GB"),
     profileImage: chefProfile.profileImage || "",
     chefType: chefProfile.chefType || "",
     certifications: chefProfile.certifications || "",
@@ -85,6 +96,8 @@ export default function ChefProfilePage() {
     experience: "",
     location: "",
     radius: "",
+    baseCountryCode: "GB",
+    preferredCurrency: "GBP",
     profileImage: "",
     chefType: "",
     certifications: "",
@@ -143,6 +156,8 @@ export default function ChefProfilePage() {
         experience: formData.experience ? parseInt(formData.experience) : undefined,
         location: formData.location,
         radius: parseFloat(formData.radius),
+        baseCountryCode: formData.baseCountryCode,
+        preferredCurrency: formData.preferredCurrency,
         profileImage: formData.profileImage || undefined,
         chefType: formData.chefType || undefined,
         certifications: formData.certifications || undefined,
@@ -242,8 +257,8 @@ export default function ChefProfilePage() {
     <div className="space-y-8">
         {/* Page Header */}
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Profile Settings</h1>
-          <p className="text-gray-500 dark:text-gray-400">
+          <h1 className="text-3xl font-bold text-foreground">Profile Settings</h1>
+          <p className="text-muted-foreground">
             Manage your professional information and service area
           </p>
           {profile?.id ? (
@@ -274,7 +289,7 @@ export default function ChefProfilePage() {
               {/* Profile Image with Gradient Header */}
               <div className="flex flex-col items-center mb-6 space-y-5">
                 <div className="relative group w-full flex justify-center">
-                  <div className="w-full h-32 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-t-2xl absolute top-0 left-0"></div>
+                  <div className="brand-gradient-surface w-full h-32 rounded-t-2xl absolute top-0 left-0"></div>
                   <Avatar className="w-24 h-24 rounded-full border-4 border-white dark:border-gray-900 z-10 mt-8 -mb-12 ring-4 ring-white shadow-lg transition-all duration-300 transform -translate-y-1/2">
                     <AvatarImage src={formData.profileImage || profile?.profileImage} />
                     <AvatarFallback className="text-4xl font-bold text-white">
@@ -323,7 +338,7 @@ export default function ChefProfilePage() {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2.5">
                   <div 
-                    className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2.5 rounded-full transition-all duration-300"
+                    className="brand-gradient-surface h-2.5 rounded-full transition-all duration-300"
                     style={{ width: `${calculateProfileCompletion()}%` }}
                   />
                 </div>
@@ -405,7 +420,7 @@ export default function ChefProfilePage() {
                     <Input
                       id="phone"
                       name="phone"
-                      placeholder="e.g., +1 555 123 4567"
+                      placeholder="For account support only. Phone numbers are not shown publicly."
                       value={formData.phone}
                       onChange={handleChange}
                       className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 focus:scale-[1.01]"
@@ -436,6 +451,32 @@ export default function ChefProfilePage() {
                       className="mt-1 resize-none rounded-xl border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 min-h-[100px] transition-all duration-200 focus:scale-[1.01]"
                     />
                     <p className="text-xs text-gray-400 mt-1">Share your culinary background and what makes you unique</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="w-full bg-white dark:bg-gray-900 border border-gray-200 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1 p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-lg bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center">
+                    <Award className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Legal acknowledgement</h2>
+                </div>
+
+                <div className="space-y-4 text-sm text-gray-500 dark:text-gray-300">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/40">
+                    <p className="font-medium text-gray-900 dark:text-white">Terms status</p>
+                    <p className="mt-1">{profile?.termsAcceptedAt ? `Accepted ${new Date(profile.termsAcceptedAt).toLocaleString()}` : "Missing acknowledgement"}</p>
+                    <p className="mt-1 text-xs">Version: {profile?.termsVersion ?? "Not recorded"}</p>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-950/40">
+                    <p className="font-medium text-gray-900 dark:text-white">Insurance acknowledgement</p>
+                    <p className="mt-1">{profile?.insuranceAcknowledgedAt ? `Acknowledged ${new Date(profile.insuranceAcknowledgedAt).toLocaleString()}` : "Missing acknowledgement"}</p>
+                    <p className="mt-1 text-xs">Version: {profile?.insuranceVersion ?? "Not recorded"}</p>
+                  </div>
+                  <div className="rounded-xl border border-dashed border-primary/20 bg-primary/5 p-4 text-xs leading-5 text-muted-foreground">
+                    {CHEF_LEGAL_ACKNOWLEDGEMENT} Review the <Link href="/terms/chef" className="font-medium text-foreground hover:text-primary">Chef Terms</Link>, <Link href="/terms/client" className="font-medium text-foreground hover:text-primary">Client Terms</Link>, and <Link href="/privacy" className="font-medium text-foreground hover:text-primary">Privacy Policy</Link> if anything needs to be refreshed.
+                    <div className="mt-2">Your acknowledgement date and version are recorded here for profile readiness, booking compliance, and payout review.</div>
                   </div>
                 </div>
               </div>
@@ -536,7 +577,7 @@ export default function ChefProfilePage() {
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Location</h2>
                 </div>
                 
-                <div className="space-y-5">
+                <div className="grid gap-5 md:grid-cols-2">
                   <div>
                     <Label htmlFor="location" className="text-sm text-gray-500 dark:text-gray-300">Base Location</Label>
                     <Input
@@ -549,6 +590,44 @@ export default function ChefProfilePage() {
                       className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 focus:scale-[1.01]"
                     />
                     <p className="text-xs text-gray-400 mt-1">Your base location for calculating travel distance</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="baseCountryCode" className="text-sm text-gray-500 dark:text-gray-300">Base country</Label>
+                    <Select
+                      value={formData.baseCountryCode}
+                      onValueChange={(value) => setFormData((prev) => ({
+                        ...prev,
+                        baseCountryCode: value,
+                        preferredCurrency: getCurrencyForCountry(value),
+                      }))}
+                    >
+                      <SelectTrigger className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white">
+                        <SelectValue placeholder="Select base country" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COUNTRY_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-400 mt-1">Used to default menu and experience currency.</p>
+                  </div>
+                  <div>
+                    <Label htmlFor="preferredCurrency" className="text-sm text-gray-500 dark:text-gray-300">Preferred currency</Label>
+                    <Select
+                      value={formData.preferredCurrency}
+                      onValueChange={(value) => setFormData((prev) => ({ ...prev, preferredCurrency: value }))}
+                    >
+                      <SelectTrigger className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white">
+                        <SelectValue placeholder="Select preferred currency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COUNTRY_OPTIONS.map((option) => (
+                          <SelectItem key={option.currency} value={option.currency}>{option.currency}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-gray-400 mt-1">Keep this aligned with your base country unless you intentionally support another currency.</p>
                   </div>
                 </div>
               </div>
@@ -572,7 +651,7 @@ export default function ChefProfilePage() {
                   <Button 
                     type="submit" 
                     disabled={saving}
-                    className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium rounded-xl px-6 py-3 shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.05] active:scale-[0.98]"
+                    className="brand-gradient-button font-medium rounded-xl px-6 py-3 shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.05] active:scale-[0.98]"
                   >
                     {saving ? (
                       <>

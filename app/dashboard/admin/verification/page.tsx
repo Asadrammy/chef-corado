@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { VerificationManagement } from "@/components/admin/verification-management";
 import { Badge } from "@/components/ui/badge";
-import { Shield, Users, CheckCircle, Clock, AlertTriangle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Shield, Users, CheckCircle, Clock, AlertTriangle, FileText } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
 
@@ -16,6 +17,14 @@ interface VerificationStats {
   avgCompletion: number;
 }
 
+interface InsuranceStats {
+  total: number;
+  pending: number;
+  verified: number;
+  rejected: number;
+  expired: number;
+}
+
 export default function AdminVerificationPage() {
   const [stats, setStats] = useState<VerificationStats>({
     total: 0,
@@ -23,6 +32,13 @@ export default function AdminVerificationPage() {
     approved: 0,
     rejected: 0,
     avgCompletion: 0,
+  });
+  const [insuranceStats, setInsuranceStats] = useState<InsuranceStats>({
+    total: 0,
+    pending: 0,
+    verified: 0,
+    rejected: 0,
+    expired: 0,
   });
   const [loading, setLoading] = useState(true);
 

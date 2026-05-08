@@ -1,9 +1,10 @@
 import Link from "next/link"
-import { ArrowRight, CheckCircle2, DollarSign, BriefcaseBusiness, Sparkles, Star, TrendingUp } from "lucide-react"
+import { ArrowRight, CheckCircle2, Wallet, BriefcaseBusiness, Sparkles, Star, TrendingUp } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { formatCurrency } from "@/lib/currency"
 
 interface ChefHeroProps {
   userName: string
@@ -48,7 +49,7 @@ export function ChefHero({ userName, activeBookings, availableRequests, totalEar
             </div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button className="h-12 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-6 text-sm font-medium shadow-xl shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-primary/25" asChild>
+              <Button className="brand-gradient-button h-12 rounded-2xl px-6 text-sm font-medium shadow-xl shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-primary/25" asChild>
                 <Link href="/dashboard/chef/requests">
                   Review Requests
                   <ArrowRight className="h-4 w-4" />
@@ -73,11 +74,11 @@ export function ChefHero({ userName, activeBookings, availableRequests, totalEar
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-[0.22em]">Total Earnings</p>
-                    <p className="text-foreground mt-3 text-3xl font-semibold tracking-tight">${totalEarnings.toLocaleString()}</p>
+                    <p className="text-foreground mt-3 text-3xl font-semibold tracking-tight">{formatCurrency(totalEarnings)}</p>
                     <p className="mt-2 text-sm text-emerald-600 dark:text-emerald-400">↑ 12% from recent completed jobs</p>
                   </div>
                   <div className="flex h-12 w-12 items-center justify-center rounded-3xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                    <DollarSign className="h-5 w-5" />
+                    <Wallet className="h-5 w-5" />
                   </div>
                 </div>
               </div>

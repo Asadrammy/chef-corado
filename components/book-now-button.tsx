@@ -9,13 +9,20 @@ import { Textarea } from "@/components/ui/textarea"
 import { CalendarDays, MapPin, Users, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
+import { formatCurrency } from "@/lib/currency"
+import { COMMUNICATION_POLICY } from "@/lib/request-options"
 
 interface Experience {
   id: string
   title: string
   price: number
+  currency?: string
   duration: number
   maxGuests: number | null
+  minGuests?: number | null
+  serviceType?: string
+  classType?: string | null
+  pricePerStudent?: number | null
   chef: {
     user: {
       id: string
@@ -39,7 +46,12 @@ export function BookNowButton({ experience }: BookNowButtonProps) {
     specialRequests: ""
   })
 
+  const isCookingClass = experience.serviceType === "COOKING_CLASS"
+  const minGuests = experience.minGuests || 1
   const maxGuests = experience.maxGuests || 10 // Default to 10 if null
+  const unitPrice = isCookingClass
+    ? (experience.pricePerStudent ?? experience.price)
+    : experience.price
 
   const router = useRouter()
 
@@ -51,8 +63,12 @@ export function BookNowButton({ experience }: BookNowButtonProps) {
       return
     }
 
-    if (formData.guestCount < 1 || formData.guestCount > maxGuests) {
-      toast.error(`Guest count must be between 1 and ${maxGuests}`)
+    if (formData.guestCount < minGuests || formData.guestCount > maxGuests) {
+      toast.error(
+        isCookingClass
+          ? `Student count must be between ${minGuests} and ${maxGuests}`
+          : `Guest count must be between ${minGuests} and ${maxGuests}`
+      )
       return
     }
 
@@ -107,14 +123,16 @@ export function BookNowButton({ experience }: BookNowButtonProps) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button className="w-full" size="lg">
-          Book This Experience
+          {isCookingClass ? "Book Cooking Class" : "Book This Experience"}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Book {experience.title}</DialogTitle>
           <DialogDescription>
-            Complete your booking with {experience.chef.user.name}
+            {isCookingClass
+              ? `Complete your cooking class booking with ${experience.chef.user.name}. Student pricing will be calculated automatically.`
+              : `Complete your booking with ${experience.chef.user.name}`}
           </DialogDescription>
         </DialogHeader>
         
@@ -132,52 +150,66 @@ export function BookNowButton({ experience }: BookNowButtonProps) {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="location">Location</Label>
+            <Label htmlFor="location">{isCookingClass ? "Class location" : "Location"}</Label>
             <Input
               id="location"
               value={formData.location}
               onChange={(e) => handleInputChange("location", e.target.value)}
-              placeholder="Event location"
+              placeholder={isCookingClass ? "Class location" : "Event location"}
               required
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="guestCount">Number of Guests</Label>
+            <Label htmlFor="guestCount">{isCookingClass ? "Number of Students" : "Number of Guests"}</Label>
             <Input
               id="guestCount"
               type="number"
-              min="1"
+              min={minGuests}
               max={maxGuests}
               value={formData.guestCount}
               onChange={(e) => handleInputChange("guestCount", parseInt(e.target.value))}
               required
             />
             <p className="text-sm text-muted-foreground">
-              Maximum: {maxGuests} guests
+              {isCookingClass
+                ? `Minimum ${minGuests} students · Maximum ${maxGuests} students`
+                : `Minimum ${minGuests} guests · Maximum ${maxGuests} guests`}
             </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="specialRequests">Special Requests (Optional)</Label>
+            <Label htmlFor="specialRequests">{isCookingClass ? "Class notes (Optional)" : "Special Requests (Optional)"}</Label>
             <Textarea
               id="specialRequests"
               value={formData.specialRequests}
               onChange={(e) => handleInputChange("specialRequests", e.target.value)}
-              placeholder="Any dietary restrictions or special requirements..."
+              placeholder={isCookingClass ? "Learning goals, dietary notes, or class setup details..." : "Any dietary restrictions or special requirements..."}
               rows={3}
             />
           </div>
 
           <div className="border-t pt-4">
             <div className="flex justify-between items-center mb-4">
-              <span className="text-sm font-medium">Price per person:</span>
-              <span className="text-lg font-bold">${experience.price}</span>
+              <span className="text-sm font-medium">{isCookingClass ? "Price per student:" : "Price per person:"}</span>
+              <span className="text-lg font-bold">{formatCurrency(unitPrice, experience.currency || "GBP")}</span>
             </div>
             <div className="flex justify-between items-center mb-4">
-              <span className="text-sm font-medium">Number of guests:</span>
+              <span className="text-sm font-medium">{isCookingClass ? "Students:" : "Number of guests:"}</span>
               <span className="text-lg">{formData.guestCount}</span>
             </div>
+            {experience.classType ? (
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-sm font-medium">Class type:</span>
+                <span className="text-lg">{experience.classType}</span>
+              </div>
+            ) : null}
+            {isCookingClass ? (
+              <div className="flex justify-between items-center mb-4">
+                <span className="text-sm font-medium">Student range:</span>
+                <span className="text-lg">{minGuests}-{maxGuests} students</span>
+              </div>
+            ) : null}
             <div className="flex justify-between items-center mb-4">
               <span className="text-sm font-medium">Duration:</span>
               <span className="text-lg">{experience.duration} minutes</span>
@@ -186,10 +218,11 @@ export function BookNowButton({ experience }: BookNowButtonProps) {
               <div className="flex justify-between items-center">
                 <span className="text-lg font-bold">Total:</span>
                 <span className="text-2xl font-bold text-primary">
-                  ${experience.price * formData.guestCount}
+                  {formatCurrency(unitPrice * formData.guestCount, experience.currency || "GBP")}
                 </span>
               </div>
             </div>
+            <p className="mt-3 text-xs leading-5 text-muted-foreground">{COMMUNICATION_POLICY}</p>
           </div>
 
           <Button 
@@ -203,7 +236,7 @@ export function BookNowButton({ experience }: BookNowButtonProps) {
                 Creating Booking...
               </>
             ) : (
-              `Complete Booking - $${experience.price * formData.guestCount}`
+              `Complete Booking - ${formatCurrency(unitPrice * formData.guestCount, experience.currency || "GBP")}`
             )}
           </Button>
         </form>

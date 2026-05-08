@@ -17,6 +17,7 @@ export interface Menu {
   title: string
   description?: string
   price: number
+  currency?: string
   menuImage?: string
   cuisineType?: string
   eventType?: string
@@ -29,6 +30,7 @@ export interface MenuFormData {
   title: string
   description: string
   price: string
+  currency: string
   menuImage: string
   cuisineType: string
   eventType: string

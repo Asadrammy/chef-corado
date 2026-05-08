@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { ChefHat, FileText, Calendar, DollarSign, Settings, Bell, Search } from "lucide-react"
+import { ChefHat, FileText, Calendar, Wallet, Settings, Bell, Search } from "lucide-react"
 import { ActionCard } from "@/components/ui/action-card"
 import Link from "next/link"
 
@@ -57,7 +57,7 @@ export function PremiumQuickActions({ availableRequests, activeBookings, complet
     {
       title: 'View Earnings',
       description: 'Track your income',
-      icon: <DollarSign className="h-5 w-5" />,
+      icon: <Wallet className="h-5 w-5" />,
       href: '/dashboard/chef/payouts',
       badge: null,
       color: 'green' as const,

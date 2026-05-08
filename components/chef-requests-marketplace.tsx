@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ArrowUpDown, Calendar, Filter, DollarSign, Search, Sparkles, Users, MapPin, SlidersHorizontal } from "lucide-react"
+import { ArrowUpDown, Calendar, Filter, Search, Sparkles, Users, MapPin, SlidersHorizontal, Wallet } from "lucide-react"
 import Link from "next/link"
 
 import { ChefRequestRow } from "@/components/chef-request-table"
@@ -14,6 +14,7 @@ import { DashboardStatCard } from "@/components/ui/dashboard-stat-card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { formatCurrency } from "@/lib/currency"
 
 export type ChefRequestsMarketplaceProps = {
   requests: ChefRequestRow[]
@@ -102,7 +103,15 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
     }))
   }, [filteredRequests, smartMatches, useSmartMatching])
   const upcomingRequestsCount = requests.filter((request) => new Date(request.eventDate) >= new Date()).length
-  const highestBudget = requests.length ? `$${Math.max(...requests.map((request) => request.budget)).toLocaleString()}` : "$0"
+  const highestBudgetRequest = requests.reduce<ChefRequestRow | null>((highest, request) => {
+    if (!highest || request.budget > highest.budget) {
+      return request
+    }
+    return highest
+  }, null)
+  const highestBudget = highestBudgetRequest
+    ? formatCurrency(highestBudgetRequest.budget, highestBudgetRequest.currency || "GBP")
+    : formatCurrency(0, "GBP")
 
   return (
     <div className="space-y-6 lg:space-y-7">
@@ -177,7 +186,7 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
           label="Highest budget"
           value={highestBudget}
           description="Top visible budget among the requests in your queue"
-          icon={<DollarSign className="h-5 w-5" />}
+          icon={<Wallet className="h-5 w-5" />}
           trend={requests.length > 0 ? "Higher-budget opportunities can lift overall revenue quality." : "Budget insight will appear once requests are available."}
         />
       </div>

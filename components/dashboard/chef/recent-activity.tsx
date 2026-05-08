@@ -4,14 +4,16 @@ import { useState } from 'react'
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, DollarSign, Clock, CheckCircle, XCircle, AlertCircle, ArrowRight, FileText, ChefHat } from "lucide-react"
+import { Calendar, Clock, CheckCircle, XCircle, AlertCircle, ArrowRight, FileText, ChefHat } from "lucide-react"
 import Link from "next/link"
+import { formatCurrency } from "@/lib/currency"
 
 interface Booking {
   id: string
   title?: string
   status: string
   totalPrice?: number
+  currency?: string
   createdAt: string
   clientName?: string
   eventDate?: string
@@ -169,7 +171,7 @@ export function RecentActivity({ bookings, activeBookings, completedBookings }: 
                   {/* Price and status */}
                   <div className="text-right">
                     <p className="font-medium text-gray-900 dark:text-white">
-                      ${booking.totalPrice || 0}
+                      {formatCurrency(booking.totalPrice || 0, booking.currency || 'GBP')}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
                       <Badge className={`text-xs ${getStatusColor(booking.status)}`}>

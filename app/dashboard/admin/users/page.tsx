@@ -17,11 +17,23 @@ interface User {
   email: string;
   role: 'CLIENT' | 'CHEF' | 'ADMIN';
   isBanned: boolean;
+  banReason?: string | null;
+  banAdminNotes?: string | null;
+  bannedAt?: string | null;
+  bannedBy?: string | null;
   createdAt: string;
+  termsAcceptedAt?: string | null;
+  termsVersion?: string | null;
   chefProfile?: {
     id: string;
     isApproved: boolean;
     isBanned: boolean;
+    banReason?: string | null;
+    banAdminNotes?: string | null;
+    bannedAt?: string | null;
+    bannedBy?: string | null;
+    insuranceAcknowledgedAt?: string | null;
+    insuranceVersion?: string | null;
   };
   flags: string[];
   riskLevel: 'low' | 'medium' | 'high';
@@ -40,6 +52,7 @@ export default function AdminUsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [banDialogOpen, setBanDialogOpen] = useState(false);
   const [banReason, setBanReason] = useState('');
+  const [banAdminNotes, setBanAdminNotes] = useState('');
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
@@ -71,7 +84,7 @@ export default function AdminUsersPage() {
     return matchesSearch;
   });
 
-  const handleBanUser = async (userId: string, action: 'ban' | 'unban', reason?: string) => {
+  const handleBanUser = async (userId: string, action: 'ban' | 'unban', reason?: string, adminNotes?: string) => {
     setProcessing(true);
     try {
       const response = await fetch('/api/admin/users', {
@@ -83,6 +96,7 @@ export default function AdminUsersPage() {
           userId,
           action,
           reason,
+          adminNotes,
         }),
       });
 
@@ -98,6 +112,7 @@ export default function AdminUsersPage() {
       setBanDialogOpen(false);
       setSelectedUser(null);
       setBanReason('');
+      setBanAdminNotes('');
     } catch (error) {
       console.error('Error updating user:', error);
     } finally {
@@ -120,7 +135,7 @@ export default function AdminUsersPage() {
 
   const getStatusBadge = (user: User) => {
     if (user.isBanned) {
-      return <Badge variant="destructive">Banned</Badge>;
+      return <Badge variant="destructive">Suspended</Badge>;
     }
     if (user.chefProfile && !user.chefProfile.isApproved) {
       return <Badge variant="secondary">Pending Approval</Badge>;
@@ -167,7 +182,7 @@ export default function AdminUsersPage() {
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="banned">Banned</SelectItem>
+            <SelectItem value="banned">Suspended</SelectItem>
           </SelectContent>
         </Select>
         <Select value={roleFilter} onValueChange={setRoleFilter}>
@@ -214,6 +229,44 @@ export default function AdminUsersPage() {
                         <span>Bookings: {user._count.bookings}</span>
                         <span>Reviews: {user._count.reviews}</span>
                       </div>
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <Badge variant={user.termsAcceptedAt ? "default" : "destructive"}>
+                          {user.termsAcceptedAt ? `Terms accepted (${user.termsVersion ?? "current"})` : "Terms missing"}
+                        </Badge>
+                        {user.role === 'CHEF' && (
+                          <Badge variant={user.chefProfile?.insuranceAcknowledgedAt ? "default" : "secondary"}>
+                            {user.chefProfile?.insuranceAcknowledgedAt
+                              ? `Insurance acknowledged (${user.chefProfile.insuranceVersion ?? "current"})`
+                              : 'Insurance acknowledgement missing'}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="grid gap-1 pt-1 text-xs text-muted-foreground md:grid-cols-2">
+                        <p>
+                          <span className="font-medium text-foreground">Terms status:</span>{" "}
+                          {user.termsAcceptedAt
+                            ? `Accepted ${new Date(user.termsAcceptedAt).toLocaleString()}`
+                            : "Missing acknowledgement"}
+                        </p>
+                        <p>
+                          <span className="font-medium text-foreground">Terms version:</span>{" "}
+                          {user.termsVersion ?? "Not recorded"}
+                        </p>
+                        {user.role === 'CHEF' ? (
+                          <>
+                            <p>
+                              <span className="font-medium text-foreground">Insurance status:</span>{" "}
+                              {user.chefProfile?.insuranceAcknowledgedAt
+                                ? `Acknowledged ${new Date(user.chefProfile.insuranceAcknowledgedAt).toLocaleString()}`
+                                : "Missing acknowledgement"}
+                            </p>
+                            <p>
+                              <span className="font-medium text-foreground">Insurance version:</span>{" "}
+                              {user.chefProfile?.insuranceVersion ?? "Not recorded"}
+                            </p>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
 
                     {user.flags.length > 0 && (
@@ -233,6 +286,7 @@ export default function AdminUsersPage() {
                         if (!open) {
                           setSelectedUser(null);
                           setBanReason('');
+                          setBanAdminNotes('');
                         }
                       }}>
                         <DialogTrigger asChild>
@@ -242,20 +296,20 @@ export default function AdminUsersPage() {
                             onClick={() => setSelectedUser(user)}
                           >
                             <Ban className="h-4 w-4 mr-2" />
-                            Ban
+                            Suspend
                           </Button>
                         </DialogTrigger>
                         <DialogContent>
                           <DialogHeader>
-                            <DialogTitle>Ban User</DialogTitle>
+                            <DialogTitle>Suspend user</DialogTitle>
                             <DialogDescription>
-                              Are you sure you want to ban {user.name}? This action can be reversed later.
+                              Suspend {user.name} from using the platform. Suspended chefs will be removed from public discovery and booking flows until restored.
                             </DialogDescription>
                           </DialogHeader>
                           <div className="space-y-4">
                             <div>
                               <label htmlFor="reason" className="text-sm font-medium">
-                                Reason (optional)
+                                Suspension reason
                               </label>
                               <textarea
                                 id="reason"
@@ -263,7 +317,20 @@ export default function AdminUsersPage() {
                                 rows={3}
                                 value={banReason}
                                 onChange={(e) => setBanReason(e.target.value)}
-                                placeholder="Provide a reason for banning this user..."
+                                placeholder="Explain why this account is being suspended..."
+                              />
+                            </div>
+                            <div>
+                              <label htmlFor="adminNotes" className="text-sm font-medium">
+                                Admin notes (internal)
+                              </label>
+                              <textarea
+                                id="adminNotes"
+                                className="w-full mt-1 px-3 py-2 border border-input rounded-md"
+                                rows={3}
+                                value={banAdminNotes}
+                                onChange={(e) => setBanAdminNotes(e.target.value)}
+                                placeholder="Internal notes for future admin review..."
                               />
                             </div>
                           </div>
@@ -276,7 +343,7 @@ export default function AdminUsersPage() {
                             </Button>
                             <Button
                               variant="destructive"
-                              onClick={() => handleBanUser(user.id, 'ban', banReason)}
+                              onClick={() => handleBanUser(user.id, 'ban', banReason, banAdminNotes)}
                               disabled={processing}
                             >
                               {processing ? (
@@ -285,7 +352,7 @@ export default function AdminUsersPage() {
                                   Processing...
                                 </>
                               ) : (
-                                'Ban User'
+                                'Suspend User'
                               )}
                             </Button>
                           </DialogFooter>
@@ -299,11 +366,22 @@ export default function AdminUsersPage() {
                         disabled={processing}
                       >
                         <UserCheck className="h-4 w-4 mr-2" />
-                        Unban
+                        Restore access
                       </Button>
                     )}
                   </div>
                 </div>
+
+                {user.isBanned && (
+                  <div className="mt-4 rounded-xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-muted-foreground">
+                    <p className="font-medium text-foreground">Suspension details</p>
+                    <div className="mt-2 grid gap-2 md:grid-cols-2">
+                      <p><span className="font-medium text-foreground">Reason:</span> {user.banReason || user.chefProfile?.banReason || 'Not provided'}</p>
+                      <p><span className="font-medium text-foreground">Suspended at:</span> {user.bannedAt ? new Date(user.bannedAt).toLocaleString() : user.chefProfile?.bannedAt ? new Date(user.chefProfile.bannedAt).toLocaleString() : 'Unknown'}</p>
+                      <p className="md:col-span-2"><span className="font-medium text-foreground">Admin notes:</span> {user.banAdminNotes || user.chefProfile?.banAdminNotes || 'No internal notes'}</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

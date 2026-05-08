@@ -5,10 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, MapPin, Clock, Users, Star, ChefHat, DollarSign } from "lucide-react";
+import { Calendar, MapPin, Clock, Users, Star, ChefHat, Wallet } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { BookNowButton } from "@/components/book-now-button";
+import { formatCurrency } from "@/lib/currency";
 
 interface ExperiencePageProps {
   params: Promise<{ id: string }>;
@@ -99,7 +100,7 @@ export default async function ExperiencePage({ params }: ExperiencePageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50 pb-24">
       {/* Hero Section */}
       <div className="relative h-96 bg-gradient-to-r from-orange-400 to-red-500">
         {experience.experienceImage && (
@@ -125,8 +126,8 @@ export default async function ExperiencePage({ params }: ExperiencePageProps) {
             <p className="text-xl mb-6">{experience.description}</p>
             <div className="flex items-center gap-6 text-lg">
               <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
-                <span className="font-semibold">${experience.price}</span>
+                <Wallet className="h-5 w-5" />
+                <span className="font-semibold">{formatCurrency(experience.price, 'GBP')}</span>
                 <span className="text-white/80">per person</span>
               </div>
               <div className="flex items-center gap-2">

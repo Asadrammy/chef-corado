@@ -1,6 +1,6 @@
 "use client"
 
-import { Target, Zap, Clock, DollarSign, CheckCircle } from "lucide-react"
+import { Target, Zap, Clock, Wallet, CheckCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export type MatchLabel =
@@ -34,7 +34,7 @@ const matchConfig: Record<
     description: "Top-tier match across all criteria",
   },
   "High Value": {
-    icon: <DollarSign className="h-3.5 w-3.5" />,
+    icon: <Wallet className="h-3.5 w-3.5" />,
     colors:
       "border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-400",
     description: "Excellent budget alignment",
@@ -46,7 +46,7 @@ const matchConfig: Record<
     description: "Available and responsive",
   },
   "Great Price": {
-    icon: <DollarSign className="h-3.5 w-3.5" />,
+    icon: <Wallet className="h-3.5 w-3.5" />,
     colors:
       "border-purple-500/30 bg-purple-500/15 text-purple-700 dark:text-purple-400",
     description: "Perfect budget fit",

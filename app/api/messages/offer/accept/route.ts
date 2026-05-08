@@ -4,6 +4,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createNotification } from '@/lib/notifications';
+import { enforceUserModeration, enforceChefModeration } from '@/lib/security/moderation-guard';
+import { enforceChefCompliance, enforceClientCompliance } from '@/lib/security/legal-compliance';
+import { PLATFORM_DEFAULT_CURRENCY } from '@/lib/request-options';
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,6 +46,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    await enforceUserModeration(session.user.id)
+    await enforceClientCompliance(session.user.id)
+    await enforceUserModeration(offer.chef.userId)
+    await enforceChefCompliance(offer.chef.userId)
+    await enforceChefModeration(offer.chefId)
+
     if (offer.status !== 'PENDING') {
       return NextResponse.json({ error: 'Offer already resolved' }, { status: 400 });
     }
@@ -58,6 +67,7 @@ export async function POST(request: NextRequest) {
         location: 'To be confirmed via chat',
         guestCount: 1,
         totalPrice: offer.price,
+        currency: offer.currency || PLATFORM_DEFAULT_CURRENCY,
         bookingType: 'INSTANT',
         status: 'PENDING',
       },

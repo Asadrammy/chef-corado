@@ -1,6 +1,6 @@
 "use client"
 
-import { FileText, ChefHat, Calendar, DollarSign, ArrowRight } from "lucide-react"
+import { FileText, ChefHat, Calendar, Wallet, ArrowRight } from "lucide-react"
 import Link from "next/link"
 
 interface PremiumQuickActionsProps {
@@ -40,7 +40,7 @@ export function PremiumQuickActionsV3({ availableRequests, activeBookings }: Pre
     },
     {
       title: 'View Earnings',
-      icon: <DollarSign className="h-5 w-5" />,
+      icon: <Wallet className="h-5 w-5" />,
       href: '/dashboard/chef/payouts',
       badge: null,
       color: 'green' as const

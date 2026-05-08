@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { DollarSign, Calendar, Star, TrendingUp, TrendingDown, Minus } from "lucide-react"
+import { Wallet, Calendar, Star, TrendingUp, TrendingDown, Minus } from "lucide-react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
+import { formatCurrency } from "@/lib/currency"
 
 interface PerformanceOverviewProps {
   totalEarnings: number
@@ -100,7 +101,7 @@ export function PerformanceOverview({
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 flex items-center justify-center">
-                  <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  <Wallet className="h-6 w-6 text-green-600 dark:text-green-400" />
                 </div>
                 {earningsTrend.trend !== 'neutral' && (
                   <div className={`flex items-center text-sm font-medium ${getTrendColor(earningsTrend.trend)}`}>
@@ -112,7 +113,7 @@ export function PerformanceOverview({
                 )}
               </div>
               <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                ${totalEarnings.toLocaleString()}
+                {formatCurrency(totalEarnings, 'GBP')}
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
                 Total Earnings
@@ -242,7 +243,7 @@ export function PerformanceOverview({
                     <YAxis 
                       className="text-xs text-gray-500 dark:text-gray-400"
                       tick={{ fill: 'currentColor' }}
-                      tickFormatter={(value) => `$${value}`}
+                      tickFormatter={(value) => formatCurrency(Number(value), 'GBP')}
                     />
                     <Tooltip 
                       contentStyle={{
@@ -250,7 +251,7 @@ export function PerformanceOverview({
                         border: '1px solid #e5e7eb',
                         borderRadius: '8px'
                       }}
-                      formatter={(value: number) => [`$${value}`, 'Earnings']}
+                      formatter={(value: number) => [formatCurrency(value, 'GBP'), 'Earnings']}
                     />
                     <Line
                       type="monotone"
@@ -266,7 +267,7 @@ export function PerformanceOverview({
             ) : (
               <div className="h-64 flex flex-col items-center justify-center text-center space-y-4">
                 <div className="text-gray-500 dark:text-gray-400">
-                  <DollarSign className="mx-auto h-12 w-12 text-gray-400" />
+                  <Wallet className="mx-auto h-12 w-12 text-gray-400" />
                 </div>
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white">No earnings yet</h3>

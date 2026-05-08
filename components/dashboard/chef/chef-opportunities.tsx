@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProposalModal } from "@/components/proposal-modal"
 import { ChefDashboardRequestItem } from "@/lib/chef-dashboard"
+import { formatCurrency } from "@/lib/currency"
 
 interface ChefOpportunitiesProps {
   requests: ChefDashboardRequestItem[]
@@ -47,7 +48,7 @@ export function ChefOpportunities({ requests, availableRequestsCount }: ChefOppo
                 Keep your profile and availability up to date so you can convert new demand quickly.
                 </p>
               </div>
-              <Button className="mt-5 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-5 shadow-lg shadow-primary/20" asChild>
+              <Button className="brand-gradient-button mt-5 rounded-2xl px-5 shadow-lg shadow-primary/20" asChild>
                 <Link href="/dashboard/chef/profile">Strengthen profile</Link>
               </Button>
             </div>
@@ -91,7 +92,7 @@ export function ChefOpportunities({ requests, availableRequestsCount }: ChefOppo
               <div className="flex items-center justify-between gap-4 lg:flex-col lg:items-end">
                 <div className="rounded-2xl border border-white/70 bg-white/70 p-4 text-left shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5 lg:min-w-[132px] lg:text-right">
                   <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-[0.18em]">Budget</p>
-                  <p className="text-foreground mt-2 text-xl font-semibold tracking-tight">${request.budget.toLocaleString()}</p>
+                  <p className="text-foreground mt-2 text-xl font-semibold tracking-tight">{formatCurrency(request.budget, request.currency)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button 
@@ -107,10 +108,11 @@ export function ChefOpportunities({ requests, availableRequestsCount }: ChefOppo
                       eventDate: request.eventDate || new Date().toISOString(),
                       location: request.location || "",
                       budget: request.budget,
+                      currency: request.currency,
                       details: request.title,
                     }}
                   >
-                    <Button className="rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-4 shadow-lg shadow-primary/20 transition-all duration-300 group-hover:-translate-y-0.5">
+                    <Button className="brand-gradient-button rounded-2xl px-4 shadow-lg shadow-primary/20 transition-all duration-300 group-hover:-translate-y-0.5">
                       <Send className="mr-1.5 h-4 w-4" />
                       Send Quote
                     </Button>

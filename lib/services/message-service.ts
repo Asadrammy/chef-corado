@@ -1,6 +1,10 @@
 import { messageRepository } from "@/lib/repositories/message-repository"
 import { triggerMessageNotification } from "@/lib/notifications"
 import { ProposalStatus, Role } from "@/types"
+import { validateMessageContent } from "@/lib/security/communication-policy"
+import { enforceUserModeration } from "@/lib/security/moderation-guard"
+import { enforceChefCompliance, enforceClientCompliance } from "@/lib/security/legal-compliance"
+import { assertRequestCanReceiveQuote } from "@/lib/services/quote-limit-service"
 
 const PROPOSAL_EXPIRY_HOURS = 72
 const EDITABLE_PROPOSAL_STATUSES = new Set<string>([
@@ -34,6 +38,24 @@ function buildProposalMap<T extends { id: string }>(items: T[]) {
 
 export const messageService = {
   async createMessage(senderId: string, receiverId: string, content: string, proposalId?: string | null) {
+    // Enforce moderation - sender must not be banned
+    await enforceUserModeration(senderId)
+
+    // Enforce communication policy - block prohibited content
+    validateMessageContent(content)
+
+    // Enforce legal compliance based on role
+    const sender = await messageRepository.findUserById(senderId)
+    if (!sender) {
+      throw new Error("SENDER_NOT_FOUND")
+    }
+
+    if (sender.role === Role.CHEF) {
+      await enforceChefCompliance(senderId)
+    } else {
+      await enforceClientCompliance(senderId)
+    }
+
     const receiver = await messageRepository.findUserById(receiverId)
 
     if (!receiver) {
@@ -72,6 +94,7 @@ export const messageService = {
           ? {
               id: latestProposal.id,
               price: latestProposal.price,
+              currency: latestProposal.currency,
               message: latestProposal.message,
               status: latestProposal.status,
               expiresAt: latestProposal.expiresAt?.toISOString() ?? null,
@@ -82,6 +105,7 @@ export const messageService = {
                     eventDate: latestProposal.request.eventDate.toISOString(),
                     location: latestProposal.request.location,
                     budget: latestProposal.request.budget,
+                    currency: latestProposal.request.currency,
                     details: latestProposal.request.details,
                   }
                 : null,
@@ -93,6 +117,7 @@ export const messageService = {
               eventDate: latestBooking.eventDate.toISOString(),
               location: latestBooking.location,
               totalPrice: latestBooking.totalPrice,
+              currency: latestBooking.currency,
               status: latestBooking.status,
             }
           : null,
@@ -107,6 +132,7 @@ export const messageService = {
             ? {
                 id: proposal.id,
                 price: proposal.price,
+                currency: proposal.currency,
                 message: proposal.message,
                 status: proposal.status,
                 createdAt: proposal.createdAt.toISOString(),
@@ -118,6 +144,7 @@ export const messageService = {
                       eventDate: proposal.request.eventDate.toISOString(),
                       location: proposal.request.location,
                       budget: proposal.request.budget,
+                      currency: proposal.request.currency,
                       details: proposal.request.details,
                     }
                   : null,
@@ -175,6 +202,18 @@ export const messageService = {
     price: number
     message: string
   }) {
+    // Enforce moderation
+    await enforceUserModeration(input.senderId)
+
+    // Enforce communication policy on quote message
+    validateMessageContent(input.message)
+
+    // Enforce chef compliance (terms + insurance)
+    await enforceChefCompliance(input.senderId)
+
+    // Enforce unified quote limit (10 quotes per request)
+    await assertRequestCanReceiveQuote(input.requestId)
+
     const sender = await messageRepository.findUserById(input.senderId)
     const receiver = await messageRepository.findUserById(input.receiverId)
 
@@ -201,10 +240,14 @@ export const messageService = {
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + PROPOSAL_EXPIRY_HOURS)
 
-    const proposal = await messageRepository.createProposalForConversation({
+    // Use request currency to ensure consistency
+    const currency = request.currency || "GBP"
+
+    const proposal = await messageRepository.createProposalForConversationAtomically({
       requestId: input.requestId,
       chefId: chefProfile.id,
       price: input.price,
+      currency,
       message: input.message,
       expiresAt,
     })
@@ -220,6 +263,7 @@ export const messageService = {
       proposal: {
         id: proposal.id,
         price: proposal.price,
+        currency: proposal.currency,
         message: proposal.message,
         status: proposal.status,
         createdAt: proposal.createdAt.toISOString(),
@@ -230,6 +274,7 @@ export const messageService = {
           eventDate: proposal.request.eventDate.toISOString(),
           location: proposal.request.location,
           budget: proposal.request.budget,
+          currency: proposal.request.currency,
           details: proposal.request.details,
         },
       },
@@ -247,6 +292,15 @@ export const messageService = {
     price: number
     message: string
   }) {
+    // Enforce moderation
+    await enforceUserModeration(input.senderId)
+
+    // Enforce communication policy on quote message
+    validateMessageContent(input.message)
+
+    // Enforce chef compliance (terms + insurance)
+    await enforceChefCompliance(input.senderId)
+
     const proposal = await messageRepository.findProposalOwnedByChef(input.proposalId, input.senderId)
 
     if (!proposal) {
@@ -281,6 +335,7 @@ export const messageService = {
       proposal: {
         id: updatedProposal.id,
         price: updatedProposal.price,
+        currency: updatedProposal.currency,
         message: updatedProposal.message,
         status: updatedProposal.status,
         createdAt: updatedProposal.createdAt.toISOString(),
@@ -291,6 +346,7 @@ export const messageService = {
           eventDate: updatedProposal.request.eventDate.toISOString(),
           location: updatedProposal.request.location,
           budget: updatedProposal.request.budget,
+          currency: updatedProposal.request.currency,
           details: updatedProposal.request.details,
         },
       },

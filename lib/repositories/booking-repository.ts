@@ -123,6 +123,7 @@ export const bookingRepository = {
     longitude: number | null
     guestCount: number
     totalPrice: number
+    currency: string
     specialRequests: string | null
     chefUserId: string
     experienceTitle: string
@@ -141,10 +142,11 @@ export const bookingRepository = {
           longitude: input.longitude,
           guestCount: input.guestCount,
           totalPrice: input.totalPrice,
+          currency: input.currency,
           bookingType: 'INSTANT',
           status: 'PENDING',
           specialRequests: input.specialRequests,
-        },
+        } as any,
         include: {
           client: {
             select: {

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { CheckCircle, Circle, ArrowRight, Star, Users, FileText, Calendar, DollarSign } from 'lucide-react';
+import { CheckCircle, Circle, ArrowRight, Star, Users, FileText, Calendar, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { growthAnalytics } from '@/lib/analytics';
 
@@ -119,7 +119,7 @@ export function UserActivationFlow({ userRole, className }: UserActivationFlowPr
       completed: data.hasCompletedPayment,
       actionUrl: '/dashboard/client/bookings',
       actionText: 'Manage Payments',
-      icon: <DollarSign className="h-5 w-5" />,
+      icon: <Wallet className="h-5 w-5" />,
       priority: 'high'
     },
     {
@@ -202,7 +202,7 @@ export function UserActivationFlow({ userRole, className }: UserActivationFlowPr
       completed: data.hasReceivedPayment,
       actionUrl: '/dashboard/chef/payouts',
       actionText: 'View Earnings',
-      icon: <DollarSign className="h-5 w-5" />,
+      icon: <Wallet className="h-5 w-5" />,
       priority: 'high'
     }
   ];

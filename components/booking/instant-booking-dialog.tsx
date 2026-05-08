@@ -11,18 +11,22 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { CalendarIcon, Clock, Users, DollarSign, MapPin, CheckCircle, AlertCircle } from "lucide-react";
+import { CalendarIcon, Clock, Users, MapPin, CheckCircle, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import axios from "axios";
+import { formatCurrency } from "@/lib/currency";
 
 interface Experience {
   id: string;
   title: string;
   description: string;
   price: number;
+  currency?: string;
   duration: number;
   minGuests?: number;
   maxGuests?: number;
+  serviceType?: string;
+  pricePerStudent?: number;
   chef: {
     user: {
       name: string;
@@ -134,7 +138,12 @@ export function InstantBookingDialog({
     }
   };
 
-  const totalPrice = experience.price * parseInt(guestCount);
+  const currency = experience.currency || 'GBP';
+  const isCookingClass = experience.serviceType === 'COOKING_CLASS';
+  const pricePerUnit = isCookingClass
+    ? (experience.pricePerStudent ?? experience.price)
+    : experience.price;
+  const totalPrice = pricePerUnit * parseInt(guestCount);
   const canBook = selectedDate && location && availability?.canBook;
 
   return (
@@ -158,11 +167,10 @@ export function InstantBookingDialog({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1 text-sm text-gray-600 mb-1">
-                    <DollarSign className="h-4 w-4" />
                     <span>Price</span>
                   </div>
-                  <p className="font-semibold">${experience.price}</p>
-                  <p className="text-xs text-gray-500">per person</p>
+                  <p className="font-semibold">{formatCurrency(pricePerUnit, currency)}</p>
+                  <p className="text-xs text-gray-500">{isCookingClass ? 'per student' : 'per person'}</p>
                 </div>
                 
                 <div className="text-center">
@@ -176,7 +184,7 @@ export function InstantBookingDialog({
                 <div className="text-center">
                   <div className="flex items-center justify-center gap-1 text-sm text-gray-600 mb-1">
                     <Users className="h-4 w-4" />
-                    <span>Guests</span>
+                    <span>{isCookingClass ? 'Students' : 'Guests'}</span>
                   </div>
                   <p className="font-semibold">
                     {experience.minGuests || 1}-{experience.maxGuests || "∞"}
@@ -261,7 +269,7 @@ export function InstantBookingDialog({
 
                 {/* Guest Count */}
                 <div>
-                  <Label htmlFor="guestCount">Number of Guests</Label>
+                  <Label htmlFor="guestCount">{isCookingClass ? 'Number of Students' : 'Number of Guests'}</Label>
                   <Select value={guestCount} onValueChange={setGuestCount}>
                     <SelectTrigger className="mt-2">
                       <SelectValue />
@@ -272,7 +280,7 @@ export function InstantBookingDialog({
                         (_, i) => (experience.minGuests || 1) + i
                       ).map((num) => (
                         <SelectItem key={num} value={num.toString()}>
-                          {num} {num === 1 ? "Guest" : "Guests"}
+                          {num} {num === 1 ? (isCookingClass ? 'Student' : 'Guest') : (isCookingClass ? 'Students' : 'Guests')}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -310,17 +318,17 @@ export function InstantBookingDialog({
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <div className="flex justify-between">
-                      <span>Price per person:</span>
-                      <span>${experience.price}</span>
+                      <span>{isCookingClass ? 'Price per student:' : 'Price per person:'}</span>
+                      <span>{formatCurrency(pricePerUnit, currency)}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span>Number of guests:</span>
+                      <span>{isCookingClass ? 'Number of students:' : 'Number of guests:'}</span>
                       <span>{guestCount}</span>
                     </div>
                     <div className="border-t pt-2">
                       <div className="flex justify-between font-semibold text-lg">
                         <span>Total:</span>
-                        <span>${totalPrice}</span>
+                        <span>{formatCurrency(totalPrice, currency)}</span>
                       </div>
                     </div>
                   </CardContent>

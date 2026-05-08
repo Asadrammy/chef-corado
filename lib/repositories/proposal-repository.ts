@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma"
 import { ProposalStatus } from "@/types"
 
+const MAX_PROPOSALS_PER_REQUEST = 10
+
 export const proposalRepository = {
   findChefProfileByUserId(userId: string) {
     return prisma.chefProfile.findUnique({
@@ -23,10 +25,17 @@ export const proposalRepository = {
     })
   },
 
+  countProposalsForRequest(requestId: string) {
+    return prisma.proposal.count({
+      where: { requestId },
+    })
+  },
+
   createProposal(input: {
     requestId: string
     chefId: string
     price: number
+    currency: string
     message: string
     expiresAt?: Date
   }) {
@@ -35,10 +44,44 @@ export const proposalRepository = {
         request: { connect: { id: input.requestId } },
         chef: { connect: { id: input.chefId } },
         price: input.price,
+        currency: input.currency,
         message: input.message,
         expiresAt: input.expiresAt,
         status: ProposalStatus.PENDING,
-      },
+      } as any,
+    })
+  },
+
+  createProposalAtomically(input: {
+    requestId: string
+    chefId: string
+    price: number
+    currency: string
+    message: string
+    expiresAt?: Date
+  }) {
+    return prisma.$transaction(async (tx) => {
+      const existingProposalCount = await tx.proposal.count({
+        where: { requestId: input.requestId },
+      })
+
+      if (existingProposalCount >= MAX_PROPOSALS_PER_REQUEST) {
+        throw new Error("REQUEST_PROPOSAL_LIMIT_REACHED")
+      }
+
+      return tx.proposal.create({
+        data: {
+          request: { connect: { id: input.requestId } },
+          chef: { connect: { id: input.chefId } },
+          price: input.price,
+          currency: input.currency,
+          message: input.message,
+          expiresAt: input.expiresAt,
+          status: ProposalStatus.PENDING,
+        } as any,
+      })
+    }, {
+      isolationLevel: "Serializable",
     })
   },
 
@@ -129,7 +172,7 @@ export const proposalRepository = {
     return prisma.proposal.update({
       where: { id: proposalId },
       data: { status: ProposalStatus.REJECTED },
-      include: { chef: true, request: true },
+      include: { chef: { include: { user: true } }, request: true },
     })
   },
 

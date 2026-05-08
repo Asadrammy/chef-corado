@@ -6,6 +6,7 @@ export type ChefDashboardRequestItem = {
   id: string
   title: string
   budget: number
+  currency?: string
   clientName?: string
   location?: string
   createdAt: string
@@ -104,7 +105,7 @@ type DashboardBooking = {
     id: string
     request: {
       id: string
-      title: string
+      title: string | null
       eventDate: Date
       location: string
       details: string | null
@@ -412,8 +413,9 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
             ) / 10
           : undefined,
       id: request.id,
-      title: request.title,
+      title: request.title ?? "Untitled request",
       budget: request.budget,
+      currency: request.currency,
       clientName: request.client?.name,
       location: request.location,
       createdAt: request.createdAt.toISOString(),

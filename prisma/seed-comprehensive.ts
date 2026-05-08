@@ -197,10 +197,12 @@ async function main() {
         clientId: clients[0].id, // Sarah Johnson
         title: 'Anniversary Dinner for 8 People',
         description: 'Celebrating our 10th wedding anniversary with close friends. Want an elegant Italian dinner with wine pairing.',
+        eventType: 'Anniversary',
         eventDate: new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000), // 5 days from now
         location: 'Manhattan, New York',
         latitude: 40.7580,
         longitude: -73.9855,
+        guestCount: 8,
         budget: 1200,
         details: 'One vegetarian guest needed. Prefer romantic ambiance.',
       },
@@ -208,10 +210,12 @@ async function main() {
         clientId: clients[1].id, // Michael Chen
         title: 'Corporate Team Building Event',
         description: 'Looking for an interactive cooking experience for our sales team of 15 people. Want to foster collaboration.',
+        eventType: 'Corporate Event',
         eventDate: new Date(today.getTime() + 10 * 24 * 60 * 60 * 1000), // 10 days from now
         location: 'Brooklyn, New York',
         latitude: 40.6782,
         longitude: -73.9442,
+        guestCount: 15,
         budget: 3000,
         details: 'Team building focus, mixed dietary preferences, alcohol included.',
       },
@@ -219,10 +223,12 @@ async function main() {
         clientId: clients[2].id, // Emily Rodriguez
         title: 'Birthday Surprise Dinner',
         description: 'Surprise 30th birthday party for my sister. Want a Mediterranean feast with lots of variety.',
+        eventType: 'Birthday',
         eventDate: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
         location: 'Queens, New York',
         latitude: 40.7282,
         longitude: -73.7949,
+        guestCount: 10,
         budget: 800,
         details: 'Gluten-free options needed, festive atmosphere preferred.',
       },
@@ -230,10 +236,12 @@ async function main() {
         clientId: clients[3].id, // David Thompson
         title: 'Executive Board Meeting Lunch',
         description: 'High-end lunch for 6 executives. Need impressive presentation and exceptional service.',
+        eventType: 'Corporate Event',
         eventDate: new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
         location: 'Manhattan, New York',
         latitude: 40.7614,
         longitude: -73.9776,
+        guestCount: 6,
         budget: 1500,
         details: 'Business formal setting, dietary restrictions: 2 vegan, 1 gluten-free.',
       },
@@ -241,10 +249,12 @@ async function main() {
         clientId: clients[4].id, // Lisa Williams
         title: 'Holiday Family Gathering',
         description: 'Family reunion with 12 adults and 6 kids. Need family-style service with kid-friendly options.',
+        eventType: 'Family Dinner',
         eventDate: new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000), // 14 days from now
         location: 'Westchester, New York',
         latitude: 41.0328,
         longitude: -73.7628,
+        guestCount: 18,
         budget: 2000,
         details: 'Casual atmosphere, mix of adult and children menus, dessert buffet.',
       },
@@ -252,10 +262,12 @@ async function main() {
         clientId: clients[0].id, // Sarah Johnson (another request)
         title: 'Romantic Date Night',
         description: 'Special date night proposal. Want intimate setting with French cuisine.',
+        eventType: 'Anniversary',
         eventDate: new Date(today.getTime() + 2 * 24 * 60 * 60 * 1000), // 2 days from now
         location: 'Manhattan, New York',
         latitude: 40.7260,
         longitude: -73.9897,
+        guestCount: 2,
         budget: 400,
         details: 'Romantic setup, flowers, quiet atmosphere preferred.',
       },
@@ -263,10 +275,12 @@ async function main() {
         clientId: clients[1].id, // Michael Chen (another request)
         title: 'Product Launch Celebration',
         description: 'Company product launch party for 25 guests. Need impressive hors d\'oeuvres and signature cocktails.',
+        eventType: 'Corporate Event',
         eventDate: new Date(today.getTime() + 20 * 24 * 60 * 60 * 1000), // 20 days from now
         location: 'SoHo, New York',
         latitude: 40.7233,
         longitude: -74.0030,
+        guestCount: 25,
         budget: 3500,
         details: 'Standing reception, cocktail party style, dietary restrictions noted.',
       },
@@ -274,14 +288,16 @@ async function main() {
         clientId: clients[2].id, // Emily Rodriguez (another request)
         title: 'Graduation Celebration Dinner',
         description: 'College graduation celebration for family and friends. Want festive atmosphere.',
+        eventType: 'Get Together',
         eventDate: new Date(today.getTime() + 25 * 24 * 60 * 60 * 1000), // 25 days from now
         location: 'Upper East Side, New York',
         latitude: 40.7736,
         longitude: -73.9566,
+        guestCount: 12,
         budget: 1800,
         details: 'Mixed ages, celebratory mood, photo opportunities desired.',
       },
-    ],
+    ] as any,
   });
 
   // Fetch created requests for proposal creation

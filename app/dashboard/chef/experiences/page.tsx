@@ -8,15 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ExperienceForm } from "@/components/experiences/experience-form";
 import { ExperienceCard } from "@/components/experiences/experience-card";
-import { Plus, Edit, Trash2, Users, DollarSign, Star } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Wallet, Star } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
+import { formatCurrency } from "@/lib/currency";
 
 interface Experience {
   id: string;
   title: string;
   description: string;
   price: number;
+  currency?: string;
   duration: number;
   includedServices: string;
   eventType?: string;
@@ -44,6 +46,7 @@ interface Experience {
 
 export default function ChefExperiencesPage() {
   const [experiences, setExperiences] = useState<Experience[]>([]);
+  const [defaultCurrency, setDefaultCurrency] = useState("GBP");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -51,7 +54,22 @@ export default function ChefExperiencesPage() {
 
   useEffect(() => {
     fetchExperiences();
+    fetchProfileDefaults();
   }, []);
+
+  const fetchProfileDefaults = async () => {
+    try {
+      const response = await fetch("/api/chef/profile");
+      if (!response.ok) return;
+      const payload = await response.json();
+      const currency = payload?.data?.preferredCurrency as string | undefined;
+      if (currency) {
+        setDefaultCurrency(currency);
+      }
+    } catch {
+      // keep platform default
+    }
+  };
 
   const fetchExperiences = async () => {
     try {
@@ -167,7 +185,7 @@ export default function ChefExperiencesPage() {
                 Design a unique culinary experience for your clients
               </DialogDescription>
             </DialogHeader>
-            <ExperienceForm onSubmit={handleCreateExperience} isLoading={submitting} />
+            <ExperienceForm onSubmit={handleCreateExperience} isLoading={submitting} defaultCurrency={defaultCurrency} />
           </DialogContent>
         </Dialog>
       </div>
@@ -207,10 +225,10 @@ export default function ChefExperiencesPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Average Price</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${avgPrice.toFixed(0)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(avgPrice, defaultCurrency)}</div>
           </CardContent>
         </Card>
       </div>
@@ -346,6 +364,7 @@ export default function ChefExperiencesPage() {
               onSubmit={handleUpdateExperience} 
               isLoading={submitting}
               initialData={editingExperience}
+              defaultCurrency={defaultCurrency}
             />
           )}
         </DialogContent>

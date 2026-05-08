@@ -1,30 +1,92 @@
 import { calculateDistance } from "@/lib/geo"
 import { emailTemplates, sendPreferenceAwareEmail } from "@/lib/email"
+import { getCurrencyForCountry } from "@/lib/request-options"
 import { requestRepository } from "@/lib/repositories/request-repository"
+import { formatCurrency } from "@/lib/currency"
+import { enforceUserModeration } from "@/lib/security/moderation-guard"
+import { enforceClientCompliance } from "@/lib/security/legal-compliance"
+import { validatePolicyFields } from "@/lib/security/communication-policy"
 import { Role } from "@/types"
+
+const buildRequestTitle = (input: {
+  title?: string
+  eventType: string
+  guestCount: number
+  eventDate: string
+  location: string
+}) => {
+  if (input.title?.trim()) {
+    return input.title.trim()
+  }
+
+  const parsedDate = new Date(input.eventDate)
+  const formattedDate = Number.isNaN(parsedDate.getTime())
+    ? "upcoming date"
+    : parsedDate.toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+      })
+
+  const attendeeLabel = input.eventType === "Cooking Class" ? "student" : "guest"
+  return `${input.eventType} for ${input.guestCount} ${attendeeLabel}${input.guestCount === 1 ? "" : "s"} on ${formattedDate} in ${input.location}`
+}
 
 export const requestService = {
   async createRequest(userId: string, input: {
-    title: string
+    title?: string
+    eventType: string
+    cuisinePreferences: string[]
+    dietaryRequirements: string[]
     description?: string
     eventDate: string
+    eventTime: string
     location: string
+    country: string
+    guestCount: number
     latitude?: number
     longitude?: number
     budget: number
-    details: string
+    details?: string
   }) {
-    const created = await requestRepository.createRequest({
-      clientId: userId,
+    await enforceUserModeration(userId)
+    await enforceClientCompliance(userId)
+
+    validatePolicyFields({
       title: input.title,
       description: input.description,
-      eventDate: new Date(input.eventDate),
       location: input.location,
+      details: input.details,
+    })
+
+    const title = buildRequestTitle({
+      title: input.title,
+      eventType: input.eventType,
+      guestCount: input.guestCount,
+      eventDate: input.eventDate,
+      location: input.location,
+    })
+    const currency = getCurrencyForCountry(input.country)
+
+    const created = await requestRepository.createRequest({
+      clientId: userId,
+      title,
+      eventType: input.eventType,
+      cuisineTypes: JSON.stringify(input.cuisinePreferences),
+      dietaryRequirements: JSON.stringify(input.dietaryRequirements),
+      description: input.description,
+      eventDate: new Date(input.eventDate),
+      eventTime: input.eventTime,
+      location: input.location,
+      countryCode: input.country,
+      currency,
+      guestCount: input.guestCount,
       latitude: input.latitude,
       longitude: input.longitude,
       budget: input.budget,
       details: input.details,
     })
+
+    const createdTitle = created.title ?? title
 
     if (created.latitude && created.longitude) {
       const matchingChefs = await requestRepository.findApprovedChefsWithCoordinates()
@@ -50,12 +112,12 @@ export const requestService = {
             userId: chef.userId,
             topic: "requests",
             email: chef.user.email,
-            subject: `New Service Request: ${created.title}`,
+            subject: `New Service Request: ${createdTitle}`,
             html: emailTemplates.newRequest(
               chef.user.name,
-              created.title,
+              createdTitle,
               created.location,
-              created.budget
+              Number(formatCurrency(created.budget, created.currency).replace(/[^[\d.,-]]/g, "")) || created.budget
             ),
           })
         )

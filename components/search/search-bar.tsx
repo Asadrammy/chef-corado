@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Search, Filter, MapPin, DollarSign } from 'lucide-react';
+import { Search, Filter, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -180,23 +180,23 @@ export function SearchBar({ onSearch, loading }: SearchBarProps) {
                 <Label>Price Range</Label>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">Min</span>
                     <Input
                       type="number"
                       placeholder="Min"
                       value={filters.minPrice || ''}
                       onChange={(e) => updateFilter('minPrice', e.target.value ? parseFloat(e.target.value) : undefined)}
-                      className="pl-10"
+                      className="pl-11"
                     />
                   </div>
                   <div className="relative">
-                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-medium text-muted-foreground">Max</span>
                     <Input
                       type="number"
                       placeholder="Max"
                       value={filters.maxPrice || ''}
                       onChange={(e) => updateFilter('maxPrice', e.target.value ? parseFloat(e.target.value) : undefined)}
-                      className="pl-10"
+                      className="pl-11"
                     />
                   </div>
                 </div>

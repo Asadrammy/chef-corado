@@ -1,6 +1,7 @@
 "use client"
 
-import { DollarSign, Calendar, Users } from "lucide-react"
+import { Wallet, Calendar, Users } from "lucide-react"
+import { formatCurrency } from "@/lib/currency"
 
 interface StatsCardsProps {
   totalEarnings: number
@@ -12,8 +13,8 @@ export function StatsCards({ totalEarnings, activeBookings, availableRequests }:
   const stats = [
     {
       label: "Earnings",
-      value: `$${totalEarnings.toLocaleString()}`,
-      icon: <DollarSign className="h-5 w-5" />,
+      value: formatCurrency(totalEarnings, 'GBP'),
+      icon: <Wallet className="h-5 w-5" />,
       color: "green"
     },
     {

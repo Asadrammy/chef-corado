@@ -15,8 +15,10 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { MenuFormData } from "@/components/dashboard/chef/menu-types"
+import { COUNTRY_OPTIONS } from "@/lib/request-options"
 
 interface MenuDialogProps {
   open: boolean
@@ -131,20 +133,35 @@ export function MenuDialog({
               className="rounded-lg"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="price">Price</Label>
-            <Input
-              id="price"
-              name="price"
-              type="number"
-              min="0"
-              step="0.01"
-              value={formData.price}
-              onChange={onChange}
-              placeholder="150.00"
-              required
-              className="rounded-lg"
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="price">Price</Label>
+              <Input
+                id="price"
+                name="price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.price}
+                onChange={onChange}
+                placeholder="150.00"
+                required
+                className="rounded-lg"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="currency">Currency</Label>
+              <Select value={formData.currency} onValueChange={(value) => onChange({ target: { name: "currency", value } } as React.ChangeEvent<HTMLInputElement>)}>
+                <SelectTrigger className="rounded-lg">
+                  <SelectValue placeholder="Select currency" />
+                </SelectTrigger>
+                <SelectContent>
+                  {COUNTRY_OPTIONS.map((option) => (
+                    <SelectItem key={option.currency} value={option.currency}>{option.label} · {option.currency}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>

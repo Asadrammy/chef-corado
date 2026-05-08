@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { apiError, apiSuccess } from '@/lib/api-response';
+import { normalizeCurrency } from '@/lib/currency';
 
 // Initialize Stripe
 const getStripeClient = () => {
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
     if (!Number.isFinite(amount)) {
       return apiError("BAD_REQUEST", "Invalid booking price", 400);
     }
+    const currency = normalizeCurrency((booking as any).currency || "GBP");
 
     const successUrl = process.env.STRIPE_SUCCESS_URL ?? 
       `${process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/dashboard/client/bookings?status=success`;
@@ -92,7 +94,7 @@ export async function POST(request: NextRequest) {
       line_items: [
         {
           price_data: {
-            currency: "usd",
+            currency,
             unit_amount: Math.round(amount * 100),
             product_data: {
               name: `Instant Booking: ${booking.experience?.title || "Experience"}`,
@@ -108,6 +110,7 @@ export async function POST(request: NextRequest) {
       metadata: {
         bookingId: booking.id,
         bookingType: "INSTANT",
+        currency,
       },
     });
 

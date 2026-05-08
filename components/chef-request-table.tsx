@@ -3,12 +3,14 @@ import { Button } from "@/components/ui/button"
 import { format } from "date-fns"
 import { FileText, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { formatCurrency } from "@/lib/currency"
 
 export type ChefRequestRow = {
   id: string
   eventDate: string
   location: string
   budget: number
+  currency: string
   details: string | null
   distanceKm?: number
 }
@@ -60,7 +62,7 @@ export function ChefRequestTable({
               {format(new Date(request.eventDate), "MMM d, yyyy")}
             </TableCell>
             <TableCell>{request.location}</TableCell>
-            <TableCell>${request.budget.toFixed(2)}</TableCell>
+            <TableCell>{formatCurrency(request.budget, request.currency)}</TableCell>
             <TableCell>{request.details ?? "No additional info"}</TableCell>
             <TableCell className="text-right">
               <Button

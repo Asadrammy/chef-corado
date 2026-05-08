@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
 import { z } from "zod"
 
-import { authOptions } from "@/lib/auth"
+import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
 import { prisma } from "@/lib/prisma"
+import { TERMS_VERSION } from "@/lib/request-options"
 import { getStripeService, StripeService } from "@/lib/services/stripe-service"
 import { Role } from "@/types"
 
@@ -14,6 +14,43 @@ const notificationPreferenceSchema = z.object({
   inAppMessages: z.boolean(),
   inAppBookings: z.boolean(),
   inAppRequests: z.boolean(),
+})
+
+const insuranceSubmissionSchema = z.object({
+  insuranceDocumentUrl: z.string().url("A valid insurance document URL is required").refine(
+    (url) => {
+      // Validate URL is from allowed domains or storage services
+      const allowedDomains = [
+        'drive.google.com',
+        'docs.google.com',
+        'dropbox.com',
+        'onedrive.live.com',
+        'cloudinary.com',
+        'aws.amazon.com',
+        's3.amazonaws.com',
+        'storage.googleapis.com',
+      ]
+      try {
+        const urlObj = new URL(url)
+        return allowedDomains.some(domain => urlObj.hostname.includes(domain))
+      } catch {
+        return false
+      }
+    },
+    "Document URL must be from a trusted storage service (Google Drive, Dropbox, OneDrive, Cloudinary, AWS S3)"
+  ),
+  insuranceExpiryDate: z.string().refine((value) => {
+    const date = new Date(value)
+    const now = new Date()
+    const minExpiry = new Date()
+    minExpiry.setFullYear(minExpiry.getFullYear() + 1) // Must be at least 1 year in future
+    return !Number.isNaN(date.getTime()) && date > minExpiry
+  }, "Insurance must be valid for at least 1 year from today"),
+})
+
+const settingsUpdateSchema = z.object({
+  notificationPreferences: notificationPreferenceSchema.optional(),
+  insuranceSubmission: insuranceSubmissionSchema.optional(),
 })
 
 function defaultPreferences(userId: string) {
@@ -30,24 +67,34 @@ function defaultPreferences(userId: string) {
 
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session?.user?.id || session.user.role !== Role.CHEF) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await getRequiredSession(Role.CHEF)
+    const userId = getSessionUserId(session)
 
     // Check if Stripe is properly configured
     const stripeConfigured = StripeService.isConfigured()
 
-    const [preferences, chefProfile] = await Promise.all([
+    const [preferences, user, chefProfile] = await Promise.all([
       prisma.notificationPreference.findUnique({
-        where: { userId: session.user.id },
+        where: { userId },
+      }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          termsAcceptedAt: true,
+          termsVersion: true,
+          acceptedVia: true,
+        },
       }),
       prisma.chefProfile.findUnique({
-        where: { userId: session.user.id },
+        where: { userId },
         select: {
           stripeAccountId: true,
           stripeOnboardingComplete: true,
+          insuranceStatus: true,
+          insuranceDocumentUrl: true,
+          insuranceExpiryDate: true,
+          insuranceVerifiedAt: true,
+          insuranceVerifiedBy: true,
         },
       }),
     ])
@@ -63,8 +110,23 @@ export async function GET() {
       }
     }
 
+    const insuranceExpired = chefProfile?.insuranceExpiryDate ? chefProfile.insuranceExpiryDate.getTime() < Date.now() : false
+
     return NextResponse.json({
-      notificationPreferences: preferences ?? defaultPreferences(session.user.id),
+      notificationPreferences: preferences ?? defaultPreferences(userId),
+      legal: {
+        termsAcceptedAt: user?.termsAcceptedAt?.toISOString() ?? null,
+        termsVersion: user?.termsVersion ?? null,
+        acceptedVia: user?.acceptedVia ?? null,
+        termsCurrent: Boolean(user?.termsAcceptedAt) && user?.termsVersion === TERMS_VERSION && Boolean(user?.acceptedVia),
+        insuranceStatus: chefProfile?.insuranceStatus ?? "pending",
+        insuranceDocumentUrl: chefProfile?.insuranceDocumentUrl ?? null,
+        insuranceExpiryDate: chefProfile?.insuranceExpiryDate?.toISOString() ?? null,
+        insuranceVerifiedAt: chefProfile?.insuranceVerifiedAt?.toISOString() ?? null,
+        insuranceVerifiedBy: chefProfile?.insuranceVerifiedBy ?? null,
+        insuranceCurrent: chefProfile?.insuranceStatus === "verified" && Boolean(chefProfile?.insuranceDocumentUrl) && Boolean(chefProfile?.insuranceVerifiedAt) && !insuranceExpired,
+        insuranceExpired,
+      },
       stripe: {
         accountId: chefProfile?.stripeAccountId ?? null,
         onboardingComplete: stripeAccount
@@ -85,25 +147,50 @@ export async function GET() {
 
 export async function PUT(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-
-    if (!session?.user?.id || session.user.role !== Role.CHEF) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await getRequiredSession(Role.CHEF)
+    const userId = getSessionUserId(session)
 
     const body = await request.json()
-    const validatedPreferences = notificationPreferenceSchema.parse(body.notificationPreferences)
+    const payload = settingsUpdateSchema.parse(body)
 
-    const preferences = await prisma.notificationPreference.upsert({
-      where: { userId: session.user.id },
-      update: validatedPreferences,
-      create: {
-        userId: session.user.id,
-        ...validatedPreferences,
-      },
+    let preferences = null
+    if (payload.notificationPreferences) {
+      preferences = await prisma.notificationPreference.upsert({
+        where: { userId },
+        update: payload.notificationPreferences,
+        create: {
+          userId,
+          ...payload.notificationPreferences,
+        },
+      })
+    }
+
+    let legal = null
+    if (payload.insuranceSubmission) {
+      const insuranceExpiryDate = new Date(payload.insuranceSubmission.insuranceExpiryDate)
+      legal = await prisma.chefProfile.update({
+        where: { userId },
+        data: {
+          insuranceDocumentUrl: payload.insuranceSubmission.insuranceDocumentUrl,
+          insuranceExpiryDate,
+          insuranceStatus: "pending",
+          insuranceVerifiedAt: null,
+          insuranceVerifiedBy: null,
+        } as never,
+        select: {
+          insuranceStatus: true,
+          insuranceDocumentUrl: true,
+          insuranceExpiryDate: true,
+          insuranceVerifiedAt: true,
+          insuranceVerifiedBy: true,
+        },
+      })
+    }
+
+    return NextResponse.json({
+      notificationPreferences: preferences,
+      legal,
     })
-
-    return NextResponse.json({ notificationPreferences: preferences })
   } catch (error) {
     console.error("Failed to update chef settings", error)
 

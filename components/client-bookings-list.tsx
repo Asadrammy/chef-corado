@@ -6,7 +6,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
-  DollarSign,
   MapPin,
   MessageSquare,
   Search,
@@ -26,13 +25,14 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
-import { analytics } from "@/lib/analytics"
+import { formatCurrency } from "@/lib/currency"
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED"
 
 type BookingPayload = {
   id: string
   totalPrice: string
+  currency?: string | null
   status: BookingStatus
   createdAt: string
   chef: {
@@ -93,12 +93,29 @@ const formatDate = (value: string) => {
   })
 }
 
-const formatPrice = (value: string) => {
+const formatPrice = (value: string, currency?: string | null) => {
   const parsed = Number(value)
   if (Number.isNaN(parsed)) {
     return value
   }
-  return `$${parsed.toFixed(2)}`
+  return formatCurrency(parsed, currency ?? "GBP")
+}
+
+const formatAggregateSpend = (items: BookingPayload[]) => {
+  const totals = items.reduce<Record<string, number>>((accumulator, booking) => {
+    const currency = booking.currency ?? "GBP"
+    accumulator[currency] = (accumulator[currency] ?? 0) + toPriceNumber(booking.totalPrice)
+    return accumulator
+  }, {})
+
+  const entries = Object.entries(totals)
+  if (entries.length === 0) {
+    return formatCurrency(0)
+  }
+
+  return entries
+    .map(([currency, amount]) => formatCurrency(amount, currency))
+    .join(" + ")
 }
 
 const toPriceNumber = (value: string) => {
@@ -201,9 +218,7 @@ export function ClientBookingsList() {
   const upcomingCount = bookings.filter((booking) => bookingStatusMeta[booking.status].isUpcoming).length
   const completedCount = bookings.filter((booking) => booking.status === "COMPLETED").length
   const pendingCount = bookings.filter((booking) => booking.status === "PENDING").length
-  const totalSpent = bookings
-    .filter((booking) => booking.status === "COMPLETED")
-    .reduce((sum, booking) => sum + toPriceNumber(booking.totalPrice), 0)
+  const completedBookingsForSpend = bookings.filter((booking) => booking.status === "COMPLETED")
 
   const handleCancelBooking = async (bookingId: string) => {
     setCancelLoading((prev) => ({ ...prev, [bookingId]: true }))
@@ -285,7 +300,7 @@ export function ClientBookingsList() {
               <Wallet className="h-4 w-4" />
             </div>
           </div>
-          <p className="text-3xl font-semibold text-foreground">{formatPrice(String(totalSpent))}</p>
+          <p className="text-3xl font-semibold text-foreground">{formatAggregateSpend(completedBookingsForSpend)}</p>
           <p className="mt-1 text-xs text-muted-foreground">From completed bookings</p>
         </div>
 
@@ -375,7 +390,7 @@ export function ClientBookingsList() {
             </Button>
           </div>
 
-          <div className="relative overflow-hidden rounded-2xl border border-indigo-200/50 bg-gradient-to-br from-indigo-700 via-slate-800 to-slate-900 p-6 text-white shadow-md">
+          <div className="brand-gradient-surface relative overflow-hidden rounded-2xl border border-primary/20 p-6 text-white shadow-md">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:18px_18px] opacity-40" />
             <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-white/10" />
             <div className="absolute -bottom-14 -left-10 h-32 w-32 rounded-full bg-indigo-300/20" />
@@ -424,8 +439,7 @@ export function ClientBookingsList() {
                     <span>{booking.proposal?.request?.location ?? "Location TBD"}</span>
                   </div>
                   <div className="flex items-center gap-2 text-base font-semibold text-foreground">
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
-                    <span>{formatPrice(booking.totalPrice)}</span>
+                    <span>{formatPrice(booking.totalPrice, booking.currency)}</span>
                   </div>
                 </div>
 

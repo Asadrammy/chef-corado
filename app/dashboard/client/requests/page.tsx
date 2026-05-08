@@ -9,20 +9,31 @@ import {
   ClipboardList,
   Calendar,
   MapPin,
-  DollarSign,
+  Users,
+  ChefHat,
 } from "lucide-react"
 
 import { authOptions } from "@/lib/auth"
+import { formatCurrency } from "@/lib/currency"
 import { prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 
 type RequestRow = {
   id: string
+  title: string | null
+  eventType: string
+  cuisineTypes: string | null
+  dietaryRequirements: string | null
   eventDate: Date
   location: string
   budget: number
+  currency: string
+  guestCount: number
   status?: string
+  _count: {
+    proposals: number
+  }
 }
 
 export const metadata: Metadata = generateMeta({
@@ -43,22 +54,33 @@ export default async function ClientRequestsPage() {
     orderBy: { eventDate: "desc" },
     select: {
       id: true,
+      title: true,
+      eventType: true,
+      cuisineTypes: true,
+      dietaryRequirements: true,
       eventDate: true,
       location: true,
       budget: true,
+      currency: true,
+      guestCount: true,
+      _count: {
+        select: {
+          proposals: true,
+        },
+      },
     },
   })
 
   return (
     <div className="space-y-6 lg:space-y-7">
-      <div className="rounded-[30px] border border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(244,247,255,0.92))] px-6 py-6 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]">
+      <div className="brand-surface rounded-[30px] px-6 py-6 shadow-xl shadow-slate-900/5 backdrop-blur-xl">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">My Requests</h1>
             <p className="text-sm text-muted-foreground">Manage and track your event requests.</p>
           </div>
           <Link href="/dashboard/client/create-request">
-            <Button className="h-11 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+            <Button className="brand-gradient-button h-11 rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
               Create Request
             </Button>
           </Link>
@@ -74,7 +96,7 @@ export default async function ClientRequestsPage() {
             <h2 className="text-2xl font-semibold tracking-tight text-foreground">No requests yet</h2>
             <p className="mt-2 text-sm text-muted-foreground">Create your first request to start receiving chef proposals.</p>
             <Link href="/dashboard/client/create-request" className="mt-6">
-              <Button className="h-11 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+              <Button className="brand-gradient-button h-11 rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
                 Create your first request
               </Button>
             </Link>
@@ -87,34 +109,72 @@ export default async function ClientRequestsPage() {
               key={request.id}
               className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl dark:border-white/10"
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="font-semibold text-lg text-foreground">
-                  {format(new Date(request.eventDate), "MMM d, yyyy")}
-                </div>
-                <Badge variant="outline" className="rounded-full px-3 py-1 text-xs">
-                  {request.status ?? "Pending"}
-                </Badge>
-              </div>
-
-              <div className="mt-4 space-y-3 text-sm text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  <span>{request.location}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4" />
-                  <span>{format(new Date(request.eventDate), "EEEE")}</span>
-                </div>
-                <div className="flex items-center gap-2 text-foreground">
-                  <DollarSign className="h-4 w-4" />
-                  <span className="font-medium">${request.budget.toFixed(2)}</span>
+              {/* Header with event type and status */}
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant="secondary" className="text-xs">
+                      {request.eventType || "Event"}
+                    </Badge>
+                    <Badge variant="outline" className="rounded-full px-2 py-0.5 text-xs">
+                      {request.status ?? "Pending"}
+                    </Badge>
+                  </div>
+                  <h3 className="font-semibold text-base text-foreground truncate">
+                    {request.title || `${request.eventType || "Event"} Request`}
+                  </h3>
                 </div>
               </div>
 
-              <div className="mt-5">
-                <Link href="/dashboard/client/proposals">
-                  <Button className="w-full rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
-                    View proposals
+              {/* Key details */}
+              <div className="space-y-2.5 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{format(new Date(request.eventDate), "MMM d, yyyy · EEEE")}</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <MapPin className="h-4 w-4 shrink-0" />
+                  <span className="truncate">{request.location}</span>
+                </div>
+                {request.guestCount > 0 && (
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Users className="h-4 w-4 shrink-0" />
+                    <span>{request.guestCount} {request.eventType === "Cooking Class" ? "students" : "guests"}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-foreground">
+                  <span className="text-sm text-muted-foreground">Budget</span>
+                  <span className="font-medium">{formatCurrency(request.budget, request.currency)}</span>
+                </div>
+              </div>
+
+              {/* Tags */}
+              {(request.cuisineTypes || request.dietaryRequirements) ? (
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {request.cuisineTypes && request.cuisineTypes.split(',').slice(0, 2).map((cuisine) => (
+                    <Badge key={cuisine} variant="outline" className="text-xs">
+                      <ChefHat className="h-3 w-3 mr-1" />
+                      {cuisine.trim()}
+                    </Badge>
+                  ))}
+                  {request.dietaryRequirements && request.dietaryRequirements.split(',').slice(0, 1).map((diet) => (
+                    <Badge key={diet} variant="secondary" className="text-xs">
+                      {diet.trim()}
+                    </Badge>
+                  ))}
+                </div>
+              ) : null}
+
+              {/* Footer with proposal count and action */}
+              <div className="mt-5 flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">
+                  {request._count.proposals > 0
+                    ? `${request._count.proposals} proposal${request._count.proposals > 1 ? "s" : ""}`
+                    : "No proposals yet"}
+                </div>
+                <Link href={`/dashboard/client/requests/${request.id}`}>
+                  <Button variant="outline" size="sm" className="rounded-xl">
+                    View Details
                   </Button>
                 </Link>
               </div>

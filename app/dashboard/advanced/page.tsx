@@ -15,7 +15,7 @@ import {
   Search, 
   Settings, 
   Bell,
-  DollarSign,
+  Wallet,
   MessageSquare,
   Calendar,
   Star
@@ -72,7 +72,7 @@ export default function AdvancedDashboard() {
                 <p className="text-2xl font-bold">$12,450</p>
                 <p className="text-xs text-muted-foreground">+12% from last month</p>
               </div>
-              <DollarSign className="h-8 w-8 text-green-600" />
+              <Wallet className="h-8 w-8 text-green-600" />
             </div>
           </CardContent>
         </Card>
@@ -161,7 +161,7 @@ export default function AdvancedDashboard() {
                 Manage Users
               </Button>
               <Button className="w-full justify-start" variant="outline">
-                <DollarSign className="h-4 w-4 mr-2" />
+                <Wallet className="h-4 w-4 mr-2" />
                 Process Payouts
               </Button>
               <Button className="w-full justify-start" variant="outline">

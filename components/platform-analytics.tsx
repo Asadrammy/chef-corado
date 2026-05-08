@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { DollarSign, Calendar, Users, TrendingUp } from "lucide-react"
+import { Wallet, Calendar, Users, TrendingUp } from "lucide-react"
+import { formatCurrency } from "@/lib/currency"
 
 interface RevenueData {
   date: string
@@ -153,7 +154,7 @@ export function PlatformAnalytics() {
           <p className="text-sm font-medium text-gray-900">{formatDate(label)}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: {entry.name === 'Revenue' ? `$${entry.value.toFixed(2)}` : entry.value}
+              {entry.name}: {entry.name === 'Revenue' ? formatCurrency(entry.value, 'GBP') : entry.value}
             </p>
           ))}
         </div>
@@ -180,7 +181,7 @@ export function PlatformAnalytics() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="revenue" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
+              <Wallet className="h-4 w-4" />
               Revenue
             </TabsTrigger>
             <TabsTrigger value="bookings" className="flex items-center gap-2">
@@ -197,13 +198,13 @@ export function PlatformAnalytics() {
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
                 <p className="text-2xl font-bold text-green-600">
-                  ${revenueSummary.totalRevenue?.toFixed(0) || '0'}
+                  {formatCurrency(revenueSummary.totalRevenue || 0, 'GBP')}
                 </p>
                 <p className="text-xs text-gray-500">Total Revenue</p>
               </div>
               <div className="text-center">
                 <p className="text-lg font-semibold text-gray-900">
-                  ${revenueSummary.averageDailyRevenue?.toFixed(0) || '0'}
+                  {formatCurrency(revenueSummary.averageDailyRevenue || 0, 'GBP')}
                 </p>
                 <p className="text-xs text-gray-500">Daily Average</p>
               </div>
@@ -225,7 +226,7 @@ export function PlatformAnalytics() {
                   />
                   <YAxis 
                     className="text-xs text-gray-500 dark:text-gray-400"
-                    tickFormatter={(value) => `$${value}`}
+                    tickFormatter={(value) => formatCurrency(Number(value), 'GBP')}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Line
@@ -257,7 +258,7 @@ export function PlatformAnalytics() {
               </div>
               <div className="text-center">
                 <p className="text-lg font-semibold text-gray-900">
-                  ${bookingsSummary.totalBookingValue?.toFixed(0) || '0'}
+                  {formatCurrency(bookingsSummary.totalBookingValue || 0, 'GBP')}
                 </p>
                 <p className="text-xs text-gray-500">Total Value</p>
               </div>

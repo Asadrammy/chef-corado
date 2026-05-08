@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Link from "next/link"
-import { CalendarDays, CheckCircle2, DollarSign, Search, Sparkles, Users } from "lucide-react"
+import { CalendarDays, CheckCircle2, Wallet, Search, Sparkles, Users } from "lucide-react"
 
 import { ChefBookingCard, type ChefBookingPayload } from "@/components/dashboard/chef/chef-booking-card"
 import { ChefBookingsControlPanel } from "@/components/dashboard/chef/chef-bookings-control-panel"
@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { DashboardStatCard } from "@/components/ui/dashboard-stat-card"
+import { formatCurrency } from "@/lib/currency"
 
 type InvitationPayload = {
   id: string
@@ -291,7 +292,7 @@ export function ChefBookingsDashboard() {
                 </div>
                 <div className="rounded-[26px] border border-white/60 bg-white/80 p-5 shadow-lg backdrop-blur dark:border-white/10 dark:bg-white/5">
                   <p className="text-muted-foreground text-xs font-medium uppercase tracking-[0.18em]">Revenue</p>
-                  <p className="text-foreground mt-2 text-3xl font-semibold tracking-tight">${totalEarnings.toLocaleString()}</p>
+                  <p className="text-foreground mt-2 text-3xl font-semibold tracking-tight">{formatCurrency(totalEarnings, 'GBP')}</p>
                   <p className="text-muted-foreground mt-1 text-xs">Completed booking value</p>
                 </div>
               </div>
@@ -324,9 +325,9 @@ export function ChefBookingsDashboard() {
         />
         <DashboardStatCard
           label="Earnings"
-          value={`$${totalEarnings.toLocaleString()}`}
+          value={formatCurrency(totalEarnings, 'GBP')}
           description="Revenue represented by completed booking totals"
-          icon={<DollarSign className="h-5 w-5" />}
+          icon={<Wallet className="h-5 w-5" />}
           trend={totalEarnings > 0 ? "Completed bookings are translating into visible revenue." : "Complete bookings to unlock revenue momentum."}
         />
       </div>
@@ -374,7 +375,7 @@ export function ChefBookingsDashboard() {
                     <div className="space-y-1 text-sm text-muted-foreground">
                       <p><span className="font-medium text-foreground">Client:</span> {invitation.request.client.name || "Client"}</p>
                       <p><span className="font-medium text-foreground">Event:</span> {new Date(invitation.request.eventDate).toLocaleDateString()}</p>
-                      <p><span className="font-medium text-foreground">Budget:</span> ${invitation.request.budget.toFixed(2)}</p>
+                      <p><span className="font-medium text-foreground">Budget:</span> {formatCurrency(invitation.request.budget, 'GBP')}</p>
                     </div>
                     <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">
                       {invitation.request.details || invitation.request.description || "Direct invitation from a client looking for a chef match."}

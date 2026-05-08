@@ -10,8 +10,9 @@ import { RecentBookings } from "@/components/dashboard/RecentBookings"
 import { PlatformAnalytics } from "@/components/platform-analytics"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Users, Calendar, DollarSign, ChefHat, ArrowRight } from "lucide-react"
+import { Users, Calendar, Wallet, ChefHat, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { formatCurrency } from "@/lib/currency"
 
 type AdminChef = {
   id: string
@@ -127,7 +128,7 @@ export default async function AdminDashboardPage() {
         <div className="card-hover bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="icon-bg">
-              <DollarSign className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+              <Wallet className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
             </div>
             <span className="text-sm font-medium text-green-600">+15%</span>
           </div>
@@ -212,7 +213,7 @@ export default async function AdminDashboardPage() {
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-150 cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-50 dark:bg-green-900/20">
-                    <DollarSign className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    <Wallet className="h-5 w-5 text-green-600 dark:text-green-400" />
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Payments</span>
@@ -234,7 +235,7 @@ export default async function AdminDashboardPage() {
                     <p className="text-xs text-gray-600 dark:text-gray-300">Commission earned</p>
                   </div>
                 </div>
-                <Badge variant="secondary" className="shrink-0">${totalRevenue.toFixed(0)}</Badge>
+                <Badge variant="secondary" className="shrink-0">{formatCurrency(totalRevenue, 'GBP')}</Badge>
               </div>
             </Link>
           </div>

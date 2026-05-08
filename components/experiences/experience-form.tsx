@@ -12,16 +12,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
+import { COOKING_CLASS_TYPES, COUNTRY_OPTIONS, CUISINE_TYPES, EVENT_TYPES, SERVICE_TYPES, getCurrencyForCountry } from "@/lib/request-options";
 
 const experienceSchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters"),
   description: z.string().min(20, "Description must be at least 20 characters"),
   price: z.string().min(1, "Price is required"),
+  currency: z.string().min(3, "Currency is required"),
   duration: z.string().min(1, "Duration is required"),
   eventType: z.string().optional(),
   cuisineType: z.string().optional(),
   maxGuests: z.string().optional(),
   minGuests: z.string().optional(),
+  serviceType: z.string().default("DINING"),
+  offersCookingClasses: z.boolean().default(false),
+  classType: z.string().optional(),
+  pricePerStudent: z.string().optional(),
   difficulty: z.enum(["EASY", "MEDIUM", "HARD"]).default("EASY"),
   experienceImage: z.string().optional(),
 });
@@ -41,9 +47,10 @@ interface ExperienceFormProps {
   onSubmit: (data: any) => void;
   isLoading?: boolean;
   initialData?: any;
+  defaultCurrency?: string;
 }
 
-export function ExperienceForm({ onSubmit, isLoading = false, initialData }: ExperienceFormProps) {
+export function ExperienceForm({ onSubmit, isLoading = false, initialData, defaultCurrency = "GBP" }: ExperienceFormProps) {
   const [includedServices, setIncludedServices] = useState<{ name: string; description?: string }[]>(
     initialData ? JSON.parse(initialData.includedServices || '[]') : []
   );
@@ -59,17 +66,29 @@ export function ExperienceForm({ onSubmit, isLoading = false, initialData }: Exp
       title: initialData.title,
       description: initialData.description,
       price: initialData.price.toString(),
+      currency: initialData.currency || defaultCurrency,
       duration: initialData.duration.toString(),
       eventType: initialData.eventType || "",
       cuisineType: initialData.cuisineType || "",
       maxGuests: initialData.maxGuests?.toString() || "",
       minGuests: initialData.minGuests?.toString() || "",
+      serviceType: initialData.serviceType || "DINING",
+      offersCookingClasses: Boolean(initialData.offersCookingClasses),
+      classType: initialData.classType || "",
+      pricePerStudent: initialData.pricePerStudent?.toString() || "",
       difficulty: initialData.difficulty,
       experienceImage: initialData.experienceImage || "",
     } : {
+      currency: defaultCurrency,
+      serviceType: "DINING",
+      offersCookingClasses: false,
       difficulty: "EASY",
     },
   });
+
+  const selectedServiceType = form.watch("serviceType");
+  const offersCookingClasses = form.watch("offersCookingClasses");
+  const isCookingClass = selectedServiceType === "COOKING_CLASS" || offersCookingClasses;
 
   const addIncludedService = () => {
     if (newService.name.trim()) {
@@ -124,10 +143,33 @@ export function ExperienceForm({ onSubmit, isLoading = false, initialData }: Exp
             name="price"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Price per Person ($)</FormLabel>
+                <FormLabel>{isCookingClass ? "Base class price" : "Price per person"}</FormLabel>
                 <FormControl>
                   <Input type="number" placeholder="150" {...field} />
                 </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="currency"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Currency</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {COUNTRY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={getCurrencyForCountry(option.value)}>{option.label} · {option.currency}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <FormMessage />
               </FormItem>
             )}
@@ -180,13 +222,9 @@ export function ExperienceForm({ onSubmit, isLoading = false, initialData }: Exp
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="WEDDING">Wedding</SelectItem>
-                    <SelectItem value="CORPORATE">Corporate</SelectItem>
-                    <SelectItem value="BIRTHDAY">Birthday</SelectItem>
-                    <SelectItem value="ANNIVERSARY">Anniversary</SelectItem>
-                    <SelectItem value="DINNER_PARTY">Dinner Party</SelectItem>
-                    <SelectItem value="COOKING_CLASS">Cooking Class</SelectItem>
-                    <SelectItem value="OTHER">Other</SelectItem>
+                    {EVENT_TYPES.map((eventType) => (
+                      <SelectItem key={eventType} value={eventType}>{eventType}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <FormMessage />
@@ -207,16 +245,74 @@ export function ExperienceForm({ onSubmit, isLoading = false, initialData }: Exp
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="ITALIAN">Italian</SelectItem>
-                    <SelectItem value="MEXICAN">Mexican</SelectItem>
-                    <SelectItem value="ASIAN">Asian</SelectItem>
-                    <SelectItem value="FRENCH">French</SelectItem>
-                    <SelectItem value="MEDITERRANEAN">Mediterranean</SelectItem>
-                    <SelectItem value="INDIAN">Indian</SelectItem>
-                    <SelectItem value="AMERICAN">American</SelectItem>
-                    <SelectItem value="FUSION">Fusion</SelectItem>
+                    {CUISINE_TYPES.map((cuisineType) => (
+                      <SelectItem key={cuisineType} value={cuisineType}>{cuisineType}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <FormField
+            control={form.control}
+            name="serviceType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Service Type</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select service type" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {SERVICE_TYPES.map((serviceType) => (
+                      <SelectItem key={serviceType} value={serviceType}>{serviceType === "COOKING_CLASS" ? "Cooking Class" : "Dining Experience"}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="classType"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Class Type</FormLabel>
+                <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!isCookingClass}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select class type" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {COOKING_CLASS_TYPES.map((classType) => (
+                      <SelectItem key={classType} value={classType}>{classType}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="pricePerStudent"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Price Per Student</FormLabel>
+                <FormControl>
+                  <Input type="number" placeholder="65" disabled={!isCookingClass} {...field} />
+                </FormControl>
+                <FormDescription>{isCookingClass ? "Used for student total = students × price per student." : "Enable cooking classes to set student pricing."}</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -229,7 +325,7 @@ export function ExperienceForm({ onSubmit, isLoading = false, initialData }: Exp
             name="minGuests"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Min Guests</FormLabel>
+                <FormLabel>{isCookingClass ? "Minimum students" : "Min guests"}</FormLabel>
                 <FormControl>
                   <Input type="number" placeholder="2" {...field} />
                 </FormControl>
@@ -243,7 +339,7 @@ export function ExperienceForm({ onSubmit, isLoading = false, initialData }: Exp
             name="maxGuests"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Max Guests</FormLabel>
+                <FormLabel>{isCookingClass ? "Maximum students" : "Max guests"}</FormLabel>
                 <FormControl>
                   <Input type="number" placeholder="10" {...field} />
                 </FormControl>

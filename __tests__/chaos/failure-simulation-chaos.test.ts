@@ -5,7 +5,7 @@
  * Tests system resilience under extreme conditions
  */
 
-import { describe, it, expect, beforeAll } from '@jest/globals'
+import { describe, it, expect } from '@jest/globals'
 import { prisma } from '@/lib/prisma'
 import { getStripeService } from '@/lib/services/stripe-service'
 import { ledgerService } from '@/lib/services/ledger-service'
@@ -17,9 +17,9 @@ describe('Failure Simulation Chaos Tests', () => {
       // Mock Stripe timeout
       const stripeService = getStripeService()
       const originalCreate = stripeService.createPaymentIntent
-      stripeService.createPaymentIntent = jest.fn().mockRejectedValue(
-        new Error('ETIMEDOUT: Stripe API timeout after 30s')
-      )
+      ;(stripeService as any).createPaymentIntent = async () => {
+        throw new Error('ETIMEDOUT: Stripe API timeout after 30s')
+      }
 
       try {
         await stripeService.createPaymentIntent({
@@ -44,9 +44,9 @@ describe('Failure Simulation Chaos Tests', () => {
       // Simulate multiple failures
       const stripeService = getStripeService()
       const originalCreate = stripeService.createPaymentIntent
-      stripeService.createPaymentIntent = jest.fn().mockRejectedValue(
-        new Error('Stripe API Error')
-      )
+      ;(stripeService as any).createPaymentIntent = async () => {
+        throw new Error('Stripe API Error')
+      }
 
       // Trigger multiple failures
       for (let i = 0; i < 6; i++) {
@@ -73,17 +73,17 @@ describe('Failure Simulation Chaos Tests', () => {
       const stripeService = getStripeService()
       const originalCreate = stripeService.createPaymentIntent
       
-      stripeService.createPaymentIntent = jest.fn().mockImplementation(() => {
+      ;(stripeService as any).createPaymentIntent = async () => {
         callCount++
         if (callCount < 3) {
-          return Promise.reject(new Error('Temporary failure'))
+          throw new Error('Temporary failure')
         }
-        return Promise.resolve({
+        return {
           id: 'pi_test_retry',
           amount: 10000,
           currency: 'usd',
-        })
-      })
+        }
+      }
 
       const result = await stripeService.createPaymentIntent({
         amount: 10000,
@@ -102,9 +102,9 @@ describe('Failure Simulation Chaos Tests', () => {
     it('should handle database connection failures', async () => {
       // Mock database failure
       const originalFind = prisma.user.findUnique
-      prisma.user.findUnique = jest.fn().mockRejectedValue(
-        new Error('ECONNREFUSED: Database connection failed')
-      )
+      ;(prisma.user as any).findUnique = async () => {
+        throw new Error('ECONNREFUSED: Database connection failed')
+      }
 
       try {
         await prisma.user.findUnique({
@@ -122,9 +122,9 @@ describe('Failure Simulation Chaos Tests', () => {
     it('should handle transaction rollbacks gracefully', async () => {
       // Mock transaction failure
       const originalTransaction = prisma.$transaction
-      prisma.$transaction = jest.fn().mockRejectedValue(
-        new Error('Transaction failed: Constraint violation')
-      )
+      ;(prisma as any).$transaction = async () => {
+        throw new Error('Transaction failed: Constraint violation')
+      }
 
       try {
         await prisma.$transaction(async (tx) => {
@@ -153,9 +153,9 @@ describe('Failure Simulation Chaos Tests', () => {
     it('should block transactions when ledger fails', async () => {
       // Mock ledger failure
       const originalRecord = ledgerService.recordTransaction
-      ledgerService.recordTransaction = jest.fn().mockRejectedValue(
-        new Error('LEDGER_RECORDING_FAILED: Database write failed')
-      )
+      ;(ledgerService as any).recordTransaction = async () => {
+        throw new Error('LEDGER_RECORDING_FAILED: Database write failed')
+      }
 
       try {
         await ledgerService.recordTransaction({
@@ -192,7 +192,7 @@ describe('Failure Simulation Chaos Tests', () => {
       
       // Mock the verifyBalance method
       const originalVerifyBalance = ledgerService.verifyBalance
-      ledgerService.verifyBalance = jest.fn().mockResolvedValue(mockBalance)
+      ;(ledgerService as any).verifyBalance = async () => mockBalance
 
       // Verify balance check should detect inconsistency
       const balance = await ledgerService.verifyBalance()
@@ -245,9 +245,9 @@ describe('Failure Simulation Chaos Tests', () => {
     it('should handle external API failures', async () => {
       // Mock fetch failure
       const originalFetch = global.fetch
-      global.fetch = jest.fn().mockRejectedValue(
-        new Error('ENOTFOUND: DNS resolution failed')
-      )
+      ;(global as any).fetch = async () => {
+        throw new Error('ENOTFOUND: DNS resolution failed')
+      }
 
       try {
         await fetch('https://external-api.example.com/data')
@@ -263,8 +263,8 @@ describe('Failure Simulation Chaos Tests', () => {
     it('should handle slow network responses', async () => {
       // Mock slow response
       const originalFetch = global.fetch
-      global.fetch = jest.fn().mockImplementation(() =>
-        new Promise(resolve =>
+      ;(global as any).fetch = async () =>
+        new Promise((resolve) =>
           setTimeout(() =>
             resolve({
               ok: true,
@@ -272,7 +272,6 @@ describe('Failure Simulation Chaos Tests', () => {
             })
           , 5000) // 5 second delay
         )
-      )
 
       const startTime = Date.now()
       const response = await fetch('https://slow-api.example.com/data')
@@ -389,12 +388,20 @@ describe('Failure Simulation Chaos Tests', () => {
     it('should provide fallback behavior when services fail', async () => {
       // Mock service failure
       const mockService = {
-        primary: jest.fn().mockRejectedValue(new Error('Primary service down')),
-        fallback: jest.fn().mockResolvedValue({ data: 'fallback response' }),
+        primaryCalled: false,
+        fallbackCalled: false,
+        primary: async () => {
+          mockService.primaryCalled = true
+          throw new Error('Primary service down')
+        },
+        fallback: async () => {
+          mockService.fallbackCalled = true
+          return { data: 'fallback response' }
+        },
       }
 
       // Try primary, then fallback
-      let result
+      let result: { data: string }
       try {
         result = await mockService.primary()
       } catch (error) {
@@ -402,8 +409,8 @@ describe('Failure Simulation Chaos Tests', () => {
       }
 
       expect(result.data).toBe('fallback response')
-      expect(mockService.primary).toHaveBeenCalled()
-      expect(mockService.fallback).toHaveBeenCalled()
+      expect(mockService.primaryCalled).toBe(true)
+      expect(mockService.fallbackCalled).toBe(true)
     })
 
     it('should maintain partial functionality during partial failures', async () => {

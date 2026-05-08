@@ -1,6 +1,6 @@
 "use client"
 
-import { TrendingUp, TrendingDown, DollarSign, Calendar, Users } from "lucide-react"
+import { TrendingUp, TrendingDown } from "lucide-react"
 
 interface ModernStatCardProps {
   label: string

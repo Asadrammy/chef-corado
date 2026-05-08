@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import type { Menu } from "@/components/dashboard/chef/menu-types"
+import { formatCurrency } from "@/lib/currency"
 
 interface MenuCardProps {
   menu: Menu
@@ -23,7 +24,7 @@ export function MenuCard({ menu, onEdit, onDelete, isDeleting = false }: MenuCar
             <span className="block truncate">{menu.title}</span>
           </CardTitle>
           <div className="shrink-0 text-sm font-medium text-foreground">
-            ${menu.price.toFixed(2)}
+            {formatCurrency(menu.price, menu.currency || "GBP")}
           </div>
         </div>
       </CardHeader>

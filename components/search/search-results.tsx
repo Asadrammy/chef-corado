@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Star, MapPin, DollarSign, Users, Calendar } from 'lucide-react';
 
 interface Chef {
   id: string;
@@ -40,6 +39,7 @@ interface Request {
   title: string;
   description?: string;
   budget: number;
+  currency: string;
   eventDate: string;
   location: string;
   latitude?: number;
@@ -52,6 +52,7 @@ interface Request {
   proposals: Array<{
     id: string;
     price: number;
+    currency?: string;
   }>;
 }
 

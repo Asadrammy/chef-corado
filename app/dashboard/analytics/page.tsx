@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Loader2, TrendingUp, Users, DollarSign, Calendar, Star, ChefHat, AlertCircle } from 'lucide-react';
+import { Loader2, TrendingUp, Users, Wallet, Calendar, Star, ChefHat, AlertCircle } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import { formatCurrency } from '@/lib/currency';
 
 interface AnalyticsData {
   totalBookings?: number;
@@ -100,10 +101,10 @@ export default function AnalyticsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Spending</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${(analytics.totalSpending || 0).toFixed(2)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(analytics.totalSpending || 0, 'GBP')}</div>
             <p className="text-xs text-muted-foreground">
               Last {timeRange} days
             </p>
@@ -178,10 +179,10 @@ export default function AnalyticsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Earnings</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${(analytics.totalEarnings || 0).toFixed(2)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(analytics.totalEarnings || 0, 'GBP')}</div>
             <p className="text-xs text-muted-foreground">
               Last {timeRange} days
             </p>
@@ -282,10 +283,10 @@ export default function AnalyticsPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Platform Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
+            <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${(analytics.totalRevenue || 0).toFixed(2)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(analytics.totalRevenue || 0, 'GBP')}</div>
             <p className="text-xs text-muted-foreground">
               Last {timeRange} days
             </p>

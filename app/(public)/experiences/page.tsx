@@ -135,7 +135,7 @@ export default function ExperiencesPage() {
 
   if (loading && pagination.page === 1) {
     return (
-      <div className="container mx-auto py-8">
+      <div className="container mx-auto py-8 pb-24">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/4"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -149,7 +149,7 @@ export default function ExperiencesPage() {
   }
 
   return (
-    <div className="container mx-auto py-8 space-y-6">
+    <div className="container mx-auto py-8 pb-24 space-y-6">
       {/* Header */}
       <div className="text-center space-y-4">
         <h1 className="text-4xl font-bold">Discover Culinary Experiences</h1>

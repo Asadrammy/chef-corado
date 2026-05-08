@@ -38,6 +38,13 @@ export async function GET(
       );
     }
 
+    if (!experience.isActive || experience.chef.isBanned) {
+      return NextResponse.json(
+        { error: 'Experience not found' },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json(experience);
   } catch (error) {
     console.error('Error fetching experience:', error);
@@ -94,12 +101,17 @@ export async function PUT(
       title,
       description,
       price,
+      currency,
       duration,
       includedServices,
       eventType,
       cuisineType,
       maxGuests,
       minGuests,
+      serviceType,
+      offersCookingClasses,
+      classType,
+      pricePerStudent,
       difficulty,
       tags,
       experienceImage,
@@ -111,18 +123,23 @@ export async function PUT(
       data: {
         ...(title && { title }),
         ...(description && { description }),
-        ...(price && { price: parseFloat(price) }),
-        ...(duration && { duration: parseInt(duration) }),
+        ...(price !== undefined && price !== '' && { price: Number(price) }),
+        ...(currency && { currency }),
+        ...(duration !== undefined && duration !== '' && { duration: Number(duration) }),
         ...(includedServices && { includedServices: JSON.stringify(includedServices) }),
         ...(eventType && { eventType }),
         ...(cuisineType && { cuisineType }),
-        ...(maxGuests && { maxGuests: parseInt(maxGuests) }),
-        ...(minGuests && { minGuests: parseInt(minGuests) }),
+        ...(maxGuests !== undefined && maxGuests !== '' && { maxGuests: Number(maxGuests) }),
+        ...(minGuests !== undefined && minGuests !== '' && { minGuests: Number(minGuests) }),
+        ...(serviceType && { serviceType }),
+        ...(offersCookingClasses !== undefined && { offersCookingClasses: Boolean(offersCookingClasses) }),
+        ...(classType !== undefined && { classType: classType || null }),
+        ...(pricePerStudent !== undefined && pricePerStudent !== '' && { pricePerStudent: Number(pricePerStudent) }),
         ...(difficulty && { difficulty }),
         ...(tags && { tags: JSON.stringify(tags) }),
         ...(experienceImage && { experienceImage }),
         ...(typeof isActive === 'boolean' && { isActive }),
-      },
+      } as any,
       include: {
         chef: {
           include: {

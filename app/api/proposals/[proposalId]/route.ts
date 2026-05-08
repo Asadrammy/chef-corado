@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma"
 import { getServerSession } from "next-auth"
 import { NextResponse } from "next/server"
 import { ProposalStatus, Role } from "@/types"
+import { enforceUserModeration, enforceChefModeration } from "@/lib/security/moderation-guard"
+import { enforceClientCompliance, enforceChefCompliance } from "@/lib/security/legal-compliance"
 
 const proposalResolutionSchema = z.object({
   status: z.enum([ProposalStatus.ACCEPTED, ProposalStatus.REJECTED]),
@@ -58,6 +60,12 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  // Enforce moderation - client must not be banned
+  await enforceUserModeration(session.user.id)
+
+  // Enforce client compliance (terms acceptance)
+  await enforceClientCompliance(session.user.id)
+
   if (!proposalId) {
     return NextResponse.json({ error: "Missing proposal" }, { status: 400 })
   }
@@ -79,12 +87,18 @@ export async function PATCH(
       // Lock the proposal record for update
       const existing = await tx.proposal.findUnique({
         where: { id: proposalId },
-        include: { request: true },
+        include: { request: true, chef: true },
       })
 
       if (!existing) {
         throw new Error("Proposal not found")
       }
+
+      // Enforce chef moderation - chef must not be banned
+      await enforceChefModeration(existing.chefId)
+
+      // Enforce chef compliance (terms + insurance)
+      await enforceChefCompliance(existing.chef.userId)
 
       if (existing.request.clientId !== session.user.id) {
         throw new Error("Unauthorized")

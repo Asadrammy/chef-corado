@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
 import { AlertCircle, ArrowRight, LockKeyhole, Sparkles } from "lucide-react"
 
@@ -17,6 +18,7 @@ type LoginFormProps = {
 
 export function LoginForm({ onToggleMode }: LoginFormProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -31,6 +33,9 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
     email: false,
     password: false,
   })
+  const bannedMessage = searchParams.get("banned") === "1"
+    ? "This account has been suspended. Contact support if you believe this was a mistake."
+    : ""
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -175,31 +180,38 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
   }
 
   return (
-    <div className="relative w-full overflow-hidden rounded-[32px] border border-[rgba(209,218,232,0.95)] bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(249,251,254,0.94))] p-5 shadow-[0_30px_80px_rgba(15,23,42,0.12)] md:p-6">
-      <div className="absolute inset-x-8 top-0 h-px bg-[linear-gradient(90deg,rgba(30,78,195,0),rgba(30,78,195,0.34),rgba(103,76,197,0.26),rgba(30,78,195,0))]" />
-      <div className="absolute right-[-3rem] top-[-2rem] h-32 w-32 rounded-full bg-[radial-gradient(circle,rgba(31,78,216,0.12)_0%,rgba(31,78,216,0.03)_56%,rgba(31,78,216,0)_74%)] blur-3xl" />
+    <div className="brand-auth-surface relative w-full overflow-hidden rounded-[32px] p-5 md:p-6">
+      <div className="brand-auth-divider absolute inset-x-8 top-0 h-px" />
+      <div className="brand-auth-orb absolute right-[-3rem] top-[-2rem] h-32 w-32 rounded-full blur-3xl" />
 
       <div className="relative space-y-5">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(214,222,234,0.96)] bg-[rgba(247,249,252,0.95)] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#667085]">
-              <LockKeyhole className="h-3.5 w-3.5 text-[#1849be]" />
+            <div className="brand-auth-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em]">
+              <LockKeyhole className="h-3.5 w-3.5 text-primary" />
               Secure access
             </div>
             <div className="space-y-2">
-              <h1 className="text-[1.85rem] font-semibold tracking-[-0.07em] text-[#0f172a] md:text-[2.35rem] md:leading-[0.96]">Welcome back</h1>
-              <p className="max-w-sm text-sm leading-5 text-[#667085] md:text-[15px]">
+              <h1 className="text-[1.85rem] font-semibold tracking-[-0.07em] text-foreground md:text-[2.35rem] md:leading-[0.96]">Welcome back</h1>
+              <p className="max-w-sm text-sm leading-5 text-muted-foreground md:text-[15px]">
                 Sign in to access your workspace with a cleaner, more focused control surface.
               </p>
             </div>
           </div>
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(145deg,#1849be_0%,#6854d2_100%)] text-white shadow-[0_14px_28px_rgba(36,74,184,0.24)]">
+          <div className="brand-gradient-button flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl shadow-[0_14px_28px_hsl(var(--primary)/0.24)]">
             <Sparkles className="h-4.5 w-4.5" />
           </div>
         </div>
       </div>
 
       <div className="relative mt-6 space-y-5">
+        {bannedMessage && !error && (
+          <Alert variant="destructive" className="items-start rounded-2xl border-[rgba(220,38,38,0.14)] bg-[rgba(254,242,242,0.92)] text-[#991b1b] shadow-none">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{bannedMessage}</AlertDescription>
+          </Alert>
+        )}
+
         {error && (
           <Alert variant="destructive" className="items-start rounded-2xl border-[rgba(220,38,38,0.14)] bg-[rgba(254,242,242,0.92)] text-[#991b1b] shadow-none">
             <AlertCircle className="h-4 w-4" />
@@ -209,7 +221,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="email" className="text-sm font-semibold text-[#162033]">Email</Label>
+            <Label htmlFor="email" className="text-sm font-semibold text-foreground">Email</Label>
             <Input
               id="email"
               name="email"
@@ -234,7 +246,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="password" className="text-sm font-semibold text-[#162033]">Password</Label>
+              <Label htmlFor="password" className="text-sm font-semibold text-foreground">Password</Label>
               <Link href="/forgot-password" className="text-sm font-medium text-[#667085] transition-colors hover:text-[#1849be]">
                 Forgot password?
               </Link>
@@ -263,7 +275,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
 
           <Button
             type="submit"
-            className="group h-12 w-full rounded-[18px] border-0 bg-[linear-gradient(135deg,#123a9f_0%,#2159d6_48%,#6a4fd3_100%)] text-white shadow-[0_18px_38px_rgba(33,89,214,0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_46px_rgba(33,89,214,0.34)] focus-visible:ring-[4px] focus-visible:ring-[rgba(33,89,214,0.16)]"
+            className="brand-gradient-button group h-12 w-full rounded-[18px] border-0 shadow-[0_18px_38px_hsl(var(--primary)/0.28)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_22px_46px_hsl(var(--primary)/0.34)] focus-visible:ring-[4px] focus-visible:ring-[hsl(var(--primary)/0.16)]"
             disabled={loading}
           >
             <span className="inline-flex items-center justify-center gap-2">
@@ -274,6 +286,9 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
         </form>
 
         <div className="border-t border-[rgba(215,223,235,0.92)] pt-4 text-center text-sm text-[#667085]">
+          <p className="mb-3 text-xs leading-5 text-muted-foreground">
+            By continuing, you agree to keep communication, booking coordination, and payments inside the platform. Read the <Link href="/terms/client" className="font-semibold text-primary hover:underline">Client Terms</Link>, <Link href="/terms/chef" className="font-semibold text-primary hover:underline">Chef Terms</Link>, and <Link href="/privacy" className="font-semibold text-primary hover:underline">Privacy Policy</Link>.
+          </p>
           Don&apos;t have an account?{" "}
           {onToggleMode ? (
             <button type="button" onClick={onToggleMode} className="font-semibold text-[#101828] transition-colors hover:text-[#1849be]">

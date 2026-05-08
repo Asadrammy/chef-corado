@@ -1,11 +1,12 @@
 "use client"
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts"
-import { DollarSign, Sparkles, Star, TrendingUp } from "lucide-react"
+import { Wallet, Sparkles, Star, TrendingUp } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { DashboardStatCard } from "@/components/ui/dashboard-stat-card"
+import { formatCurrency } from "@/lib/currency"
 
 interface ChefPerformanceProps {
   totalEarnings: number
@@ -23,10 +24,10 @@ const chartConfig = {
 
 function currencyTickFormatter(value: number) {
   if (value >= 1000) {
-    return `$${(value / 1000).toFixed(1)}k`
+    return `${formatCurrency(value / 1000, 'GBP')}k`
   }
 
-  return `$${value}`
+  return formatCurrency(value, 'GBP')
 }
 
 function getTrendSummary(earningsTrend: Array<{ date: string; earnings: number }>) {
@@ -86,9 +87,9 @@ export function ChefPerformance({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <DashboardStatCard
             label="Net earnings"
-            value={`$${totalEarnings.toLocaleString()}`}
+            value={formatCurrency(totalEarnings, 'GBP')}
             description="Chef payout total from completed payments"
-            icon={<DollarSign className="h-5 w-5" />}
+            icon={<Wallet className="h-5 w-5" />}
           />
           <DashboardStatCard
             label="Completed bookings"
@@ -108,7 +109,7 @@ export function ChefPerformance({
           {earningsTrend.length === 0 ? (
             <div className="py-12 text-center">
               <div className="from-primary/15 to-background text-primary mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br shadow-sm">
-                <DollarSign className="h-7 w-7" />
+                <Wallet className="h-7 w-7" />
               </div>
               <p className="text-foreground text-base font-semibold tracking-tight">No earnings trend available yet</p>
               <p className="text-muted-foreground mt-1 text-sm leading-6">
@@ -146,7 +147,7 @@ export function ChefPerformance({
                     <ChartTooltipContent
                       className="rounded-2xl border-white/70 bg-white/90 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-950/90"
                       formatter={(value) => (
-                        <span className="text-foreground font-medium">${Number(value).toLocaleString()}</span>
+                        <span className="text-foreground font-medium">{formatCurrency(Number(value), 'GBP')}</span>
                       )}
                     />
                   }

@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Star, MapPin, DollarSign, User } from 'lucide-react';
+import { Star, MapPin, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { formatCurrency } from '@/lib/currency';
 import { SearchFilters, type SearchFilters as SearchFiltersType } from './search-filters';
 
 interface Chef {
@@ -25,6 +26,7 @@ interface Chef {
     id: string;
     title: string;
     price: number;
+    currency?: string;
     description: string | null;
   }[];
   averageRating: number;
@@ -92,7 +94,10 @@ export function ChefSearchResults({ onSelectChef }: ChefSearchResultsProps) {
     const prices = menus.map(m => m.price);
     const min = Math.min(...prices);
     const max = Math.max(...prices);
-    return min === max ? `$${min}` : `$${min}-${max}`;
+    const currency = menus[0]?.currency || 'GBP';
+    return min === max
+      ? formatCurrency(min, currency)
+      : `${formatCurrency(min, currency)} - ${formatCurrency(max, currency)}`;
   };
 
   return (
@@ -134,7 +139,6 @@ export function ChefSearchResults({ onSelectChef }: ChefSearchResultsProps) {
                             {chef.location}
                           </div>
                           <div className="flex items-center gap-1">
-                            <DollarSign className="h-4 w-4" />
                             {getPriceRange(chef.menus)}
                           </div>
                           {chef.experience && (

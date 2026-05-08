@@ -1,10 +1,11 @@
 "use client"
 
 import * as React from "react"
-import { TrendingUp, TrendingDown, DollarSign, Target, Calendar, AlertCircle } from "lucide-react"
+import { TrendingUp, TrendingDown, Wallet, Target, Calendar, AlertCircle } from "lucide-react"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
+import { formatCurrency } from "@/lib/currency"
 import { cn } from "@/lib/utils"
 
 interface RevenueIntelligenceProps {
@@ -61,21 +62,21 @@ export function RevenueIntelligence({
   const metrics = [
     {
       label: "This Month",
-      value: `$${thisMonthEarnings.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-      subtext: `of $${monthlyGoal.toLocaleString()} goal`,
+      value: formatCurrency(thisMonthEarnings),
+      subtext: `of ${formatCurrency(monthlyGoal)} goal`,
       progress: goalProgress,
-      icon: <DollarSign className="h-4 w-4" />,
+      icon: <Wallet className="h-4 w-4" />,
     },
     {
       label: "Projected",
-      value: `$${projectedEarnings.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      value: formatCurrency(projectedEarnings),
       subtext: onTrack ? "On track to hit goal" : "Below target pace",
       trend: weekTrend,
       icon: weekTrend >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />,
     },
     {
       label: "Avg per Booking",
-      value: `$${avgBookingValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      value: formatCurrency(avgBookingValue),
       subtext: `${completedBookings} completed`,
       icon: <Target className="h-4 w-4" />,
     },
@@ -154,7 +155,7 @@ export function RevenueIntelligence({
                 Below Target Pace
               </p>
               <p className="text-sm text-amber-700 dark:text-amber-500">
-                You need ${(expectedAtThisPoint - thisMonthEarnings).toLocaleString(undefined, { maximumFractionDigits: 0 })} more 
+                You need {formatCurrency(expectedAtThisPoint - thisMonthEarnings)} more 
                 to be on track. Consider sending more quotes to increase bookings.
               </p>
             </div>
@@ -169,7 +170,7 @@ export function RevenueIntelligence({
                 On Track to Hit Goal
               </p>
               <p className="text-sm text-emerald-700 dark:text-emerald-500">
-                You&apos;re ${(thisMonthEarnings - expectedAtThisPoint).toLocaleString(undefined, { maximumFractionDigits: 0 })} ahead of pace. 
+                You&apos;re {formatCurrency(thisMonthEarnings - expectedAtThisPoint)} ahead of pace. 
                 Keep up the great work!
               </p>
             </div>

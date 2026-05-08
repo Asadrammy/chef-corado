@@ -4,8 +4,9 @@ import { useState } from 'react'
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { FileText, Clock, MapPin, DollarSign, Send, Calendar, TrendingUp, Users, ArrowRight } from "lucide-react"
+import { FileText, Clock, MapPin, Wallet, Send, Calendar, TrendingUp, Users, ArrowRight } from "lucide-react"
 import Link from "next/link"
+import { formatCurrency } from "@/lib/currency"
 
 interface Request {
   id: string
@@ -143,9 +144,9 @@ export function AvailableOpportunities({ requests, availableRequestsCount }: Ava
                     {/* Budget highlight */}
                     <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 px-3 py-2 rounded-xl border border-green-200 dark:border-green-800">
                       <div className="flex items-center gap-1">
-                        <DollarSign className="h-4 w-4 text-green-600" />
+                        <Wallet className="h-4 w-4 text-green-600" />
                         <span className="font-bold text-green-600 text-lg">
-                          ${request.budget.toLocaleString()}
+                          {formatCurrency(request.budget, 'GBP')}
                         </span>
                       </div>
                     </div>

@@ -2,12 +2,8 @@ import { prisma } from "@/lib/prisma"
 import type { Prisma } from "@prisma/client"
 import { createNotification } from "@/lib/notifications"
 
-const verificationStatusSchema = {
-  APPROVED: true,
-  REJECTED: false,
-} as const
-
 type VerificationAction = "APPROVE" | "REJECT"
+type ReviewType = "profile" | "insurance"
 
 type VerificationChef = Prisma.ChefProfileGetPayload<{
   include: {
@@ -56,7 +52,7 @@ export const adminVerificationService = {
   async listVerificationQueue(status: string | null, page: number, limit: number) {
     const where: Prisma.ChefProfileWhereInput = {}
     if (status) {
-      where.verified = status === "APPROVED"
+      where.verificationStatus = status
     }
 
     const [chefs, total] = await Promise.all([
@@ -107,7 +103,7 @@ export const adminVerificationService = {
     }
   },
 
-  async updateVerificationStatus(chefId: string, action: VerificationAction, reason?: string) {
+  async updateVerificationStatus(chefId: string, action: VerificationAction, reason?: string, reviewType: ReviewType = "profile", adminUserId?: string) {
     const chef = await prisma.chefProfile.findUnique({
       where: { id: chefId },
       include: {
@@ -119,13 +115,18 @@ export const adminVerificationService = {
       throw new Error("CHEF_NOT_FOUND")
     }
 
-    const verified = action === "APPROVE"
-
     const updatedChef = await prisma.chefProfile.update({
       where: { id: chefId },
-      data: {
-        verified,
-      },
+      data: (reviewType === "insurance"
+        ? {
+            insuranceStatus: action === "APPROVE" ? "verified" : "rejected",
+            insuranceVerifiedAt: action === "APPROVE" ? new Date() : null,
+            insuranceVerifiedBy: action === "APPROVE" ? (adminUserId ?? null) : null,
+          }
+        : {
+            verified: action === "APPROVE",
+            verificationStatus: action === "APPROVE" ? "APPROVED" : "REJECTED",
+          }) as never,
       include: {
         user: {
           select: {
@@ -138,24 +139,34 @@ export const adminVerificationService = {
       },
     })
 
-    await prisma.user.update({
-      where: { id: chef.user.id },
-      data: {
-        verified,
-      },
-    })
+    if (reviewType === "profile") {
+      await prisma.user.update({
+        where: { id: chef.user.id },
+        data: {
+          verified: action === "APPROVE",
+        },
+      })
+    }
 
     await createNotification(
       chef.user.id,
-      action === "APPROVE" ? "VERIFICATION_APPROVED" : "VERIFICATION_REJECTED",
-      action === "APPROVE"
-        ? "Congratulations! Your chef profile has been verified."
-        : `Your verification request was rejected. ${reason ? `Reason: ${reason}` : ""}`
+      reviewType === "insurance"
+        ? action === "APPROVE" ? "VERIFICATION_APPROVED" : "VERIFICATION_REJECTED"
+        : action === "APPROVE" ? "VERIFICATION_APPROVED" : "VERIFICATION_REJECTED",
+      reviewType === "insurance"
+        ? action === "APPROVE"
+          ? "Your insurance document has been verified and your compliance status is now active."
+          : `Your insurance submission was rejected. ${reason ? `Reason: ${reason}` : "Please upload an updated document."}`
+        : action === "APPROVE"
+          ? "Congratulations! Your chef profile has been verified."
+          : `Your verification request was rejected. ${reason ? `Reason: ${reason}` : ""}`
     )
 
     return {
       chef: updatedChef,
-      message: `Chef ${action === "APPROVE" ? "approved" : "rejected"} successfully`,
+      message: reviewType === "insurance"
+        ? `Insurance ${action === "APPROVE" ? "approved" : "rejected"} successfully`
+        : `Chef ${action === "APPROVE" ? "approved" : "rejected"} successfully`,
     }
   },
 }

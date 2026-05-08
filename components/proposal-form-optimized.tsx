@@ -15,9 +15,10 @@ import { FormFieldWrapper } from "@/components/form-field-wrapper"
 import { FormError } from "@/components/form-error"
 import { LoadingSpinner } from "@/components/loading-spinner"
 import { apiClient } from "@/lib/api-client"
+import { formatCurrency } from "@/lib/currency"
 import { logger } from "@/lib/logger"
 import { growthAnalytics } from "@/lib/analytics"
-import { DollarSign, MessageSquare, Clock, Star, Zap, CheckCircle } from "lucide-react"
+import { MessageSquare, Clock, Star, Zap, CheckCircle } from "lucide-react"
 
 interface OptimizedProposalFormProps {
   requestId: string
@@ -25,6 +26,7 @@ interface OptimizedProposalFormProps {
     title?: string
     location: string
     budget: number
+    currency?: string
     eventDate: string
     details?: string
   }
@@ -166,7 +168,7 @@ export function OptimizedProposalForm({ requestId, requestData }: OptimizedPropo
             </div>
             <div>
               <span className="text-gray-600">Budget:</span>
-              <p className="font-medium text-green-600">${requestData.budget}</p>
+              <p className="font-medium text-green-600">{formatCurrency(requestData.budget, requestData.currency || 'GBP')}</p>
             </div>
             <div>
               <span className="text-gray-600">Date:</span>
@@ -192,7 +194,6 @@ export function OptimizedProposalForm({ requestId, requestData }: OptimizedPropo
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-green-600" />
               Your Price
             </CardTitle>
           </CardHeader>
@@ -207,7 +208,7 @@ export function OptimizedProposalForm({ requestId, requestData }: OptimizedPropo
                   onClick={() => applyPriceSuggestion(suggestion.value)}
                   className="text-xs"
                 >
-                  {suggestion.label}: ${suggestion.value}
+                  {suggestion.label}: {formatCurrency(suggestion.value, requestData.currency || 'GBP')}
                 </Button>
               ))}
             </div>
@@ -235,8 +236,8 @@ export function OptimizedProposalForm({ requestId, requestData }: OptimizedPropo
                   {Number(price) === requestData.budget 
                     ? "Matches budget perfectly!" 
                     : Number(price) > requestData.budget 
-                      ? `+$${Number(price) - requestData.budget} over budget`
-                      : `$${requestData.budget - Number(price)} under budget`
+                      ? `${formatCurrency(Number(price) - requestData.budget, requestData.currency || 'GBP')} over budget`
+                      : `${formatCurrency(requestData.budget - Number(price), requestData.currency || 'GBP')} under budget`
                   }
                 </Badge>
               </div>
@@ -293,6 +294,9 @@ export function OptimizedProposalForm({ requestId, requestData }: OptimizedPropo
           <Card className="border-red-200 bg-red-50">
             <CardContent className="pt-6">
               <FormError message={submitError} />
+              {submitError === "This request has already received the maximum of 10 quotes." ? (
+                <p className="mt-2 text-sm text-red-700">This request is closed to additional quotes. Please choose another client request.</p>
+              ) : null}
             </CardContent>
           </Card>
         )}
@@ -317,7 +321,7 @@ export function OptimizedProposalForm({ requestId, requestData }: OptimizedPropo
             <div className="space-y-4">
               <Button
                 type="submit"
-                disabled={loading || !isFormValid}
+                disabled={loading || !isFormValid || submitError === "This request has already received the maximum of 10 quotes."}
                 className="w-full h-12 text-lg font-semibold"
                 size="lg"
               >

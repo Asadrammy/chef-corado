@@ -1,18 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { MapPin, DollarSign, Calendar, Users, Clock, ChefHat } from 'lucide-react';
+import { MapPin, Calendar, Users, Clock, ChefHat } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { formatDistanceToNow, format } from 'date-fns';
+import { formatCurrency } from '@/lib/currency';
 
 interface Request {
   id: string;
   title: string;
   description?: string;
+  eventType?: string;
   budget: number;
+  currency: string;
   eventDate: string;
   location: string;
   latitude?: number;
@@ -25,6 +28,7 @@ interface Request {
   proposals: Array<{
     id: string;
     price: number;
+    currency?: string;
   }>;
 }
 
@@ -99,17 +103,14 @@ export function RequestCard({ request }: RequestCardProps) {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Budget</span>
-            <div className="flex items-center gap-1 text-sm">
-              <DollarSign className="h-3 w-3" />
-              <span className="font-semibold">${request.budget}</span>
-            </div>
+            <span className="font-semibold text-sm">{formatCurrency(request.budget, request.currency)}</span>
           </div>
           
           {request.proposals.length > 0 && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">Avg. proposal</span>
               <span className="font-medium">
-                ${averageProposalPrice?.toFixed(0)}
+                {formatCurrency(averageProposalPrice || 0, request.proposals[0]?.currency || request.currency)}
               </span>
             </div>
           )}

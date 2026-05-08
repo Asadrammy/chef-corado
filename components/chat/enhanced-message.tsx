@@ -11,12 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { formatCurrency } from "@/lib/currency";
 import { 
   MessageSquare, 
   Clock, 
   CheckCircle, 
   XCircle, 
-  DollarSign, 
   Calendar,
   Users,
   Send,
@@ -46,6 +46,7 @@ interface Offer {
   title: string;
   description: string;
   price: number;
+  currency?: string;
   duration?: number;
   includedServices?: string[];
   eventType?: string;
@@ -213,7 +214,6 @@ export function EnhancedMessage({
               </div>
             </div>
             <Badge variant="secondary" className="flex items-center gap-1">
-              <DollarSign className="h-3 w-3" />
               Offer
             </Badge>
           </div>
@@ -237,8 +237,7 @@ export function EnhancedMessage({
                 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4" />
-                    <span>${offer.price}</span>
+                    <span>{formatCurrency(offer.price, offer.currency || 'GBP')}</span>
                   </div>
                   {offer.duration && (
                     <div className="flex items-center gap-2">
@@ -331,119 +330,9 @@ export function EnhancedMessage({
         {/* Action buttons */}
         <div className="flex gap-2 pt-2">
           {isChef && !isFromMe && !hasOffer && (
-            <Dialog open={isOfferDialogOpen} onOpenChange={setIsOfferDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <DollarSign className="h-4 w-4 mr-2" />
-                  Send Custom Offer
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl">
-                <DialogHeader>
-                  <DialogTitle>Send Custom Offer</DialogTitle>
-                  <DialogDescription>
-                    Create a personalized offer for {message.sender.name}
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="title">Offer Title</Label>
-                    <Input
-                      id="title"
-                      placeholder="e.g., Private Italian Cooking Class"
-                      value={newOffer.title}
-                      onChange={(e) => setNewOffer({ ...newOffer, title: e.target.value })}
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="description">Description</Label>
-                    <Textarea
-                      id="description"
-                      placeholder="Describe what you'll offer..."
-                      value={newOffer.description}
-                      onChange={(e) => setNewOffer({ ...newOffer, description: e.target.value })}
-                    />
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="price">Price ($)</Label>
-                      <Input
-                        id="price"
-                        type="number"
-                        placeholder="150"
-                        value={newOffer.price}
-                        onChange={(e) => setNewOffer({ ...newOffer, price: e.target.value })}
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="duration">Duration (min)</Label>
-                      <Input
-                        id="duration"
-                        type="number"
-                        placeholder="180"
-                        value={newOffer.duration}
-                        onChange={(e) => setNewOffer({ ...newOffer, duration: e.target.value })}
-                      />
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="eventType">Event Type</Label>
-                      <Select
-                        value={newOffer.eventType}
-                        onValueChange={(value) => setNewOffer({ ...newOffer, eventType: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select type" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="PRIVATE_DINNER">Private Dinner</SelectItem>
-                          <SelectItem value="COOKING_CLASS">Cooking Class</SelectItem>
-                          <SelectItem value="TEAM_BUILDING">Team Building</SelectItem>
-                          <SelectItem value="CELEBRATION">Celebration</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="cuisineType">Cuisine Type</Label>
-                      <Select
-                        value={newOffer.cuisineType}
-                        onValueChange={(value) => setNewOffer({ ...newOffer, cuisineType: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select cuisine" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ITALIAN">Italian</SelectItem>
-                          <SelectItem value="FRENCH">French</SelectItem>
-                          <SelectItem value="ASIAN">Asian</SelectItem>
-                          <SelectItem value="MEXICAN">Mexican</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="includedServices">Included Services (comma-separated)</Label>
-                    <Textarea
-                      id="includedServices"
-                      placeholder="Ingredients, recipes, cleanup, etc."
-                      value={newOffer.includedServices}
-                      onChange={(e) => setNewOffer({ ...newOffer, includedServices: e.target.value })}
-                    />
-                  </div>
-                  
-                  <Button onClick={sendOffer} disabled={loading} className="w-full">
-                    {loading ? "Sending..." : "Send Offer"}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button variant="outline" size="sm" disabled>
+              Send Custom Offer (Disabled)
+            </Button>
           )}
 
           {!isChef && !isFromMe && !hasOffer && (

@@ -49,11 +49,13 @@ describe('Payment Webhook Chaos Tests', () => {
         clientId: testClient.id,
         title: 'Chaos Test Request',
         description: 'For chaos testing',
+        eventType: 'Other',
         eventDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         location: 'Test Location',
+        guestCount: 2,
         budget: 500,
         details: 'Test details',
-      },
+      } as any,
     })
 
     testProposal = await prisma.proposal.create({
@@ -84,11 +86,12 @@ describe('Payment Webhook Chaos Tests', () => {
         chefId: chefProfile.id,
         proposalId: testProposal.id,
         totalPrice: 300,
+        currency: 'GBP',
         status: 'PENDING',
         eventDate: testRequest.eventDate,
         location: testRequest.location,
         guestCount: 2,
-      },
+      } as any,
     })
   })
 

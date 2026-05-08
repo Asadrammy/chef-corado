@@ -9,6 +9,7 @@ export async function GET() {
         isBanned: false,
         user: {
           role: 'CHEF',
+          isBanned: false,
         },
       },
       include: {
@@ -16,7 +17,6 @@ export async function GET() {
           select: {
             id: true,
             name: true,
-            email: true,
             verified: true,
             experienceLevel: true,
           },

@@ -5,7 +5,11 @@ import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { apiError, apiSuccess } from '@/lib/api-response';
+import { normalizeCurrency } from '@/lib/currency';
 import { logger } from '@/lib/logger';
+import { enforceUserModeration } from '@/lib/security/moderation-guard';
+import { enforceClientCompliance } from '@/lib/security/legal-compliance';
+import { enforceChefModeration } from '@/lib/security/moderation-guard';
 
 // Initialize Stripe
 const getStripeClient = () => {
@@ -40,6 +44,12 @@ export async function POST(request: NextRequest) {
       return apiError("UNAUTHORIZED", "Unauthorized", 401);
     }
 
+    // Enforce moderation - client must not be banned
+    await enforceUserModeration(session.user.id as string);
+
+    // Enforce client compliance (terms acceptance)
+    await enforceClientCompliance(session.user.id as string);
+
     if (!process.env.STRIPE_SECRET_KEY || 
         process.env.STRIPE_SECRET_KEY.includes('placeholder') ||
         process.env.STRIPE_SECRET_KEY === 'sk_test_placeholder' ||
@@ -64,6 +74,9 @@ export async function POST(request: NextRequest) {
       if (!experience) {
         throw new Error("Experience not found");
       }
+
+      // Enforce chef moderation - chef must not be banned
+      await enforceChefModeration(experience.chefId);
 
       if (!experience.isActive) {
         throw new Error("Experience is not available");
@@ -101,36 +114,46 @@ export async function POST(request: NextRequest) {
         throw new Error("This time slot is already booked");
       }
 
-      // Step 4: Calculate pricing
-      const totalPrice = experience.price * payload.guestCount;
+      // Step 4: Calculate pricing with cooking class invariant
+      const isCookingClass = experience.serviceType === 'COOKING_CLASS';
+      const unitPrice = isCookingClass
+        ? (experience.pricePerStudent ?? experience.price)
+        : experience.price;
+      const totalPrice = unitPrice * payload.guestCount;
       const commissionAmount = totalPrice * 0.2;
       const chefAmount = totalPrice * 0.8;
+      const currency = normalizeCurrency((experience as any).currency || 'GBP');
+      const bookingData = {
+        clientId: session.user.id as string,
+        chefId: experience.chefId,
+        experienceId: payload.experienceId,
+        eventDate: bookingDate,
+        location: payload.location,
+        guestCount: payload.guestCount,
+        totalPrice,
+        currency,
+        bookingType: 'INSTANT',
+        status: 'PENDING_PAYMENT',
+        specialRequests: payload.specialRequests || null,
+      } as any
+      const paymentData = {
+        bookingId: undefined as unknown as string,
+        totalAmount: totalPrice,
+        commissionAmount,
+        chefAmount,
+        currency,
+        status: 'HELD',
+      } as any
 
       // Step 5: Create PENDING booking (will be confirmed in webhook)
       const booking = await tx.booking.create({
-        data: {
-          clientId: session.user.id as string,
-          chefId: experience.chefId,
-          experienceId: payload.experienceId,
-          eventDate: bookingDate,
-          location: payload.location,
-          guestCount: payload.guestCount,
-          totalPrice,
-          bookingType: 'INSTANT',
-          status: 'PENDING_PAYMENT', // CRITICAL: Not confirmed until payment
-          specialRequests: payload.specialRequests || null,
-        },
+        data: bookingData,
       });
 
       // Step 6: Create payment record in HELD state
+      paymentData.bookingId = booking.id
       const payment = await tx.payment.create({
-        data: {
-          bookingId: booking.id,
-          totalAmount: totalPrice,
-          commissionAmount,
-          chefAmount,
-          status: 'HELD', // CRITICAL: Held until webhook confirmation
-        },
+        data: paymentData,
       });
 
       // Step 7: Update availability (atomic)
@@ -163,7 +186,7 @@ export async function POST(request: NextRequest) {
       line_items: [
         {
           price_data: {
-            currency: "usd",
+            currency: normalizeCurrency((result.booking as any).currency || 'GBP'),
             unit_amount: Math.round(result.booking.totalPrice * 100),
             product_data: {
               name: `Instant Booking: ${result.experience.title}`,
@@ -181,6 +204,7 @@ export async function POST(request: NextRequest) {
         paymentId: result.payment.id,
         bookingType: "INSTANT_ATOMIC",
         availabilityId: result.availability.id,
+        currency: normalizeCurrency((result.booking as any).currency || 'GBP'),
       },
       // CRITICAL: Add payment intent data for webhook processing
       payment_intent_data: {

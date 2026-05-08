@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import { HelpCircle, LifeBuoy, Mail, MessageSquareText, Search, ChevronDown, ChevronUp, BookOpen, DollarSign, Calendar, Users, Settings } from "lucide-react"
+import { HelpCircle, LifeBuoy, Mail, MessageSquareText, Search, ChevronDown, ChevronUp, BookOpen, Wallet, Calendar, Users, Settings } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -195,7 +195,7 @@ const faqData: FAQ[] = [
 const categoryConfig: Record<FAQCategory, { label: string; icon: typeof BookOpen; color: string }> = {
   "getting-started": { label: "Getting Started", icon: BookOpen, color: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800" },
   "bookings": { label: "Bookings", icon: Calendar, color: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800" },
-  "payments": { label: "Payments", icon: DollarSign, color: "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800" },
+  "payments": { label: "Payments", icon: Wallet, color: "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800" },
   "visibility": { label: "Visibility & Ranking", icon: Users, color: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800" },
   "account": { label: "Account Settings", icon: Settings, color: "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-400 dark:border-slate-800" },
 }

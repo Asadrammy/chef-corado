@@ -24,10 +24,13 @@ import { Card, CardContent } from "@/components/ui/card"
 export const dynamic = 'force-dynamic'
 
 export default function MenusPage() {
+  const [defaultCurrency, setDefaultCurrency] = useState("GBP")
+
   const createInitialFormData = (): MenuFormData => ({
     title: "",
     description: "",
     price: "",
+    currency: defaultCurrency,
     menuImage: "",
     cuisineType: "",
     eventType: "",
@@ -53,7 +56,23 @@ export default function MenusPage() {
 
   useEffect(() => {
     fetchMenus()
+    fetchProfileDefaults()
   }, [])
+
+  const fetchProfileDefaults = async () => {
+    try {
+      const response = await fetch("/api/chef/profile")
+      if (!response.ok) return
+      const payload = await response.json()
+      const currency = payload?.data?.preferredCurrency as string | undefined
+      if (currency) {
+        setDefaultCurrency(currency)
+        setFormData((prev) => ({ ...prev, currency: currency }))
+      }
+    } catch {
+      // ignore and keep platform default
+    }
+  }
 
   const fetchMenus = async () => {
     try {
@@ -92,6 +111,7 @@ export default function MenusPage() {
         title: menu.title,
         description: menu.description || "",
         price: menu.price.toString(),
+        currency: menu.currency || "GBP",
         menuImage: menu.menuImage || "",
         cuisineType: menu.cuisineType || "",
         eventType: menu.eventType || "",
@@ -134,6 +154,7 @@ export default function MenusPage() {
         title: formData.title,
         description: formData.description || undefined,
         price: parseFloat(formData.price),
+        currency: formData.currency,
         menuImage: formData.menuImage || undefined,
         cuisineType: formData.cuisineType || undefined,
         eventType: formData.eventType || undefined,

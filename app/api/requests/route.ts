@@ -1,23 +1,10 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
-
 import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
 import { handleApiError } from "@/lib/error-handler"
 import { requestService } from "@/lib/services/request-service"
+import { requestSchema } from "@/lib/validation-schemas"
 import { Role } from "@/types"
-
-const requestSchema = z.object({
-  title: z.string().min(3, "Title must be at least 3 characters"),
-  description: z.string().optional(),
-  eventDate: z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
-    message: "Invalid eventDate",
-  }),
-  location: z.string().min(5),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
-  budget: z.number().positive(),
-  details: z.string().min(10),
-})
 
 export async function POST(request: Request) {
   let session

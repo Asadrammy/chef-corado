@@ -12,7 +12,10 @@ async function main() {
       email: 'admin@example.com',
       password: adminPassword,
       role: 'ADMIN',
-    },
+      termsAcceptedAt: new Date(),
+      termsVersion: '2026-04',
+      acceptedVia: 'register',
+    } as any,
   });
 
   // Create chef user and profile
@@ -23,6 +26,9 @@ async function main() {
       email: 'chef@example.com',
       password: chefPassword,
       role: 'CHEF',
+      termsAcceptedAt: new Date(),
+      termsVersion: '2026-04',
+      acceptedVia: 'register',
       chefProfile: {
         create: {
           bio: 'Experienced chef specializing in Italian cuisine',
@@ -32,7 +38,7 @@ async function main() {
           isApproved: true,
         },
       },
-    },
+    } as any,
   });
 
   // Create client user
@@ -43,7 +49,10 @@ async function main() {
       email: 'client@example.com',
       password: clientPassword,
       role: 'CLIENT',
-    },
+      termsAcceptedAt: new Date(),
+      termsVersion: '2026-04',
+      acceptedVia: 'register',
+    } as any,
   });
 
   // Create experiences for the chef
@@ -136,13 +145,15 @@ async function main() {
       clientId: client.id,
       title: 'Birthday dinner for 8',
       description: 'Intimate birthday celebration with a multi-course Italian menu.',
+      eventType: 'Birthday',
       eventDate: availabilityDates[0],
       location: 'Manhattan, New York',
       latitude: null,
       longitude: null,
+      guestCount: 8,
       budget: 1000,
       details: 'Gluten-free option needed for one guest.',
-    },
+    } as any,
   });
 
   const request2 = await prisma.request.create({
@@ -150,13 +161,15 @@ async function main() {
       clientId: client.id,
       title: 'Team offsite dinner',
       description: 'Casual corporate dinner with shared plates.',
+      eventType: 'Corporate Event',
       eventDate: availabilityDates[1],
       location: 'Brooklyn, New York',
       latitude: null,
       longitude: null,
+      guestCount: 12,
       budget: 2500,
       details: 'Mix of vegetarian and meat options; buffet style.',
-    },
+    } as any,
   });
 
   // Create proposals from the chef for these requests

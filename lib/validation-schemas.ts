@@ -1,4 +1,12 @@
 import { z } from 'zod';
+import {
+  COOKING_CLASS_TYPES,
+  COUNTRY_OPTIONS,
+  CUISINE_TYPES,
+  DIETARY_REQUIREMENTS,
+  EVENT_TYPES,
+  SERVICE_TYPES,
+} from '@/lib/request-options';
 
 // Common validation patterns
 export const emailSchema = z.string().email('Invalid email address');
@@ -26,13 +34,63 @@ export const bookingSchema = z.object({
 });
 
 // Request validation
+const countryCodes = COUNTRY_OPTIONS.map((option) => option.value) as [string, ...string[]];
+const eventTypeValues = [...EVENT_TYPES] as [string, ...string[]];
+const serviceTypeValues = [...SERVICE_TYPES] as [string, ...string[]];
+const cookingClassTypeValues = [...COOKING_CLASS_TYPES] as [string, ...string[]];
+const cuisineTypeValues = [...CUISINE_TYPES] as [string, ...string[]];
+const dietaryRequirementValues = [...DIETARY_REQUIREMENTS] as [string, ...string[]];
+
 export const requestSchema = z.object({
-  title: z.string().min(3, 'Title must be at least 3 characters').max(100),
+  title: z.string().max(100, 'Title cannot exceed 100 characters').optional(),
+  eventType: z.enum(eventTypeValues),
+  cuisinePreferences: z.array(z.enum(cuisineTypeValues)).min(1, 'Select at least one cuisine preference').max(5, 'Select up to 5 cuisine preferences'),
+  dietaryRequirements: z.array(z.enum(dietaryRequirementValues)).max(8, 'Select up to 8 dietary requirements').default([]),
   description: z.string().max(5000, 'Description cannot exceed 5000 characters').optional(),
   eventDate: futureDate,
+  eventTime: z.string().min(1, 'Event time is required').max(50, 'Event time cannot exceed 50 characters'),
   location: z.string().min(3, 'Location must be at least 3 characters').max(100),
+  country: z.enum(countryCodes),
+  guestCount: z.number().int().min(1, 'Guest count must be at least 1').max(200, 'Guest count cannot exceed 200'),
   budget: priceSchema,
-  details: z.string().min(10, 'Details must be at least 10 characters').max(5000),
+  details: z.string().max(5000, 'Details cannot exceed 5000 characters').optional(),
+}).superRefine((data, context) => {
+  // Cooking class student count validation
+  if (data.eventType === 'Cooking Class') {
+    if (data.guestCount < 2) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['guestCount'],
+        message: 'Cooking classes require at least 2 students',
+      });
+    }
+    if (data.guestCount > 20) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['guestCount'],
+        message: 'Cooking classes cannot exceed 20 students for quality instruction',
+      });
+    }
+  }
+});
+
+export const registerSchema = z.object({
+  name: nameSchema,
+  email: emailSchema,
+  password: passwordSchema,
+  role: z.enum(['CLIENT', 'CHEF']).default('CLIENT'),
+  acceptedTerms: z.literal(true, {
+    errorMap: () => ({ message: 'You must accept the Terms & Conditions' }),
+  }),
+  acceptedInsurance: z.boolean().optional(),
+}).superRefine((data, context) => {
+  if (data.role === 'CHEF' && data.acceptedInsurance !== true) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['acceptedInsurance'],
+      message: 'Chefs must acknowledge the insurance requirement',
+    });
+  }
 });
 
 // Experience validation
@@ -40,15 +98,38 @@ export const experienceSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters').max(100),
   description: z.string().min(10, 'Description must be at least 10 characters').max(5000),
   price: priceSchema,
+  currency: z.string().length(3).default('GBP'),
   duration: z.number().int().positive('Duration must be at least 1 minute'),
-  eventType: z.string().min(1, 'Event type is required'),
-  cuisineType: z.string().min(1, 'Cuisine type is required'),
+  eventType: z.enum(eventTypeValues),
+  cuisineType: z.enum(cuisineTypeValues),
   maxGuests: z.number().int().positive().optional(),
   minGuests: z.number().int().positive().optional(),
+  serviceType: z.enum(serviceTypeValues).default('DINING'),
+  offersCookingClasses: z.boolean().optional(),
+  classType: z.enum(cookingClassTypeValues).optional(),
+  pricePerStudent: z.number().positive().optional(),
   difficulty: z.enum(['EASY', 'MEDIUM', 'HARD']).optional(),
   includedServices: z.array(z.string()).optional(),
   tags: z.array(z.string()).optional(),
   experienceImage: urlSchema,
+}).superRefine((data, context) => {
+  const isCookingClass = data.serviceType === 'COOKING_CLASS' || data.eventType === 'Cooking Class' || data.offersCookingClasses;
+
+  if (isCookingClass && !data.classType) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['classType'],
+      message: 'Class type is required for cooking classes',
+    });
+  }
+
+  if (isCookingClass && !data.pricePerStudent) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['pricePerStudent'],
+      message: 'Price per student is required for cooking classes',
+    });
+  }
 });
 
 // Profile validation

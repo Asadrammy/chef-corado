@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { DollarSign, Calendar, Star, TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react"
+import { Wallet, Calendar, Star, TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react"
 import { StatCard } from "@/components/ui/stat-card"
 import { EmptyState } from "@/components/ui/empty-state"
 import Link from "next/link"
+import { formatCurrency } from "@/lib/currency"
 
 interface PremiumPerformanceProps {
   totalEarnings: number
@@ -75,8 +76,8 @@ export function PremiumPerformance({
         {/* Total Earnings */}
         <StatCard
           title="Total Earnings"
-          value={`$${totalEarnings.toLocaleString()}`}
-          icon={<DollarSign className="h-6 w-6" />}
+          value={formatCurrency(totalEarnings, 'GBP')}
+          icon={<Wallet className="h-6 w-6" />}
           trend={earningsTrend}
           highlight={totalEarnings > 0}
           color="green"
@@ -107,7 +108,7 @@ export function PremiumPerformance({
         <Card className="border-0 shadow-sm hover:shadow-md transition-shadow duration-300">
           <CardHeader className="pb-4">
             <CardTitle className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
+              <Wallet className="h-5 w-5" />
               Earnings Trend
             </CardTitle>
           </CardHeader>

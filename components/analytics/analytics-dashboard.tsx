@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { DollarSign, Calendar, Users, Star, TrendingUp, Activity } from 'lucide-react';
+import { Wallet, Calendar, Users, Star, TrendingUp, Activity } from 'lucide-react';
+import { formatCurrency } from '@/lib/currency';
 
 interface AnalyticsData {
   totalBookings?: number;
@@ -94,13 +95,13 @@ export function AnalyticsDashboard({ userId, userRole }: AnalyticsDashboardProps
     if (userRole === 'CLIENT') {
       cards.push(
         { title: 'Total Bookings', value: analytics.totalBookings || 0, icon: 'Calendar', color: 'text-blue-600' },
-        { title: 'Total Spending', value: `$${(analytics.totalSpending || 0).toFixed(2)}`, icon: 'DollarSign', color: 'text-green-600' },
+        { title: 'Total Spending', value: formatCurrency(analytics.totalSpending || 0, 'GBP'), icon: 'Wallet', color: 'text-green-600' },
       );
     } else if (userRole === 'CHEF') {
       cards.push(
         { title: 'Total Bookings', value: analytics.totalBookings || 0, icon: 'Calendar', color: 'text-blue-600' },
         { title: 'Completed', value: analytics.completedBookings || 0, icon: 'Activity', color: 'text-green-600' },
-        { title: 'Total Earnings', value: `$${(analytics.totalEarnings || 0).toFixed(2)}`, icon: 'DollarSign', color: 'text-green-600' },
+        { title: 'Total Earnings', value: formatCurrency(analytics.totalEarnings || 0, 'GBP'), icon: 'Wallet', color: 'text-green-600' },
         { title: 'Average Rating', value: analytics.averageRating?.toFixed(1) || '0.0', icon: 'Star', color: 'text-yellow-600' },
         { title: 'Total Reviews', value: analytics.totalReviews || 0, icon: 'Users', color: 'text-purple-600' },
         { title: 'Proposals Sent', value: analytics.proposalsSent || 0, icon: 'TrendingUp', color: 'text-indigo-600' },
@@ -111,7 +112,7 @@ export function AnalyticsDashboard({ userId, userRole }: AnalyticsDashboardProps
         { title: 'Total Chefs', value: analytics.totalChefs || 0, icon: 'Users', color: 'text-green-600' },
         { title: 'Total Clients', value: analytics.totalClients || 0, icon: 'Users', color: 'text-purple-600' },
         { title: 'Total Bookings', value: analytics.totalBookings || 0, icon: 'Calendar', color: 'text-orange-600' },
-        { title: 'Platform Revenue', value: `$${(analytics.totalRevenue || 0).toFixed(2)}`, icon: 'DollarSign', color: 'text-green-600' },
+        { title: 'Platform Revenue', value: formatCurrency(analytics.totalRevenue || 0, 'GBP'), icon: 'Wallet', color: 'text-green-600' },
         { title: 'Active Bookings', value: analytics.activeBookings || 0, icon: 'Activity', color: 'text-blue-600' },
         { title: 'Pending Proposals', value: analytics.pendingProposals || 0, icon: 'TrendingUp', color: 'text-yellow-600' },
       );
@@ -119,7 +120,7 @@ export function AnalyticsDashboard({ userId, userRole }: AnalyticsDashboardProps
 
     const iconMap: Record<string, any> = {
       Calendar,
-      DollarSign,
+      Wallet,
       Activity,
       Star,
       Users,
@@ -173,7 +174,7 @@ export function AnalyticsDashboard({ userId, userRole }: AnalyticsDashboardProps
               <XAxis dataKey="date" />
               <YAxis />
               <Tooltip 
-                formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Amount']}
+                formatter={(value) => [formatCurrency(Number(value), 'GBP'), 'Amount']}
               />
               <Line 
                 type="monotone" 

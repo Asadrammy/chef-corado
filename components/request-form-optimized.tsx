@@ -19,7 +19,7 @@ import { requestSchema } from "@/lib/validation-schemas"
 import { apiClient } from "@/lib/api-client"
 import { logger } from "@/lib/logger"
 import { growthAnalytics } from "@/lib/analytics"
-import { Calendar, MapPin, DollarSign, Users, Clock, Star } from "lucide-react"
+import { Users, Clock, Star } from "lucide-react"
 
 export function OptimizedRequestForm() {
   const router = useRouter()

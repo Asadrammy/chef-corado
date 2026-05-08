@@ -3,9 +3,10 @@ import { cookies } from "next/headers"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { format } from "date-fns"
-import { DollarSign, ArrowUpRight, ArrowDownRight, Wallet, CreditCard, RefreshCw } from "lucide-react"
+import { ArrowUpRight, ArrowDownRight, Wallet, CreditCard, RefreshCw } from "lucide-react"
 
 import { authOptions } from "@/lib/auth"
+import { formatCurrency } from "@/lib/currency"
 import { generateMeta } from "@/lib/utils"
 import { prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
@@ -112,10 +113,10 @@ export default async function AdminFinancePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Payments</p>
-              <p className="text-2xl font-bold text-foreground mt-2">${totalPayments.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalPayments, 'GBP')}</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-              <DollarSign className="h-6 w-6" />
+              <Wallet className="h-6 w-6" />
             </div>
           </div>
         </Card>
@@ -123,7 +124,7 @@ export default async function AdminFinancePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Payouts</p>
-              <p className="text-2xl font-bold text-foreground mt-2">${totalPayouts.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalPayouts, 'GBP')}</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20 text-blue-600 dark:text-blue-400">
               <Wallet className="h-6 w-6" />
@@ -134,7 +135,7 @@ export default async function AdminFinancePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Total Refunds</p>
-              <p className="text-2xl font-bold text-foreground mt-2">${totalRefunds.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalRefunds, 'GBP')}</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-400">
               <RefreshCw className="h-6 w-6" />
@@ -145,7 +146,7 @@ export default async function AdminFinancePage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Net Revenue</p>
-              <p className="text-2xl font-bold text-foreground mt-2">${netRevenue.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(netRevenue, 'GBP')}</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20 text-violet-600 dark:text-violet-400">
               <CreditCard className="h-6 w-6" />
@@ -187,7 +188,7 @@ export default async function AdminFinancePage() {
                   <div className={`text-lg font-semibold ${
                     entry.amount > 0 ? "text-emerald-600" : "text-rose-600"
                   }`}>
-                    {entry.amount > 0 ? "+" : ""}${entry.amount.toFixed(2)}
+                    {entry.amount > 0 ? "+" : ""}{formatCurrency(Math.abs(entry.amount), 'GBP')}
                   </div>
                 </div>
               ))}

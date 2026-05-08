@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, CheckCircle2, AlertCircle } from "lucide-react"
 import { toast } from "sonner"
 import axios from "axios"
+import { formatCurrency } from "@/lib/currency"
 
 export default function PaymentSuccessPage() {
   const router = useRouter()
@@ -19,113 +20,32 @@ export default function PaymentSuccessPage() {
     verifyPaymentCompletion()
   }, [])
 
-  // 🔴 P0 FIX #4: ENHANCED WEBHOOK DELAY HANDLING WITH POLLING
-  const pollBookingConfirmation = async (proposalId: string): Promise<any> => {
-    const maxAttempts = 90 // 90 attempts * 2 seconds = 3 minutes max wait
-    let lastError: any = null
-    
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      try {
-        const bookingResponse = await axios.get(`/api/bookings/by-proposal/${proposalId}`)
-        
-        if (bookingResponse.data?.booking) {
-          const booking = bookingResponse.data.booking
-          
-          // Check if payment is confirmed and booking is ready
-          if (booking.payments?.status === 'PAID' && booking.status === 'CONFIRMED') {
-            // Additional verification
-            const verifyResponse = await axios.get(`/api/bookings/${booking.id}/verify`)
-            
-            if (verifyResponse.data.verified) {
-              return verifyResponse.data.booking
-            }
-          }
-        }
-        
-        // If not ready, wait before next attempt
-        if (attempt < maxAttempts - 1) {
-          await new Promise(resolve => setTimeout(resolve, 2000)) // 2 second delay
-        }
-        
-      } catch (error) {
-        lastError = error
-        console.error(`Polling attempt ${attempt + 1} failed:`, error)
-        if (attempt < maxAttempts - 1) {
-          await new Promise(resolve => setTimeout(resolve, 2000))
-        }
-      }
-    }
-    
-    // After polling timeout, try reconciliation one more time
-    try {
-      console.log('Polling timeout, attempting reconciliation...')
-      const reconcileResponse = await axios.post('/api/admin/reconciliation/manual', {
-        proposalId
-      })
-      
-      if (reconcileResponse.data.success) {
-        // Try one final booking check
-        const finalCheckResponse = await axios.get(`/api/bookings/by-proposal/${proposalId}`)
-        
-        if (finalCheckResponse.data?.booking?.payments?.status === 'PAID') {
-          const verifyResponse = await axios.get(`/api/bookings/${finalCheckResponse.data.booking.id}/verify`)
-          
-          if (verifyResponse.data.verified) {
-            return verifyResponse.data.booking
-          }
-        }
-      }
-    } catch (reconcileError) {
-      console.error('Reconciliation attempt failed:', reconcileError)
-    }
-    
-    throw new Error('Booking confirmation timeout. Payment may have succeeded but processing is delayed. Please check your bookings in a few minutes or contact support.')
-  }
-
   const verifyPaymentCompletion = async () => {
     try {
-      // CRITICAL: Get proposal ID from session storage
-      const proposalId = sessionStorage.getItem('pendingProposalId')
-      
-      if (!proposalId) {
-        setError('No payment session found')
+      const sessionId = searchParams.get('session_id')
+      const paymentIntentId = searchParams.get('payment_intent_id')
+
+      if (!sessionId && !paymentIntentId) {
+        setError('Missing payment verification identifiers')
         setVerifying(false)
         return
       }
 
-      // 🔴 P0 FIX #4: POLL FOR BOOKING CONFIRMATION
-      // This handles webhook delays by polling until booking is ready
-      try {
-        const confirmedBooking = await pollBookingConfirmation(proposalId)
-        setBooking(confirmedBooking)
-        sessionStorage.removeItem('pendingProposalId')
-        toast.success('Payment completed successfully!')
-      } catch (pollingError) {
-        console.error('Polling failed:', pollingError)
-        
-        // Fallback: Try direct check one more time
-        try {
-          const bookingResponse = await axios.get(`/api/bookings/by-proposal/${proposalId}`)
-          
-          if (bookingResponse.data?.booking) {
-            const booking = bookingResponse.data.booking
-            
-            if (booking.payments?.status === 'PAID' && booking.status === 'CONFIRMED') {
-              const verifyResponse = await axios.get(`/api/bookings/${booking.id}/verify`)
-              
-              if (verifyResponse.data.verified) {
-                setBooking(verifyResponse.data.booking)
-                sessionStorage.removeItem('pendingProposalId')
-                toast.success('Payment completed successfully!')
-                return
-              }
-            }
-          }
-        } catch (fallbackError) {
-          console.error('Fallback check failed:', fallbackError)
+      const verifyUrl = sessionId 
+        ? `/api/payments/verify?session_id=${sessionId}`
+        : `/api/payments/verify?payment_intent_id=${paymentIntentId}`
+
+      const verifyResponse = await axios.get(verifyUrl)
+
+      if (verifyResponse.data.verified) {
+        setBooking(verifyResponse.data.booking)
+        if (verifyResponse.data.reconciled) {
+          toast.info('Payment reconciled from Stripe - booking created')
+        } else {
+          toast.success('Payment completed successfully!')
         }
-        
-        setError(pollingError instanceof Error ? pollingError.message : 'Payment verification failed')
+      } else {
+        setError(verifyResponse.data.error || 'Payment verification failed')
       }
       
     } catch (error: any) {
@@ -196,7 +116,7 @@ export default function PaymentSuccessPage() {
               <div className="mt-4 p-3 bg-gray-50 rounded-lg text-left">
                 <p className="text-sm font-medium text-gray-900">Booking Details:</p>
                 <p className="text-xs text-gray-600">ID: {booking.id}</p>
-                <p className="text-xs text-gray-600">Amount: ${booking.payments?.totalAmount || 'N/A'}</p>
+                <p className="text-xs text-gray-600">Amount: {formatCurrency(booking.payments?.totalAmount || 0, booking.currency || 'GBP')}</p>
                 <p className="text-xs text-gray-600">Status: {booking.status}</p>
               </div>
             )}

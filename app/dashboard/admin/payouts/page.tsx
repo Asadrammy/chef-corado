@@ -3,9 +3,10 @@ import { cookies } from "next/headers"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { format } from "date-fns"
-import { DollarSign, Wallet, CheckCircle, Clock, User } from "lucide-react"
+import { Wallet, CheckCircle, Clock, User } from "lucide-react"
 
 import { authOptions } from "@/lib/auth"
+import { formatCurrency } from "@/lib/currency"
 import { generateMeta } from "@/lib/utils"
 import { prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
@@ -49,7 +50,7 @@ export default async function AdminPayoutsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[30px] border border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(244,247,255,0.92))] px-6 py-6 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]">
+      <div className="brand-surface rounded-[30px] px-6 py-6 shadow-xl shadow-slate-900/5 backdrop-blur-xl">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="space-y-1">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">Payout Management</h1>
@@ -71,7 +72,7 @@ export default async function AdminPayoutsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Pending Payouts</p>
-              <p className="text-2xl font-bold text-foreground mt-2">${totalPendingAmount.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalPendingAmount)}</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
               <Clock className="h-6 w-6" />
@@ -82,7 +83,7 @@ export default async function AdminPayoutsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Completed Payouts</p>
-              <p className="text-2xl font-bold text-foreground mt-2">${totalCompletedAmount.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalCompletedAmount)}</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
               <CheckCircle className="h-6 w-6" />
@@ -113,11 +114,11 @@ export default async function AdminPayoutsPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/40 text-muted-foreground">
-                        <DollarSign className="h-5 w-5" />
+                        <Wallet className="h-5 w-5" />
                       </div>
                       <div>
                         <h3 className="text-lg font-semibold text-foreground">
-                          ${payout.amount.toLocaleString()}
+                          {formatCurrency(payout.amount)}
                         </h3>
                         <p className="text-sm text-muted-foreground">
                           Chef: {payout.chef.user.name}

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { CheckCircle2, Circle, Clock, DollarSign, FileText, MessageSquare, TrendingUp, Users } from "lucide-react"
+import { CheckCircle2, Circle, Clock, Wallet, FileText, MessageSquare, TrendingUp, Users } from "lucide-react"
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
@@ -127,7 +127,7 @@ export function DailyChecklist({
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
             <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
-              <DollarSign className="h-3.5 w-3.5" />
+              <Wallet className="h-3.5 w-3.5" />
               Daily Business Goals
             </div>
             <CardTitle className="text-xl font-semibold tracking-tight">

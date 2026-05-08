@@ -1,6 +1,8 @@
 import { geocodeAddress } from "@/lib/geo"
 import { chefProfileRepository } from "@/lib/repositories/chef-profile-repository"
 import { prisma } from "@/lib/prisma"
+import { enforceUserModeration } from "@/lib/security/moderation-guard"
+import { validatePolicyFields } from "@/lib/security/communication-policy"
 
 export interface ChefProfileInput {
   phone?: string
@@ -8,6 +10,8 @@ export interface ChefProfileInput {
   experience?: number
   location: string
   radius: number
+  baseCountryCode?: string
+  preferredCurrency?: string
   profileImage?: string
   chefType?: string
   certifications?: string
@@ -28,6 +32,12 @@ function mapChefProfile(profile: Awaited<ReturnType<typeof chefProfileRepository
     ...profile,
     avgRating,
     phone: profile.user.phone,
+    termsAcceptedAt: profile.user.termsAcceptedAt,
+    termsVersion: profile.user.termsVersion,
+    insuranceAcknowledgedAt: profile.insuranceAcknowledgedAt,
+    insuranceVersion: profile.insuranceVersion,
+    baseCountryCode: (profile as any).baseCountryCode,
+    preferredCurrency: (profile as any).preferredCurrency,
     chefType: profile.chefType,
     certifications: profile.certifications,
     eventsPerMonth: profile.eventsPerMonth,
@@ -61,6 +71,15 @@ export const chefProfileService = {
       throw new Error("USER_NOT_FOUND")
     }
 
+    await enforceUserModeration(userId)
+
+    validatePolicyFields({
+      bio: input.bio,
+      location: input.location,
+      certifications: input.certifications,
+      phone: input.phone,
+    })
+
     const coordinates = await geocodeAddress(input.location)
     const profile = await chefProfileRepository.createForUser(userId, {
       ...input,
@@ -72,6 +91,15 @@ export const chefProfileService = {
   },
 
   async update(userId: string, input: ChefProfileInput) {
+    await enforceUserModeration(userId)
+
+    validatePolicyFields({
+      bio: input.bio,
+      location: input.location,
+      certifications: input.certifications,
+      phone: input.phone,
+    })
+
     const coordinates = await geocodeAddress(input.location)
     const profile = await chefProfileRepository.updateByUserId(userId, {
       ...input,

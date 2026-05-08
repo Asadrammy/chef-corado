@@ -7,6 +7,10 @@ import {
   triggerProposalRejectedNotification,
 } from "@/lib/notifications"
 import { prisma } from "@/lib/prisma"
+import { enforceUserModeration, enforceChefModeration } from "@/lib/security/moderation-guard"
+import { enforceChefCompliance } from "@/lib/security/legal-compliance"
+import { validateMessageContent } from "@/lib/security/communication-policy"
+import { assertRequestCanReceiveQuote } from "@/lib/services/quote-limit-service"
 
 // Proposal state machine constants
 const PROPOSAL_STATUS = {
@@ -23,11 +27,26 @@ const PROPOSAL_EXPIRY_HOURS = 72 // 3 days
 
 export const proposalService = {
   async createProposal(userId: string, userName: string | null | undefined, input: { requestId: string; price: number; message: string }) {
+    // Enforce moderation - user must not be banned
+    await enforceUserModeration(userId)
+
+    // Enforce chef compliance (terms + insurance)
+    await enforceChefCompliance(userId)
+
+    // Enforce communication policy in proposal message
+    validateMessageContent(input.message)
+
+    // Enforce unified quote limit (10 quotes per request)
+    await assertRequestCanReceiveQuote(input.requestId)
+
     const chefProfile = await proposalRepository.findChefProfileByUserId(userId)
 
     if (!chefProfile) {
       throw new Error("CHEF_PROFILE_NOT_FOUND")
     }
+
+    // Enforce chef profile moderation
+    await enforceChefModeration(chefProfile.id)
 
     const targetRequest = await proposalRepository.findRequestWithClient(input.requestId)
 
@@ -38,24 +57,30 @@ export const proposalService = {
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + PROPOSAL_EXPIRY_HOURS)
 
-    const created = await proposalRepository.createProposal({
+    // Use request currency to ensure consistency (request should always have currency set)
+    const currency = targetRequest.currency || "GBP"
+
+    const created = await proposalRepository.createProposalAtomically({
       requestId: input.requestId,
       chefId: chefProfile.id,
       price: input.price,
+      currency,
       message: input.message,
       expiresAt,
     })
+
+    const requestTitle = targetRequest.title ?? "your request"
 
     await sendPreferenceAwareEmail({
       userId: targetRequest.clientId,
       topic: "requests",
       email: targetRequest.client.email || `${targetRequest.client.id}@example.com`,
-      subject: `New Proposal Received for ${targetRequest.title}`,
+      subject: `New Proposal Received for ${requestTitle}`,
       html: emailTemplates.newProposal(
         targetRequest.client.name,
         userName || "Chef",
         input.price,
-        targetRequest.title
+        requestTitle
       ),
     }).catch(() => undefined)
 
@@ -118,9 +143,9 @@ export const proposalService = {
 
     if (status === "ACCEPTED") {
       // ATOMIC: Accept proposal and reject all other proposals for this request
-      return prisma.$transaction(async (tx) => {
+      const updated = await prisma.$transaction(async (tx) => {
         // Update accepted proposal to ACCEPTED_PENDING_PAYMENT
-        const updated = await (tx as any).proposal.update({
+        const proposal = await (tx as any).proposal.update({
           where: { id: proposalId },
           data: { status: PROPOSAL_STATUS.ACCEPTED_PENDING_PAYMENT },
           include: {
@@ -139,25 +164,27 @@ export const proposalService = {
           data: { status: PROPOSAL_STATUS.REJECTED }
         })
 
-        const chefUser = updated.chef.user
-
-        if (chefUser?.email) {
-          await sendPreferenceAwareEmail({
-            userId: updated.chef.userId,
-            topic: "requests",
-            email: chefUser.email,
-            subject: `Proposal Accepted! 🎉`,
-            html: emailTemplates.proposalAccepted(chefUser.name, clientName, updated.request.title),
-          }).catch(() => undefined)
-        }
-
-        await triggerProposalAcceptedNotification(updated.chefId, clientName)
-        return updated
+        return proposal
       })
+
+      // Send email and create notification outside transaction
+      const chefUser = updated.chef.user
+      if (chefUser?.email) {
+        await sendPreferenceAwareEmail({
+          userId: updated.chef.userId,
+          topic: "requests",
+          email: chefUser.email,
+          subject: `Proposal Accepted! 🎉`,
+          html: emailTemplates.proposalAccepted(chefUser.name, clientName, updated.request.title),
+        }).catch(() => undefined)
+      }
+
+      await triggerProposalAcceptedNotification(updated.chef.userId, clientName).catch(() => undefined)
+      return updated
     }
 
     const updated = await proposalRepository.rejectProposal(proposalId)
-    await triggerProposalRejectedNotification(updated.chefId, clientName)
+    await triggerProposalRejectedNotification(updated.chef.userId, clientName).catch(() => undefined)
     return updated
   },
 

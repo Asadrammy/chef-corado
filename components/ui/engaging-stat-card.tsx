@@ -1,6 +1,5 @@
 "use client"
 
-import { TrendingUp, TrendingDown, DollarSign, Calendar, Users, Star } from "lucide-react"
 
 interface EngagingStatCardProps {
   label: string

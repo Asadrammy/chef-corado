@@ -4,18 +4,24 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 
 import { authOptions } from "@/lib/auth"
-import { RequestForm } from "@/components/request-form"
+import { RequestWizardForm } from "@/components/request-wizard-form"
 
 export const metadata: Metadata = generateMeta({
   title: "Plan Your Perfect Dining Experience",
   description: "Tell us a few details and get matched with top private chefs for your special event.",
 })
 
-export default async function CreateRequestPage() {
+export default async function CreateRequestPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ chefId?: string }>
+}) {
   const session = await getServerSession(authOptions)
   if (!session || session.user?.role !== "CLIENT") {
     redirect("/dashboard")
   }
+
+  const resolvedSearchParams = await searchParams
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-1 py-2 md:px-2 md:py-4">
@@ -30,7 +36,7 @@ export default async function CreateRequestPage() {
         </div>
       </div>
 
-      <RequestForm />
+      <RequestWizardForm chefId={resolvedSearchParams.chefId} />
     </div>
   )
 }

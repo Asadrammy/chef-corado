@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, DollarSign, Calendar, TrendingUp, AlertCircle, Info } from 'lucide-react';
+import { Loader2, Wallet, Calendar, TrendingUp, AlertCircle, Info } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { analytics } from '@/lib/analytics';
+import { formatCurrency } from '@/lib/currency';
 
 // Prevent static generation
 export const dynamic = 'force-dynamic';
@@ -76,12 +77,12 @@ export default function PayoutsPage() {
     const amount = parseFloat(payoutAmount);
     
     if (!amount || amount <= 0) {
-      setError('Please enter a valid amount greater than $0');
+      setError('Please enter a valid amount greater than 0');
       return;
     }
 
     if (!balanceInfo || amount > balanceInfo.availableBalance) {
-      setError(`Insufficient balance. You have $${balanceInfo?.availableBalance.toFixed(2) || '0.00'} available.`);
+      setError(`Insufficient balance. You have ${formatCurrency(balanceInfo?.availableBalance || 0, 'GBP')} available.`);
       return;
     }
 
@@ -167,10 +168,10 @@ export default function PayoutsPage() {
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              <DollarSign className="h-4 w-4 text-green-600" />
+              <Wallet className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-900">${balanceInfo.availableBalance.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-green-900">{formatCurrency(balanceInfo.availableBalance, 'GBP')}</div>
               <p className="text-xs text-green-700">
                 Ready for withdrawal
               </p>
@@ -195,7 +196,7 @@ export default function PayoutsPage() {
               <TrendingUp className="h-4 w-4 text-yellow-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-900">${balanceInfo.pendingEarnings.toFixed(2)}</div>
+              <div className="text-2xl font-bold text-yellow-900">{formatCurrency(balanceInfo.pendingEarnings, 'GBP')}</div>
               <p className="text-xs text-yellow-700">
                 From active bookings
               </p>
@@ -217,10 +218,10 @@ export default function PayoutsPage() {
                   </Tooltip>
                 </TooltipProvider>
               </div>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
+              <Wallet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">${balanceInfo.totalEarnings.toFixed(2)}</div>
+              <div className="text-2xl font-bold">{formatCurrency(balanceInfo.totalEarnings, 'GBP')}</div>
               <p className="text-xs text-muted-foreground">
                 All time earnings (after commission)
               </p>

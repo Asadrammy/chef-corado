@@ -2,9 +2,10 @@
 
 import * as React from "react"
 import { toast } from "sonner"
-import { MapPin, DollarSign, Calendar } from "lucide-react"
+import { MapPin, Calendar } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/lib/currency"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +36,7 @@ export type ProposalModalProps = {
     title?: string
     location: string
     budget: number
+    currency?: string
     eventDate: string
     details?: string | null
   }
@@ -134,9 +136,8 @@ export function ProposalModal({ request, onSuccess, children }: ProposalModalPro
               </div>
               <div>
                 <span className="text-gray-600 block text-xs font-medium mb-1">Budget:</span>
-                <p className="font-medium text-green-600 flex items-center">
-                  <DollarSign className="h-3 w-3 mr-1" />
-                  ${request.budget}
+                <p className="font-medium text-green-600">
+                  {formatCurrency(request.budget, request.currency)}
                 </p>
               </div>
               <div>
@@ -163,8 +164,8 @@ export function ProposalModal({ request, onSuccess, children }: ProposalModalPro
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-3">
               <Label htmlFor="price" className="text-sm font-medium">
-                Your Price ($)
-                <span className="text-xs text-gray-500 ml-2">(Positive, max $100,000, 2 decimal places)</span>
+                Your Price ({request.currency ?? "GBP"})
+                <span className="text-xs text-gray-500 ml-2">(Positive, max 100,000, 2 decimal places)</span>
               </Label>
               <Input
                 id="price"
@@ -191,8 +192,8 @@ export function ProposalModal({ request, onSuccess, children }: ProposalModalPro
                   {Number(price) === request.budget 
                     ? "✅ Matches client budget perfectly!" 
                     : Number(price) > request.budget 
-                      ? `⚠️ $${Number(price) - request.budget} over client budget`
-                      : `💰 $${request.budget - Number(price)} under client budget`
+                      ? `⚠️ ${formatCurrency(Number(price) - request.budget, request.currency)} over client budget`
+                      : `💰 ${formatCurrency(request.budget - Number(price), request.currency)} under client budget`
                   }
                 </div>
               )}

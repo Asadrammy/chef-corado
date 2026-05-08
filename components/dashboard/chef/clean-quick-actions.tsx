@@ -1,6 +1,6 @@
 "use client"
 
-import { FileText, ChefHat, Calendar, DollarSign } from "lucide-react"
+import { FileText, ChefHat, Calendar, Wallet } from "lucide-react"
 import Link from "next/link"
 
 interface CleanQuickActionsProps {
@@ -36,7 +36,7 @@ export function CleanQuickActions({ availableRequests, activeBookings }: CleanQu
     },
     {
       title: 'View Earnings',
-      icon: <DollarSign className="h-4 w-4" />,
+      icon: <Wallet className="h-4 w-4" />,
       href: '/dashboard/chef/payouts',
       badge: null
     }

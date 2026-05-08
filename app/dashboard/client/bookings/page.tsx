@@ -26,21 +26,21 @@ export default async function ClientBookingsPage() {
     <div className="w-full space-y-10">
       <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
-          <p className="text-xs font-medium uppercase tracking-[0.35em] text-slate-500">Client Workspace</p>
-          <h1 className="text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl">Your Bookings</h1>
-          <p className="text-base text-slate-600">
+          <p className="text-xs font-medium uppercase tracking-[0.35em] text-muted-foreground">Client Workspace</p>
+          <h1 className="text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">Your Bookings</h1>
+          <p className="text-base text-muted-foreground">
             Manage upcoming events, track status, and stay in control.
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button asChild className="h-11 rounded-xl px-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+          <Button asChild className="brand-gradient-button h-11 rounded-xl px-5 shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
             <Link href="/dashboard/client/create-request">Create Request</Link>
           </Button>
           <Button
             asChild
             variant="outline"
-            className="h-11 rounded-xl border-slate-200 bg-white px-5 text-slate-700 shadow-sm transition-all hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md"
+            className="h-11 rounded-xl border-border bg-background px-5 text-foreground shadow-sm transition-all hover:-translate-y-0.5 hover:bg-muted/40 hover:shadow-md"
           >
             <Link href="/experiences">Browse Chefs</Link>
           </Button>

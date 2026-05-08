@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { getCurrencyForCountry } from "@/lib/request-options"
 import { z } from "zod"
+import { validateMessageContent } from "@/lib/security/communication-policy"
 
 const menuItemSchema = z.object({
   name: z.string().min(1, "Item name is required"),
@@ -20,6 +22,7 @@ const menuSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().optional(),
   price: z.number().min(0, "Price must be positive"),
+  currency: z.string().length(3).optional(),
   menuImage: z.string().url().optional(),
   cuisineType: z.string().optional(),
   eventType: z.string().optional(),
@@ -44,6 +47,7 @@ function formatMenu(menu: any) {
   return {
     ...menu,
     description: menu.description ?? undefined,
+    currency: menu.currency ?? undefined,
     menuImage: menu.menuImage ?? undefined,
     cuisineType: menu.cuisineType ?? undefined,
     eventType: menu.eventType ?? undefined,
@@ -138,11 +142,39 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = menuSchema.parse(body)
 
+    // Enforce communication policy on user-generated text
+    if (validatedData.title) {
+      validateMessageContent(validatedData.title)
+    }
+    if (validatedData.description) {
+      validateMessageContent(validatedData.description)
+    }
+    if (validatedData.cuisineType) {
+      validateMessageContent(validatedData.cuisineType)
+    }
+    if (validatedData.eventType) {
+      validateMessageContent(validatedData.eventType)
+    }
+
+    // Validate section titles and item names/descriptions
+    validatedData.sections.forEach(section => {
+      validateMessageContent(section.title)
+      section.items.forEach(item => {
+        validateMessageContent(item.name)
+        if (item.description) {
+          validateMessageContent(item.description)
+        }
+      })
+    })
+
+    const defaultCurrency = (chefProfile as any).preferredCurrency || getCurrencyForCountry((chefProfile as any).baseCountryCode)
+
     const menu = await (prisma as any).menu.create({
       data: {
         title: validatedData.title,
         description: validatedData.description,
         price: validatedData.price,
+        currency: validatedData.currency || defaultCurrency,
         menuImage: validatedData.menuImage,
         cuisineType: validatedData.cuisineType,
         eventType: validatedData.eventType,

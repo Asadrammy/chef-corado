@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { validateMessageContent } from '@/lib/security/communication-policy';
+import { enforceUserModeration, enforceChefModeration } from '@/lib/security/moderation-guard';
+import { enforceChefCompliance, enforceClientCompliance } from '@/lib/security/legal-compliance';
+import { PLATFORM_DEFAULT_CURRENCY } from '@/lib/request-options';
+import { assertRequestCanReceiveQuote } from '@/lib/services/quote-limit-service';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +18,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = session.user.id;
+    const userId = session.user.id
 
     const body = await request.json();
     const {
@@ -26,6 +31,8 @@ export async function POST(request: NextRequest) {
       eventType,
       cuisineType,
       experienceId,
+      requestId,
+      currency,
     } = body as {
       receiverId: string;
       title: string;
@@ -36,6 +43,8 @@ export async function POST(request: NextRequest) {
       eventType?: string;
       cuisineType?: string;
       experienceId?: string | null;
+      requestId?: string | null;
+      currency?: string | null;
     };
 
     // Validate required fields
@@ -45,6 +54,18 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Enforce moderation
+    await enforceUserModeration(userId)
+    await enforceUserModeration(receiverId)
+    await enforceClientCompliance(receiverId)
+
+    // Enforce communication policy on offer content
+    validateMessageContent(title)
+    validateMessageContent(description)
+
+    // Enforce chef compliance (terms + insurance)
+    await enforceChefCompliance(userId)
 
     // Check if user is a chef (only chefs can send offers)
     const chefProfile = await prisma.chefProfile.findUnique({
@@ -58,67 +79,116 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create the message first
-    const message = await prisma.message.create({
-      data: {
-        senderId: userId,
-        receiverId,
-        content: `Custom Offer: ${title}`,
-      },
-      include: {
-        sender: {
-          select: {
-            name: true,
-          },
-        },
-        receiver: {
-          select: {
-            name: true,
-          },
-        },
-      },
-    });
+    // Enforce chef profile moderation
+    await enforceChefModeration(chefProfile.id)
 
     const numericPrice = typeof price === 'string' ? parseFloat(price) : price;
     const numericDuration = duration != null
       ? (typeof duration === 'string' ? parseInt(duration, 10) : duration)
       : null;
 
-    const offer = await (prisma as any).offer.create({
-      data: {
-        message: { connect: { id: message.id } },
-        chef: { connect: { id: chefProfile.id } },
-        client: { connect: { id: receiverId } },
-        title,
-        description,
-        price: numericPrice,
-        duration: numericDuration ?? undefined,
-        includedServices: Array.isArray(includedServices)
-          ? JSON.stringify(includedServices)
-          : includedServices
-          ? JSON.stringify(
-              (includedServices as string)
-                .split(',')
-                .map((s) => s.trim())
-                .filter(Boolean)
-            )
-          : null,
-        eventType: eventType || null,
-        cuisineType: cuisineType || null,
-        experienceId: experienceId || null,
-      },
-    });
+    const linkedRequest = requestId
+      ? await prisma.request.findFirst({
+          where: {
+            id: requestId,
+            clientId: receiverId,
+          },
+          select: {
+            id: true,
+            currency: true,
+          },
+        })
+      : await prisma.request.findFirst({
+          where: {
+            clientId: receiverId,
+            proposals: {
+              some: {
+                chef: {
+                  userId,
+                },
+              },
+            },
+          },
+          select: {
+            id: true,
+            currency: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        })
 
-    await prisma.message.update({
-      where: { id: message.id },
-      data: { offerId: offer.id },
-    });
+    const resolvedCurrency = linkedRequest?.currency || currency || chefProfile.preferredCurrency || PLATFORM_DEFAULT_CURRENCY
+
+    // Enforce unified quote limit outside transaction (for atomic check)
+    if (linkedRequest?.id) {
+      await assertRequestCanReceiveQuote(linkedRequest.id)
+    }
+
+    const { message, offer } = await prisma.$transaction(async (tx) => {
+      const message = await tx.message.create({
+        data: {
+          senderId: userId,
+          receiverId,
+          content: `Custom Offer: ${title}`,
+        },
+        include: {
+          sender: {
+            select: {
+              name: true,
+            },
+          },
+          receiver: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      })
+
+      const offer = await (tx as any).offer.create({
+        data: {
+          message: { connect: { id: message.id } },
+          chef: { connect: { id: chefProfile.id } },
+          client: { connect: { id: receiverId } },
+          title,
+          description,
+          price: numericPrice,
+          currency: resolvedCurrency,
+          duration: numericDuration ?? undefined,
+          includedServices: Array.isArray(includedServices)
+            ? JSON.stringify(includedServices)
+            : includedServices
+            ? JSON.stringify(
+                (includedServices as string)
+                  .split(',')
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+              )
+            : null,
+          eventType: eventType || null,
+          cuisineType: cuisineType || null,
+          experienceId: experienceId || null,
+          requestId: linkedRequest?.id || requestId || null,
+        },
+      })
+
+      await tx.message.update({
+        where: { id: message.id },
+        data: { offerId: offer.id },
+      })
+
+      return { message, offer }
+    }, {
+      isolationLevel: 'Serializable',
+    })
 
     return NextResponse.json(
       {
         message,
         offer: {
           ...offer,
+          currency: offer.currency ?? resolvedCurrency,
           includedServices: offer.includedServices
             ? (JSON.parse(offer.includedServices) as string[])
             : [],
@@ -189,6 +259,7 @@ export async function GET(request: NextRequest) {
         title: offer.title,
         description: offer.description,
         price: offer.price,
+        currency: offer.currency ?? PLATFORM_DEFAULT_CURRENCY,
         duration: offer.duration ?? undefined,
         includedServices: offer.includedServices
           ? (JSON.parse(offer.includedServices) as string[])

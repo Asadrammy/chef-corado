@@ -39,6 +39,11 @@ export default async function ChefRequestDetailPage({ params }: ChefRequestDetai
           email: true,
         },
       },
+      _count: {
+        select: {
+          proposals: true,
+        },
+      },
       proposals: {
         where: {
           chefId: chefProfile.id,
@@ -64,11 +69,15 @@ export default async function ChefRequestDetailPage({ params }: ChefRequestDetai
   const requestForView = {
     id: request.id,
     title: request.title,
+    eventType: request.eventType,
     description: request.description ?? request.details ?? "",
     status: request.proposals[0]?.status ?? "OPEN",
     eventDate: request.eventDate.toISOString(),
     location: request.location,
     budget: request.budget,
+    currency: request.currency,
+    guestCount: request.guestCount,
+    totalProposalCount: request._count.proposals,
     details: request.details,
     client: {
       name: request.client.name,

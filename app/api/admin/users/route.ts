@@ -9,14 +9,19 @@ const banUserSchema = z.object({
   userId: z.string(),
   action: z.enum(['ban', 'unban']),
   reason: z.string().optional(),
+  adminNotes: z.string().optional(),
 });
 
 export async function POST(request: NextRequest) {
   try {
-    await getRequiredSession(Role.ADMIN);
+    const session = await getRequiredSession(Role.ADMIN);
     const body = await request.json();
-    const { userId, action, reason } = banUserSchema.parse(body);
-    const result = await adminUserService.updateUserBanStatus(userId, action);
+    const { userId, action, reason, adminNotes } = banUserSchema.parse(body);
+    const result = await adminUserService.updateUserBanStatus(userId, action, {
+      reason,
+      adminNotes,
+      bannedBy: session.user.id ?? undefined,
+    });
 
     return NextResponse.json({
       user: result.user,

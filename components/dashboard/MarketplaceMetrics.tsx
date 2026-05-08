@@ -2,6 +2,7 @@
 import React from "react";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
+import { formatCurrency } from "@/lib/currency";
 import { 
   ArrowUpIcon, 
   ArrowDownIcon, 
@@ -98,7 +99,7 @@ export function MarketplaceMetrics() {
           },
           {
             title: "Total Spending",
-            value: `$${(analytics.totalSpending || 0).toLocaleString()}`,
+            value: formatCurrency(analytics.totalSpending || 0),
             change: analytics.trends?.spendingChange,
             changeType: (analytics.trends?.spendingChange || 0) >= 0 ? "increase" : "decrease",
             icon: <CurrencyDollarIcon className="w-6 h-6" />,
@@ -118,7 +119,7 @@ export function MarketplaceMetrics() {
         return [
           {
             title: "Total Earnings",
-            value: `$${(analytics.totalEarnings || 0).toLocaleString()}`,
+            value: formatCurrency(analytics.totalEarnings || 0),
             change: analytics.trends?.earningsChange,
             changeType: (analytics.trends?.earningsChange || 0) >= 0 ? "increase" : "decrease",
             icon: <CurrencyDollarIcon className="w-6 h-6" />,
@@ -154,7 +155,7 @@ export function MarketplaceMetrics() {
           },
           {
             title: "Platform Revenue",
-            value: `$${(analytics.totalRevenue || 0).toLocaleString()}`,
+            value: formatCurrency(analytics.totalRevenue || 0),
             change: analytics.trends?.revenueChange,
             changeType: (analytics.trends?.revenueChange || 0) >= 0 ? "increase" : "decrease",
             icon: <CurrencyDollarIcon className="w-6 h-6" />,
