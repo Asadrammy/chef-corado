@@ -2,9 +2,9 @@ import { Metadata } from "next"
 import { generateMeta } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
-import { cookies } from "next/headers"
 
 import { authOptions } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
 import { MarketplaceMetrics } from "@/components/dashboard/MarketplaceMetrics"
 import { RecentBookings } from "@/components/dashboard/RecentBookings"
 import { PlatformAnalytics } from "@/components/platform-analytics"
@@ -14,20 +14,13 @@ import { Users, Calendar, Wallet, ChefHat, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/currency"
 
-type AdminChef = {
-  id: string
-  isApproved: boolean
-}
-
-type AdminBooking = {
-  id: string
-  status: string
-}
-
-type AdminPayment = {
-  id: string
-  status: string
-  commissionAmount: number
+type AdminDashboardStats = {
+  totalChefs: number
+  pendingChefs: number
+  totalBookings: number
+  activeBookings: number
+  totalRevenue: number
+  pendingPayouts: number
 }
 
 export const metadata: Metadata = generateMeta({
@@ -35,45 +28,86 @@ export const metadata: Metadata = generateMeta({
   description: "Keep the marketplace healthy by approving chefs, monitoring bookings, and managing payouts.",
 })
 
+const emptyAdminStats: AdminDashboardStats = {
+  totalChefs: 0,
+  pendingChefs: 0,
+  totalBookings: 0,
+  activeBookings: 0,
+  totalRevenue: 0,
+  pendingPayouts: 0,
+}
+
+async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
+  try {
+    const [
+      totalChefs,
+      pendingChefs,
+      totalBookings,
+      activeBookings,
+      completedPayments,
+      pendingPayouts,
+    ] = await Promise.all([
+      prisma.chefProfile.count({
+        where: {
+          isBanned: false,
+          user: {
+            role: "CHEF",
+            isBanned: false,
+          },
+        },
+      }),
+      prisma.chefProfile.count({
+        where: {
+          isApproved: false,
+          isBanned: false,
+          user: {
+            role: "CHEF",
+            isBanned: false,
+          },
+        },
+      }),
+      prisma.booking.count(),
+      prisma.booking.count({
+        where: {
+          status: "CONFIRMED",
+        },
+      }),
+      prisma.payment.findMany({
+        where: {
+          status: "COMPLETED",
+        },
+        select: {
+          commissionAmount: true,
+        },
+      }),
+      prisma.payment.count({
+        where: {
+          status: "PENDING",
+        },
+      }),
+    ])
+
+    return {
+      totalChefs,
+      pendingChefs,
+      totalBookings,
+      activeBookings,
+      totalRevenue: completedPayments.reduce((sum, payment) => sum + payment.commissionAmount, 0),
+      pendingPayouts,
+    }
+  } catch (error) {
+    console.error("Failed to load admin dashboard summary", error)
+    return emptyAdminStats
+  }
+}
+
 export default async function AdminDashboardPage() {
   const session = await getServerSession(authOptions)
   if (!session || session.user?.role !== "ADMIN") {
     redirect("/dashboard")
   }
 
-  // Fetch real data for dashboard
-  const cookieHeader = (await cookies()).toString()
-  const baseUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"
-
-  // Fetch admin data
-  const [chefsResponse, bookingsResponse, paymentsResponse] = await Promise.all([
-    fetch(`${baseUrl}/api/admin/chefs`, {
-      cache: "no-store",
-      headers: { cookie: cookieHeader },
-    }),
-    fetch(`${baseUrl}/api/admin/bookings`, {
-      cache: "no-store", 
-      headers: { cookie: cookieHeader },
-    }),
-    fetch(`${baseUrl}/api/admin/payments`, {
-      cache: "no-store",
-      headers: { cookie: cookieHeader },
-    }),
-  ])
-
-  const chefs: AdminChef[] = chefsResponse.ok ? ((await chefsResponse.json()) as AdminChef[]) : []
-  const bookings: AdminBooking[] = bookingsResponse.ok ? ((await bookingsResponse.json()) as AdminBooking[]) : []
-  const payments: AdminPayment[] = paymentsResponse.ok ? ((await paymentsResponse.json()) as AdminPayment[]) : []
-
-  // Calculate stats
-  const totalChefs = chefs.length
-  const pendingChefs = chefs.filter((chef) => !chef.isApproved).length
-  const totalBookings = bookings.length
-  const activeBookings = bookings.filter((booking) => booking.status === "CONFIRMED").length
-  const totalRevenue = payments
-    .filter((payment) => payment.status === "COMPLETED")
-    .reduce((sum, payment) => sum + payment.commissionAmount, 0)
-  const pendingPayouts = payments.filter((payment) => payment.status === "PENDING").length
+  const { totalChefs, pendingChefs, activeBookings, totalRevenue, pendingPayouts } = await getAdminDashboardStats()
 
   return (
     <div className="space-y-8">
