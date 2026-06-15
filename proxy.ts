@@ -5,6 +5,16 @@ import { publicExactRoutes, publicRoutePrefixes } from '@/lib/public-routes'
 
 const getAppBaseUrl = () => process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000'
 const legalAcceptancePath = '/legal/acceptance'
+const publicGetApiRoutes = [
+  /^\/api\/chefs$/,
+  /^\/api\/chefs\/search$/,
+  /^\/api\/chefs\/[^/]+$/,
+  /^\/api\/experiences$/,
+  /^\/api\/experiences\/[^/]+$/,
+  /^\/api\/reviews$/,
+  /^\/api\/health$/,
+  /^\/api\/marketplace\/health$/,
+]
 
 export default async function proxy(request: NextRequest) {
   const token = await getToken({ req: request })
@@ -13,10 +23,12 @@ export default async function proxy(request: NextRequest) {
 
   const isApiRoute = pathname.startsWith('/api/')
   const isAuthApiRoute = pathname.startsWith('/api/auth')
+  const isPublicGetApiRoute = request.method === 'GET' && publicGetApiRoutes.some((route) => route.test(pathname))
   const isPublicPath =
     publicExactRoutes.includes(pathname) ||
     publicRoutePrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)) ||
-    isAuthApiRoute
+    isAuthApiRoute ||
+    isPublicGetApiRoute
 
   if (token?.isBanned && pathname !== '/account-banned' && !isApiRoute) {
     return NextResponse.redirect(new URL('/account-banned', appBaseUrl))
@@ -88,4 +100,3 @@ export const config = {
     '/((?!_next/static|_next/image|favicon.ico|images).*)',
   ],
 }
-
