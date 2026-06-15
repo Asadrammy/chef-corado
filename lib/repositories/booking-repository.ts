@@ -20,14 +20,36 @@ export const bookingRepository = {
         select: {
           id: true,
           totalPrice: true,
+          currency: true,
           status: true,
+          createdAt: true,
           client: {
             select: {
               name: true,
+              email: true,
+            },
+          },
+          chef: {
+            select: {
+              user: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+          experience: {
+            select: {
+              title: true,
             },
           },
           proposal: {
             select: {
+              menu: {
+                select: {
+                  title: true,
+                },
+              },
               request: {
                 select: {
                   eventDate: true,

@@ -13,23 +13,40 @@ interface Booking {
   currency?: string | null;
   status: BookingStatus;
   createdAt: string;
-  client: {
-    name: string;
-    email: string;
+  client?: {
+    name?: string | null;
+    email?: string | null;
   };
-  chef: {
-    name: string;
-    profileImage?: string;
+  chef?: {
+    name?: string | null;
+    profileImage?: string | null;
+    user?: {
+      name?: string | null;
+    } | null;
   };
-  proposal: {
-    menu: {
-      title: string;
-    };
-  };
+  proposal?: {
+    menu?: {
+      title?: string | null;
+    } | null;
+  } | null;
   experience?: {
-    title: string;
-  };
+    title?: string | null;
+  } | null;
 }
+
+const getBookingParticipant = (booking: Booking, userRole?: string) => {
+  if (userRole === "CHEF") {
+    return {
+      name: booking.client?.name || "Client",
+      email: booking.client?.email || "",
+    };
+  }
+
+  return {
+    name: booking.chef?.name || booking.chef?.user?.name || "Chef",
+    email: "",
+  };
+};
 
 const getStatusColor = (status: BookingStatus) => {
   switch (status) {
@@ -284,41 +301,46 @@ export function RecentBookings() {
             {bookings.length === 0 ? (
               <EmptyState userRole={userRole as string} />
             ) : (
-              bookings.map((booking) => (
-                <tr key={booking.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                  <td className="py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center dark:bg-gray-700">
-                        <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                          {(userRole === "CHEF" ? booking.client : booking.chef)?.name?.charAt(0) || "U"}
-                        </span>
+              bookings.map((booking) => {
+                const participant = getBookingParticipant(booking, userRole);
+                const createdAt = booking.createdAt ? new Date(booking.createdAt) : null;
+
+                return (
+                  <tr key={booking.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                    <td className="py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-8 w-8 bg-gray-200 rounded-full flex items-center justify-center dark:bg-gray-700">
+                          <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                            {participant.name.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
+                            {participant.name}
+                          </p>
+                          <span className="text-gray-500 text-theme-xs dark:text-gray-400">
+                            {participant.email}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-800 text-theme-sm dark:text-white/90">
-                          {userRole === "CHEF" ? booking.client.name : booking.chef.name}
-                        </p>
-                        <span className="text-gray-500 text-theme-xs dark:text-gray-400">
-                          {userRole === "CHEF" ? booking.client.email : ""}
-                        </span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                    {booking.proposal?.menu?.title || booking.experience?.title || "Custom Menu"}
-                  </td>
-                  <td className="py-3 text-gray-900 font-medium text-theme-sm dark:text-white">
-                    {formatCurrency(booking.totalPrice, booking.currency ?? "GBP")}
-                  </td>
-                  <td className="py-3">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
-                      {booking.status}
-                    </span>
-                  </td>
-                  <td className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
-                    {format(new Date(booking.createdAt), "MMM dd, yyyy")}
-                  </td>
-                </tr>
-              ))
+                    </td>
+                    <td className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                      {booking.proposal?.menu?.title || booking.experience?.title || "Custom Menu"}
+                    </td>
+                    <td className="py-3 text-gray-900 font-medium text-theme-sm dark:text-white">
+                      {formatCurrency(booking.totalPrice, booking.currency ?? "GBP")}
+                    </td>
+                    <td className="py-3">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(booking.status)}`}>
+                        {booking.status}
+                      </span>
+                    </td>
+                    <td className="py-3 text-gray-500 text-theme-sm dark:text-gray-400">
+                      {createdAt && !Number.isNaN(createdAt.getTime()) ? format(createdAt, "MMM dd, yyyy") : "Date pending"}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
