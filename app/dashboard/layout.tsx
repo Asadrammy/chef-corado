@@ -2,7 +2,6 @@ import { DashboardShell } from "@/components/dashboard-shell"
 import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import Providers from "@/components/providers"
-import { DashboardError } from "@/components/dashboard/chef/dashboard-error"
 
 import { authOptions } from "@/lib/auth"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
@@ -38,23 +37,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
     })
   } catch (error) {
     if (isPrismaConnectionError(error)) {
-      if (process.env.NODE_ENV === "development") {
-        const legalNotice = {
-          needsAttention: false,
-          chefInsuranceNeedsAttention: false,
-          termsVersion: TERMS_VERSION,
-          insuranceVersion: INSURANCE_VERSION,
-        }
-
-        return (
-          <Providers>
-            <DashboardShell legalNotice={legalNotice}>{children}</DashboardShell>
-          </Providers>
-        )
+      const legalNotice = {
+        needsAttention: Boolean(session.user.needsTermsAcceptance || session.user.needsChefCompliance || session.user.needsInsuranceVerification),
+        chefInsuranceNeedsAttention: Boolean(session.user.needsChefCompliance || session.user.needsInsuranceVerification),
+        termsVersion: TERMS_VERSION,
+        insuranceVersion: INSURANCE_VERSION,
       }
 
       return (
-        <DashboardError error="The database connection is unavailable. Check the Render PostgreSQL connection string, database status, and access controls, then restart the dev server." />
+        <Providers>
+          <DashboardShell legalNotice={legalNotice}>{children}</DashboardShell>
+        </Providers>
       )
     }
 
