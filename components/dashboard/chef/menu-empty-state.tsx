@@ -28,7 +28,7 @@ export function MenuEmptyState({ onCreate }: MenuEmptyStateProps) {
             </EmptyMedia>
             <EmptyTitle>No menus yet</EmptyTitle>
             <EmptyDescription>
-              Create your first menu to start presenting your offerings to clients.
+              Create your first menu with a free-form description so clients can understand your food in your own words.
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent>

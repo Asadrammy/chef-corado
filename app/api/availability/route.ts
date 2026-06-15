@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { Role } from '@/types';
@@ -26,6 +26,50 @@ function serializeAvailability(slot: {
     ...slot,
     date: formatDateOnly(slot.date),
   };
+}
+
+function getLocalDemoAvailability(month?: string | null) {
+  const baseDate = month ? new Date(`${month}-01T00:00:00.000Z`) : new Date();
+  const year = baseDate.getUTCFullYear();
+  const monthIndex = baseDate.getUTCMonth();
+
+  const makeDate = (day: number) => new Date(Date.UTC(year, monthIndex, day));
+
+  return [
+    {
+      id: 'local-availability-1',
+      date: formatDateOnly(makeDate(17)),
+      startTime: '17:00',
+      endTime: '22:00',
+      isAvailable: true,
+      maxBookings: 1,
+      currentBookings: 0,
+      recurringPattern: null,
+      chefId: 'local-demo-chef',
+    },
+    {
+      id: 'local-availability-2',
+      date: formatDateOnly(makeDate(20)),
+      startTime: '18:00',
+      endTime: '23:00',
+      isAvailable: true,
+      maxBookings: 1,
+      currentBookings: 1,
+      recurringPattern: null,
+      chefId: 'local-demo-chef',
+    },
+    {
+      id: 'local-availability-3',
+      date: formatDateOnly(makeDate(24)),
+      startTime: '11:00',
+      endTime: '15:00',
+      isAvailable: true,
+      maxBookings: 2,
+      currentBookings: 0,
+      recurringPattern: null,
+      chefId: 'local-demo-chef',
+    },
+  ];
 }
 
 export async function GET(request: NextRequest) {
@@ -90,6 +134,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(availability.map(serializeAvailability));
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
+      const { searchParams } = new URL(request.url);
+      return NextResponse.json(getLocalDemoAvailability(searchParams.get('month')));
+    }
+
     console.error('Error fetching availability:', error);
     return NextResponse.json(
       { error: 'Failed to fetch availability' },
@@ -221,6 +270,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(serializeAvailability(availability), { status: 201 });
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
+      return NextResponse.json(
+        { error: 'Availability changes are unavailable in local demo mode' },
+        { status: 503 }
+      );
+    }
+
     console.error('Error creating availability:', error);
     return NextResponse.json(
       { error: 'Failed to create availability' },

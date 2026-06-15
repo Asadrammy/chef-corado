@@ -112,6 +112,7 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
   const highestBudget = highestBudgetRequest
     ? formatCurrency(highestBudgetRequest.budget, highestBudgetRequest.currency || "GBP")
     : formatCurrency(0, "GBP")
+  const activeServiceRadius = serviceRadiusKm ?? 50
 
   return (
     <div className="space-y-6 lg:space-y-7">
@@ -129,13 +130,17 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
                   Incoming Requests
                 </h1>
                 <p className="text-muted-foreground max-w-2xl text-sm leading-6 md:text-[15px]">
-                  Review nearby demand, spot the best-fit opportunities, and send polished proposals from one premium workspace.
+                  Showing open customer requests within your saved service radius so you can review nearby demand and send polished proposals.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1.5 text-primary shadow-sm">
                   <Users className="h-4 w-4" />
                   {requests.length} active opportunities
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-background/70 px-3 py-1.5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
+                  <MapPin className="h-4 w-4 text-primary" />
+                  Saved service radius: {activeServiceRadius} km{baseLocation ? ` from ${baseLocation}` : ""}
                 </div>
                 <div className="text-muted-foreground inline-flex items-center gap-2 rounded-full border border-white/70 bg-background/70 px-3 py-1.5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
@@ -196,11 +201,14 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
           <div className="space-y-3 flex-1">
             <div className="flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4 text-primary" />
-              <p className="text-sm font-medium text-foreground">Radius Filter</p>
+              <p className="text-sm font-medium text-foreground">Service radius summary</p>
             </div>
             <p className="text-sm text-muted-foreground">
-              Showing requests within <span className="font-semibold text-foreground">{radiusFilter} km</span>
-              {baseLocation ? ` of ${baseLocation}` : " of your base location"}
+              Showing open customer requests within your saved service radius: <span className="font-semibold text-foreground">{activeServiceRadius} km</span>
+              {baseLocation ? ` from ${baseLocation}` : " from your saved base location"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              The slider below narrows this page temporarily to <span className="font-medium text-foreground">{radiusFilter} km</span>. It does not change your saved matching radius.
             </p>
             <div className="flex items-center gap-4 pt-2">
               <Slider
@@ -215,7 +223,7 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
             </div>
           </div>
           <Button variant="outline" className="rounded-2xl shrink-0" asChild>
-            <Link href="/dashboard/chef/profile">Update Service Area</Link>
+            <Link href="/dashboard/chef/profile">Edit Service Radius</Link>
           </Button>
         </CardContent>
       </Card>

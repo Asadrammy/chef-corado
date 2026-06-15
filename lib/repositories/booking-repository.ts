@@ -5,6 +5,10 @@ export const bookingRepository = {
   findChefProfileByUserId(userId: string) {
     return prisma.chefProfile.findUnique({
       where: { userId },
+      select: {
+        id: true,
+        userId: true,
+      },
     })
   },
 
@@ -13,13 +17,26 @@ export const bookingRepository = {
       prisma.booking.findMany({
         where,
         orderBy,
-        include: {
-          chef: { include: { user: true } },
-          client: true,
-          proposal: { include: { request: true, menu: true } },
-          payments: true,
-          experience: true,
-          review: true,
+        select: {
+          id: true,
+          totalPrice: true,
+          status: true,
+          client: {
+            select: {
+              name: true,
+            },
+          },
+          proposal: {
+            select: {
+              request: {
+                select: {
+                  eventDate: true,
+                  details: true,
+                  location: true,
+                },
+              },
+            },
+          },
         },
         skip,
         take,

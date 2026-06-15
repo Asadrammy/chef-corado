@@ -64,23 +64,31 @@ export function handleApiError(error: unknown, context: string): NextResponse {
     }
 
     if (error.message === 'INSURANCE_DOCUMENT_REQUIRED') {
-      return apiError('INSURANCE_DOCUMENT_REQUIRED', 'An insurance document is required before continuing.', 403);
+      return apiError('INSURANCE_DOCUMENT_REQUIRED', 'Legal compliance confirmation is required before continuing.', 403);
     }
 
     if (error.message === 'INSURANCE_VERIFICATION_REQUIRED') {
-      return apiError('INSURANCE_VERIFICATION_REQUIRED', 'Insurance verification is required before continuing.', 403);
+      return apiError('INSURANCE_VERIFICATION_REQUIRED', 'Chef compliance confirmation is required before continuing.', 403);
     }
 
     if (error.message === 'INSURANCE_REJECTED') {
-      return apiError('INSURANCE_REJECTED', 'Your insurance submission was rejected. Please upload a new document.', 403);
+      return apiError('INSURANCE_REJECTED', 'Your compliance information requires review before you can continue.', 403);
     }
 
     if (error.message === 'INSURANCE_EXPIRED') {
-      return apiError('INSURANCE_EXPIRED', 'Your insurance verification has expired. Please upload a renewed document.', 403);
+      return apiError('INSURANCE_EXPIRED', 'Your compliance information is no longer current. Please review your chef profile.', 403);
     }
 
     if (error.message === 'LEGAL_COMPLIANCE_REQUIRED') {
       return apiError('LEGAL_COMPLIANCE_REQUIRED', 'Your account must complete legal compliance requirements before continuing.', 403);
+    }
+
+    if (error.message === 'CHEF_APPROVAL_PENDING') {
+      return apiError('CHEF_APPROVAL_PENDING', 'Your chef profile is pending approval before this action can continue.', 403);
+    }
+
+    if (error.message === 'CHEF_APPROVAL_REJECTED') {
+      return apiError('CHEF_APPROVAL_REJECTED', 'Your chef profile requires review before this action can continue.', 403);
     }
 
     if (error.message === 'REQUEST_PROPOSAL_LIMIT_REACHED') {

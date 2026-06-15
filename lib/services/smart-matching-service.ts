@@ -545,7 +545,7 @@ export class SmartMatchingService {
       radius: chef.radius,
       latitude: chef.latitude,
       longitude: chef.longitude,
-      menus: chef.menus,
+      menus: chef.menus.filter(m => m.price !== null).map(m => ({ ...m, price: m.price! })),
       experiences: chef.experiences,
     }
 

@@ -21,7 +21,6 @@ export type ChefDashboardData = {
   completedBookings: number
   averageRating: number
   quotesSentToday: number
-  quotesTarget: number
   menusCount: number
   menusTarget: number
   /** @deprecated Use messageResponseRate and proposalResponseRate instead */
@@ -82,6 +81,8 @@ export type ChefDashboardData = {
 
 type DashboardBooking = {
   id: string
+  clientId: string
+  proposalId: string | null
   createdAt: Date
   eventDate: Date
   status: string
@@ -95,21 +96,6 @@ type DashboardBooking = {
     chefAmount: number
     status: string
     releasedAt: Date | null
-  } | null
-  client: {
-    id: string
-    name: string
-    email: string
-  }
-  proposal: {
-    id: string
-    request: {
-      id: string
-      title: string | null
-      eventDate: Date
-      location: string
-      details: string | null
-    } | null
   } | null
   experience: {
     id: string
@@ -249,7 +235,18 @@ function calculateProposalResponseMetrics(
 export async function getChefDashboardData(userId: string): Promise<ChefDashboardData | null> {
   const chefProfile = await prisma.chefProfile.findUnique({
     where: { userId },
-    include: {
+    select: {
+      id: true,
+      userId: true,
+      location: true,
+      latitude: true,
+      longitude: true,
+      radius: true,
+      bio: true,
+      cuisineType: true,
+      experience: true,
+      profileImage: true,
+      isApproved: true,
       user: {
         select: {
           id: true,
@@ -280,7 +277,16 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
           },
         },
       },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        budget: true,
+        currency: true,
+        location: true,
+        createdAt: true,
+        eventDate: true,
+        latitude: true,
+        longitude: true,
         client: {
           select: {
             name: true,
@@ -292,32 +298,67 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
     }),
     prisma.proposal.findMany({
       where: { chefId: chefProfile.id },
-      include: {
+      select: {
+        id: true,
+        createdAt: true,
+        status: true,
         request: true,
       },
       orderBy: { createdAt: "desc" },
     }),
     prisma.booking.findMany({
       where: { chefId: chefProfile.id },
-      include: {
-        payments: true,
-        client: true,
-        proposal: {
-          include: {
-            request: true,
+      select: {
+        id: true,
+        clientId: true,
+        proposalId: true,
+        createdAt: true,
+        eventDate: true,
+        status: true,
+        totalPrice: true,
+        bookingType: true,
+        location: true,
+        guestCount: true,
+        payments: {
+          select: {
+            totalAmount: true,
+            commissionAmount: true,
+            chefAmount: true,
+            status: true,
+            releasedAt: true,
           },
         },
-        experience: true,
+        experience: {
+          select: {
+            id: true,
+            title: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     }),
     prisma.experience.findMany({
       where: { chefId: chefProfile.id, isActive: true },
+      select: {
+        id: true,
+        title: true,
+        price: true,
+        currency: true,
+        createdAt: true,
+        isActive: true,
+      },
       orderBy: { createdAt: "desc" },
     }),
     prisma.review.findMany({
       where: { chefId: chefProfile.id },
-      include: { client: { select: { name: true } } },
+      select: {
+        id: true,
+        rating: true,
+        comment: true,
+        createdAt: true,
+        updatedAt: true,
+        client: { select: { name: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
     prisma.availability.count({
@@ -376,6 +417,20 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
       },
     }),
   ])
+
+  const bookingClientIds = Array.from(new Set(bookings.map((booking) => booking.clientId)))
+  const bookingClients = bookingClientIds.length
+    ? await prisma.user.findMany({
+        where: { id: { in: bookingClientIds } },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      })
+    : []
+  const bookingClientMap = new Map(bookingClients.map((client) => [client.id, client]))
+  const proposalMap = new Map(proposals.map((proposal) => [proposal.id, proposal]))
 
   const availableRequests = requests
     .filter((request) => {
@@ -446,8 +501,7 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
   }).length
 
   const menusCount = menus.length
-  // Configurable targets via environment variables (defaults: 10 quotes, 5 menus)
-  const quotesTarget = parseInt(process.env.CHEF_QUOTES_TARGET || '10', 10)
+  // Configurable target via environment variable (default: 5 menus)
   const menusTarget = parseInt(process.env.CHEF_MENUS_TARGET || '5', 10)
   const thirtyDaysAgo = subDays(new Date(), 30)
 
@@ -676,8 +730,8 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
   if (availableRequests.length > 0) {
     pendingTasks.push({
       id: "respond-requests",
-      title: "Respond to open requests",
-      description: `${availableRequests.length} nearby requests are available to review and convert into proposals.`,
+      title: "Review open requests",
+      description: `${availableRequests.length} nearby requests are ready for review. Send quotes to suitable requests. Each client request can receive up to 10 quotes total.`,
       href: "/dashboard/chef/requests",
       priority: "medium",
     })
@@ -690,7 +744,6 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
     completedBookings: completedBookings.length,
     averageRating: Math.round(averageRating * 10) / 10,
     quotesSentToday,
-    quotesTarget,
     menusCount,
     menusTarget,
     responseRate: Math.round(responseRate * 10) / 10,
@@ -708,35 +761,45 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
     approvalStatus: chefProfile.isApproved ? "Approved" : "Pending",
     requests: availableRequests,
     proposals,
-    bookings: bookings.map((booking) => ({
-      id: booking.id,
-      createdAt: booking.createdAt.toISOString(),
-      eventDate: booking.eventDate.toISOString(),
-      status: booking.status,
-      totalPrice: booking.totalPrice,
-      bookingType: booking.bookingType,
-      location: booking.location,
-      guestCount: booking.guestCount,
-      client: booking.client,
-      proposal: booking.proposal
-        ? {
-            ...booking.proposal,
-            request: booking.proposal.request
-              ? {
-                  ...booking.proposal.request,
-                  eventDate: booking.proposal.request.eventDate.toISOString(),
-                }
-              : null,
-          }
-        : null,
-      experience: booking.experience,
-      payments: booking.payments
-        ? {
-            ...booking.payments,
-            releasedAt: booking.payments.releasedAt?.toISOString() ?? null,
-          }
-        : null,
-    })),
+    bookings: bookings.map((booking) => {
+      const client = bookingClientMap.get(booking.clientId) ?? {
+        id: booking.clientId,
+        name: "Unknown client",
+        email: "",
+      }
+
+      const proposal = booking.proposalId ? proposalMap.get(booking.proposalId) ?? null : null
+
+      return {
+        id: booking.id,
+        createdAt: booking.createdAt.toISOString(),
+        eventDate: booking.eventDate.toISOString(),
+        status: booking.status,
+        totalPrice: booking.totalPrice,
+        bookingType: booking.bookingType,
+        location: booking.location,
+        guestCount: booking.guestCount,
+        client,
+        proposal: proposal
+          ? {
+              ...proposal,
+              request: proposal.request
+                ? {
+                    ...proposal.request,
+                    eventDate: proposal.request.eventDate.toISOString(),
+                  }
+                : null,
+            }
+          : null,
+        experience: booking.experience,
+        payments: booking.payments
+          ? {
+              ...booking.payments,
+              releasedAt: booking.payments.releasedAt?.toISOString() ?? null,
+            }
+          : null,
+      }
+    }),
     experiences,
     reviews: reviews.map((review) => ({
       ...review,

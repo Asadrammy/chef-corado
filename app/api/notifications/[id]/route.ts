@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { isPrismaConnectionError, prisma } from "@/lib/prisma";
 
 export async function PATCH(
   request: NextRequest,
@@ -42,6 +42,13 @@ export async function PATCH(
 
     return NextResponse.json({ notification: updated });
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return NextResponse.json(
+        { error: "Notifications are unavailable in local demo mode" },
+        { status: 503 }
+      );
+    }
+
     console.error("Failed to update notification", error);
     return NextResponse.json({ error: "Failed to update notification" }, { status: 500 });
   }

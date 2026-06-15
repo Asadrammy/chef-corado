@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
 
     // Users can only access conversations they are part of
     // Verify there's at least one message between these users or they are connected via booking/proposal
+    let localDemoMode = false;
     const existingConversation = await (prisma as any).message.findFirst({
       where: {
         OR: [
@@ -104,19 +105,36 @@ export async function GET(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         const sendMessages = async () => {
-          const messages = await (prisma as any).message.findMany({
-            where: {
-              OR: [
-                { senderId: userId, receiverId: otherUserId, createdAt: { gt: since } },
-                { senderId: otherUserId, receiverId: userId, createdAt: { gt: since } },
-              ],
-            },
-            include: {
-              sender: { select: { id: true, name: true } },
-              receiver: { select: { id: true, name: true } },
-            },
-            orderBy: { createdAt: 'asc' },
-          });
+          if (localDemoMode) {
+            return;
+          }
+
+          let messages: any[] = [];
+
+          try {
+            messages = await (prisma as any).message.findMany({
+              where: {
+                OR: [
+                  { senderId: userId, receiverId: otherUserId, createdAt: { gt: since } },
+                  { senderId: otherUserId, receiverId: userId, createdAt: { gt: since } },
+                ],
+              },
+              include: {
+                sender: { select: { id: true, name: true } },
+                receiver: { select: { id: true, name: true } },
+              },
+              orderBy: { createdAt: 'asc' },
+            });
+          } catch (error) {
+            if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
+              localDemoMode = true;
+              const pingChunk = `event: ping\ndata: ${JSON.stringify({ timestamp: Date.now(), localDemo: true })}\n\n`;
+              controller.enqueue(encoder.encode(pingChunk));
+              return;
+            }
+
+            throw error;
+          }
 
           if (messages.length > 0) {
             since = messages[messages.length - 1].createdAt;
@@ -174,6 +192,26 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
+      const stream = new ReadableStream({
+        start(controller) {
+          const encoder = new TextEncoder();
+          const chunk = `event: ping\ndata: ${JSON.stringify({ timestamp: Date.now(), localDemo: true })}\n\n`;
+          controller.enqueue(encoder.encode(chunk));
+          controller.close();
+        },
+      });
+
+      return new NextResponse(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+          'X-Accel-Buffering': 'no',
+        },
+      });
+    }
+
     console.error('Error opening messages stream:', error);
     return NextResponse.json({ error: 'Failed to open messages stream' }, { status: 500 });
   }

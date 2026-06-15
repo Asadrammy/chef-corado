@@ -8,6 +8,7 @@ import { proposalService } from "@/lib/services/proposal-service"
 import { ProposalStatus, Role } from "@/types"
 import { applyRateLimit } from "@/lib/redis-rate-limiter"
 import { secureSchemas, securityHeaders } from "@/lib/security"
+import { isPrismaConnectionError } from "@/lib/prisma"
 
 const proposalSchema = z.object({
   requestId: z.string().cuid().min(1, "Request ID is required"),
@@ -75,6 +76,17 @@ export async function POST(request: Request) {
     return response
 
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      const response = NextResponse.json(
+        { error: "Proposals are unavailable in local demo mode" },
+        { status: 503 }
+      )
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
     if (error instanceof Error && error.message === "CHEF_PROFILE_NOT_FOUND") {
       const response = NextResponse.json({ error: "Chef profile not found" }, { status: 404 })
       Object.entries(securityHeaders).forEach(([key, value]) => {
@@ -118,10 +130,20 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const proposals = await proposalService.listProposals(
-    getSessionUserId(session),
-    session.user.role
-  )
+  let proposals
+
+  try {
+    proposals = await proposalService.listProposals(
+      getSessionUserId(session),
+      session.user.role
+    )
+  } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return NextResponse.json({ proposals: [], localDemo: true })
+    }
+
+    throw error
+  }
 
   return NextResponse.json({ proposals })
 }
@@ -160,6 +182,13 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ proposal: updated })
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return NextResponse.json(
+        { error: "Proposals are unavailable in local demo mode" },
+        { status: 503 }
+      )
+    }
+
     if (error instanceof Error && error.message === "PROPOSAL_NOT_FOUND") {
       return NextResponse.json({ error: "Proposal not found" }, { status: 404 })
     }

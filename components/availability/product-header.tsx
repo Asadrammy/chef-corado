@@ -48,11 +48,11 @@ export function ProductHeader({
                 </div>
               </motion.div>
               <h1 className="text-4xl font-bold tracking-tight text-gray-900">
-                Availability
+                Availability calendar
               </h1>
             </div>
             <p className="text-lg text-gray-500 pl-14">
-              Manage your schedule and time slots
+              Manage your schedule, available time slots, and unavailable dates
             </p>
           </div>
 
@@ -74,19 +74,19 @@ export function ProductHeader({
                   onClick={onBulkBlock}
                   className="rounded-xl cursor-pointer"
                 >
-                  Bulk Block Dates
+                  Mark Dates Unavailable
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={onCopyPreviousWeek}
                   className="rounded-xl cursor-pointer"
                 >
-                  Copy Previous Week
+                  Copy Available Times from Previous Week
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={onClearAvailability}
                   className="rounded-xl cursor-pointer text-red-600"
                 >
-                  Clear All Availability
+                  Remove All Availability
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -101,7 +101,7 @@ export function ProductHeader({
                 className="gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/30 transition-all"
               >
                 <Sparkles className="h-4 w-4" />
-                Add Availability
+                Mark Date Available
               </Button>
             </motion.div>
           </div>

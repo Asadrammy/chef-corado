@@ -82,13 +82,13 @@ export const registerSchema = z.object({
   acceptedTerms: z.literal(true, {
     errorMap: () => ({ message: 'You must accept the Terms & Conditions' }),
   }),
-  acceptedInsurance: z.boolean().optional(),
+  acceptedCompliance: z.boolean().optional(),
 }).superRefine((data, context) => {
-  if (data.role === 'CHEF' && data.acceptedInsurance !== true) {
+  if (data.role === 'CHEF' && data.acceptedCompliance !== true) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
-      path: ['acceptedInsurance'],
-      message: 'Chefs must acknowledge the insurance requirement',
+      path: ['acceptedCompliance'],
+      message: 'Chefs must acknowledge the legal and compliance requirement',
     });
   }
 });

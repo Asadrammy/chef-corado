@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { prisma } from '@/lib/prisma';
+import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { Role } from '@/types';
 import { z } from 'zod';
@@ -10,6 +10,12 @@ const createReviewSchema = z.object({
   comment: z.string().optional(),
   bookingId: z.string(),
 });
+
+const emptyReviewsResponse = {
+  reviews: [],
+  averageRating: 0,
+  totalReviews: 0,
+};
 
 export async function POST(request: NextRequest) {
   try {
@@ -99,6 +105,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Chef ID or user ID is required' }, { status: 400 });
     }
 
+    if (process.env.NODE_ENV === 'development' && resolvedChefId === 'local-demo-chef-profile') {
+      return NextResponse.json({
+        ...emptyReviewsResponse,
+        localDemo: true,
+      });
+    }
+
     const reviews = await prisma.review.findMany({
       where: { chefId: resolvedChefId },
       include: {
@@ -131,6 +144,13 @@ export async function GET(request: NextRequest) {
       totalReviews: reviews.length,
     });
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
+      return NextResponse.json({
+        ...emptyReviewsResponse,
+        localDemo: true,
+      });
+    }
+
     console.error('Error fetching reviews:', error);
     return NextResponse.json({ error: 'Failed to fetch reviews' }, { status: 500 });
   }

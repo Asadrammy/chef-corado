@@ -54,15 +54,6 @@ function formatChefProfile(profile: any) {
       menuImage: menu.menuImage,
       cuisineType: menu.cuisineType,
       eventType: menu.eventType,
-      sections: (menu.sections ?? []).map((section: any) => ({
-        id: section.id,
-        title: section.title,
-        items: (section.items ?? []).map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          description: item.description,
-        })),
-      })),
     })),
     reviews: (profile.reviews ?? []).map((review: any) => ({
       id: review.id,
@@ -116,14 +107,6 @@ export async function GET(
           },
         },
         menus: {
-          include: {
-            sections: {
-              include: {
-                items: true,
-              },
-              orderBy: { sortOrder: "asc" },
-            },
-          },
           orderBy: { createdAt: "desc" },
         },
         experiences: {

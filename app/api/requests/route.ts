@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
 import { handleApiError } from "@/lib/error-handler"
+import { localDemoClientRequests } from "@/lib/local-demo-data"
+import { isPrismaConnectionError } from "@/lib/prisma"
 import { requestService } from "@/lib/services/request-service"
 import { requestSchema } from "@/lib/validation-schemas"
 import { Role } from "@/types"
@@ -51,6 +53,12 @@ export async function GET() {
 
     return NextResponse.json(result)
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return NextResponse.json({
+        requests: session.user.role === Role.CLIENT ? localDemoClientRequests : [],
+      })
+    }
+
     return handleApiError(error, "Requests GET")
   }
 }

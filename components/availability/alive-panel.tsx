@@ -155,10 +155,10 @@ export function AlivePanel({
               </motion.div>
               <div className="space-y-3">
                 <h3 className="text-xl font-semibold text-gray-900">
-                  No Availability Set
+                  No Availability Set For This Date
                 </h3>
                 <p className="text-gray-500">
-                  Add your first time slot to start accepting bookings
+                  Mark this date available by adding time slots, or use Block Dates from the header if you are unavailable. Blocked dates prevent new bookings but do not affect existing confirmed bookings.
                 </p>
               </div>
               {onAddSlot && (
@@ -211,7 +211,7 @@ export function AlivePanel({
                           }
                         `}>
                           {!slot.isAvailable
-                            ? "Blocked"
+                            ? "Blocked / Unavailable"
                             : `${slot.currentBookings}/${slot.maxBookings} booked`}
                         </span>
                         {slot.recurringPattern && (
@@ -270,7 +270,7 @@ export function AlivePanel({
                   className="w-full gap-2 rounded-2xl border-2 border-dashed border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/50 transition-all"
                 >
                   <Plus className="h-4 w-4" />
-                  Add Another Slot
+                  Mark Another Time Slot Available
                 </Button>
               </motion.div>
             )}

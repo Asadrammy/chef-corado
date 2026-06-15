@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
 import { bookingService } from "@/lib/services/booking-service"
+import { isPrismaConnectionError } from "@/lib/prisma"
+import { localDemoBookings } from "@/lib/local-demo-data"
 
 export async function GET(request: NextRequest) {
   let session
@@ -18,15 +20,38 @@ export async function GET(request: NextRequest) {
   const sortBy = searchParams.get('sortBy') || 'createdAt'
   const sortOrder = (searchParams.get('sortOrder') || 'desc') as 'asc' | 'desc'
 
-  const result = await bookingService.listBookings({
-    userId: getSessionUserId(session),
-    role: session.user.role,
-    page,
-    limit,
-    status,
-    sortBy,
-    sortOrder,
-  })
+  let result
+
+  try {
+    result = await bookingService.listBookings({
+      userId: getSessionUserId(session),
+      role: session.user.role,
+      page,
+      limit,
+      status,
+      sortBy,
+      sortOrder,
+    })
+  } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      const bookings = status
+        ? localDemoBookings.filter((booking) => booking.status === status)
+        : localDemoBookings
+
+      return NextResponse.json({
+        bookings: bookings.slice(0, limit),
+        pagination: {
+          page,
+          limit,
+          total: bookings.length,
+          pages: 1,
+        },
+        localDemo: true,
+      })
+    }
+
+    throw error
+  }
 
   return NextResponse.json(result)
 }

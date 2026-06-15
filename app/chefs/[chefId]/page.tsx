@@ -1,10 +1,12 @@
-import { cookies } from "next/headers"
+﻿import { cookies } from "next/headers"
 import { notFound } from "next/navigation"
 import { CheckCircle2, MapPin, MessageCircle, ShieldCheck, Star } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { PublicJsonLd } from "@/components/public/structured-data"
 import { formatCurrency } from "@/lib/currency"
+import { buildPublicMetadata } from "@/lib/public-site"
 import { COMMUNICATION_POLICY_EXTENDED } from "@/lib/request-options"
 
 interface ChefPublicProfilePageProps {
@@ -30,9 +32,29 @@ async function getChefProfile(chefId: string, preview?: string, cookieHeader?: s
   return response.json()
 }
 
+export async function generateMetadata({ params }: ChefPublicProfilePageProps) {
+  const { chefId } = await params
+
+  try {
+    const chef = await getChefProfile(chefId)
+    return buildPublicMetadata({
+      title: `${chef.user.name} | Private Chef Profile`,
+      description: chef.bio || `Explore ${chef.user.name}'s private chef profile, menus, reviews, and service area.`,
+      path: `/chefs/${chefId}`,
+    })
+  } catch {
+    return buildPublicMetadata({
+      title: "Private Chef Profile | Chef Marketplace",
+      description: "Explore a private chef profile, menus, reviews, and service area.",
+      path: `/chefs/${chefId}`,
+    })
+  }
+}
+
 export default async function ChefPublicProfilePage({ params, searchParams }: ChefPublicProfilePageProps) {
   const { chefId } = await params
   const resolvedSearchParams = searchParams ? await searchParams : undefined
+  const isPreviewMode = resolvedSearchParams?.preview === "1"
   const cookieHeader = (await cookies()).toString()
   const chef = await getChefProfile(chefId, resolvedSearchParams?.preview, cookieHeader)
 
@@ -44,6 +66,28 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-10 sm:px-6 lg:px-8">
+      <PublicJsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "Person",
+          name: chef.user.name,
+          image: chef.profileImage,
+          description: chef.bio,
+          address: chef.location,
+          jobTitle: "Private Chef",
+          aggregateRating: chef.reviewCount > 0 ? {
+            "@type": "AggregateRating",
+            ratingValue: chef.averageRating,
+            reviewCount: chef.reviewCount,
+          } : undefined,
+        }}
+      />
+      {isPreviewMode ? (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-foreground shadow-sm">
+          <p className="font-medium">You are viewing your public profile in preview mode.</p>
+          <p className="mt-1 text-muted-foreground">Reviews shown here are public. Legal compliance confirmations and private certificate documents are never shown on your public profile.</p>
+        </div>
+      ) : null}
       <section className="brand-surface relative overflow-hidden rounded-[36px] p-8 shadow-2xl shadow-slate-900/10 backdrop-blur-xl">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.16),transparent_35%),radial-gradient(circle_at_bottom_left,rgba(14,165,233,0.12),transparent_40%)]" />
         <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -51,7 +95,7 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
             <div className="flex flex-wrap items-center gap-4">
               <div className="rounded-[28px] border border-white/60 bg-white/80 p-2 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-white/5">
                 {chef.profileImage ? (
-                  <img src={chef.profileImage} alt={chef.user.name} className="h-28 w-28 rounded-[22px] object-cover" />
+                  <img src={chef.profileImage} alt={`${chef.user.name} public profile image`} className="h-28 w-28 rounded-[22px] object-cover" />
                 ) : (
                   <div className="flex h-28 w-28 items-center justify-center rounded-[22px] bg-muted text-2xl font-semibold">
                     {chef.user.name?.charAt(0) ?? "C"}
@@ -90,7 +134,7 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
             </div>
             {chef.certifications.length > 0 ? (
               <div className="space-y-2">
-                <p className="text-sm font-semibold text-foreground">Certifications</p>
+                <p className="text-sm font-semibold text-foreground">Additional professional certifications</p>
                 <div className="flex flex-wrap gap-2">
                   {chef.certifications.map((certification: string) => (
                     <Badge key={certification} variant="outline">{certification}</Badge>
@@ -103,14 +147,22 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
           <div className="space-y-4">
             <Card className="brand-card-surface rounded-[28px] shadow-lg shadow-black/5">
               <CardHeader>
-                <CardTitle>Book with confidence</CardTitle>
+                <CardTitle>Trust highlights</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm text-muted-foreground">
                 <div className="flex items-center gap-2 text-foreground">
                   <ShieldCheck className="size-4" />
-                  <span className="font-medium">Verified profile & reviews</span>
+                  <span className="font-medium">Profile, reviews, menus, and event details</span>
                 </div>
                 <div className="grid gap-3">
+                  <div>
+                    <p className="font-medium text-foreground">Verified signal</p>
+                    <p>{chef.user.verified ? "Verification is visible on this chef profile." : "This chef is available for discovery but does not currently show a verification badge."}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-foreground">Private dining details</p>
+                    <p>Clients can review menus, experiences, service area, and guest feedback before enquiring.</p>
+                  </div>
                   <div>
                     <p className="font-medium text-foreground">Experience</p>
                     <p>{chef.experience ?? 0} years · {chef.eventsPerMonth ?? "Flexible"} events / month</p>
@@ -122,10 +174,10 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
                 </div>
                 <div className="space-y-3">
                   <a
-                    href={`/dashboard/client/create-request?chefId=${chefId}`}
-                    className="brand-gradient-button flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold shadow-lg shadow-primary/25 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl"
+                    href="/register?role=CLIENT"
+                    className="brand-gradient-button flex w-full items-center justify-center rounded-2xl px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-primary/25 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl"
                   >
-                    Request a Booking
+                    Request Proposal
                   </a>
                   {cookingClassExperience ? (
                     <div className="brand-soft-panel rounded-[24px] p-4">
@@ -142,25 +194,25 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
                       <div className="mt-4 flex flex-col gap-3">
                         <a
                           href={`/experiences/${cookingClassExperience.id}`}
-                          className="flex w-full items-center justify-center rounded-2xl border border-primary/20 bg-background/80 px-4 py-3 text-sm font-semibold text-primary shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:bg-primary/5"
+                          className="brand-gradient-button inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold text-white shadow-md shadow-primary/20"
                         >
-                          Book Cooking Class
+                          Plan Your Class
                         </a>
                         <a
-                          href={`/dashboard/client/create-request?chefId=${chefId}`}
+                          href="/register?role=CLIENT"
                           className="flex w-full items-center justify-center rounded-2xl border border-border/60 bg-background/70 px-4 py-3 text-sm font-semibold text-foreground shadow-sm transition-all duration-300 hover:-translate-y-0.5"
                         >
-                          Request Cooking Class
+                          Enquire Availability
                         </a>
                       </div>
                     </div>
                   ) : null}
                   <a
-                    href="/dashboard/chat"
+                    href="/login?role=CLIENT"
                     className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border/60 bg-background/70 px-4 py-3 text-sm font-semibold text-foreground shadow-sm transition-all duration-300 hover:-translate-y-0.5"
                   >
                     <MessageCircle className="size-4" />
-                    Message Chef
+                    Plan Your Event
                   </a>
                   <p className="text-xs leading-5 text-muted-foreground">{COMMUNICATION_POLICY_EXTENDED}</p>
                 </div>
@@ -223,7 +275,7 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
           <Card className="brand-card-surface rounded-[28px] shadow-sm">
             <CardHeader className="space-y-1">
               <CardTitle>Classes & bookable experiences</CardTitle>
-              <p className="text-sm text-muted-foreground">Cooking classes and private experiences available directly through the platform.</p>
+              <p className="text-sm text-muted-foreground">Cooking classes and private experiences available from this chef.</p>
             </CardHeader>
             <CardContent>
               {chef.experiences.length === 0 ? (
@@ -261,7 +313,7 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
                             href={`/experiences/${experience.id}`}
                             className="brand-gradient-button inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold shadow-md shadow-primary/20"
                           >
-                            Book Cooking Class
+                            Plan This Class
                           </a>
                         </div>
                       ) : null}
@@ -323,8 +375,8 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-muted-foreground">
               <div className="rounded-[20px] border border-border/60 bg-muted/20 p-4">
-                <p className="text-foreground font-medium">Booking availability is shown during checkout</p>
-                <p className="mt-1">Open dates and remaining capacity are confirmed in the booking flow based on the chef&apos;s live availability calendar.</p>
+                <p className="text-foreground font-medium">Live availability is confirmed during booking</p>
+                <p className="mt-1">Open dates and remaining capacity are confirmed when you enquire about your event.</p>
               </div>
               <div className="flex items-center gap-2 text-foreground">
                 <CheckCircle2 className="size-4" />

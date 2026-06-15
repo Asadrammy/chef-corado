@@ -15,7 +15,8 @@ import {
 
 import { authOptions } from "@/lib/auth"
 import { formatCurrency } from "@/lib/currency"
-import { prisma } from "@/lib/prisma"
+import { localDemoClientRequests } from "@/lib/local-demo-data"
+import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 
@@ -36,6 +37,23 @@ type RequestRow = {
   }
 }
 
+function parseTagList(value: string | null) {
+  if (!value) {
+    return []
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) {
+      return parsed.map(String).filter(Boolean)
+    }
+  } catch {
+    // Fall through to legacy comma-separated values.
+  }
+
+  return value.split(",").map((item) => item.trim()).filter(Boolean)
+}
+
 export const metadata: Metadata = generateMeta({
   title: "My Requests",
   description: "Review all of your submitted requests and their statuses.",
@@ -49,27 +67,37 @@ export default async function ClientRequestsPage() {
 
   cookies()
 
-  const requests: RequestRow[] = await prisma.request.findMany({
-    where: { clientId: session.user.id as string },
-    orderBy: { eventDate: "desc" },
-    select: {
-      id: true,
-      title: true,
-      eventType: true,
-      cuisineTypes: true,
-      dietaryRequirements: true,
-      eventDate: true,
-      location: true,
-      budget: true,
-      currency: true,
-      guestCount: true,
-      _count: {
-        select: {
-          proposals: true,
+  let requests: RequestRow[]
+
+  try {
+    requests = await prisma.request.findMany({
+      where: { clientId: session.user.id as string },
+      orderBy: { eventDate: "desc" },
+      select: {
+        id: true,
+        title: true,
+        eventType: true,
+        cuisineTypes: true,
+        dietaryRequirements: true,
+        eventDate: true,
+        location: true,
+        budget: true,
+        currency: true,
+        guestCount: true,
+        _count: {
+          select: {
+            proposals: true,
+          },
         },
       },
-    },
-  })
+    })
+  } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      requests = localDemoClientRequests
+    } else {
+      throw error
+    }
+  }
 
   return (
     <div className="space-y-6 lg:space-y-7">
@@ -151,15 +179,15 @@ export default async function ClientRequestsPage() {
               {/* Tags */}
               {(request.cuisineTypes || request.dietaryRequirements) ? (
                 <div className="mt-4 flex flex-wrap gap-1.5">
-                  {request.cuisineTypes && request.cuisineTypes.split(',').slice(0, 2).map((cuisine) => (
+                  {parseTagList(request.cuisineTypes).slice(0, 2).map((cuisine) => (
                     <Badge key={cuisine} variant="outline" className="text-xs">
                       <ChefHat className="h-3 w-3 mr-1" />
-                      {cuisine.trim()}
+                      {cuisine}
                     </Badge>
                   ))}
-                  {request.dietaryRequirements && request.dietaryRequirements.split(',').slice(0, 1).map((diet) => (
+                  {parseTagList(request.dietaryRequirements).slice(0, 1).map((diet) => (
                     <Badge key={diet} variant="secondary" className="text-xs">
-                      {diet.trim()}
+                      {diet}
                     </Badge>
                   ))}
                 </div>

@@ -4,6 +4,7 @@ import * as React from "react"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
+import { formatCurrency } from "@/lib/currency"
 
 interface EarningsData {
   month: string
@@ -70,14 +71,6 @@ export function EarningsChart({ data, isLoading }: EarningsChartProps) {
     )
   }
 
-  // Format currency for tooltip
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(value)
-  }
-
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -85,7 +78,7 @@ export function EarningsChart({ data, isLoading }: EarningsChartProps) {
         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
           <p className="text-sm font-medium text-gray-900">{label}</p>
           <p className="text-sm text-green-600 font-semibold">
-            {formatCurrency(payload[0].value)}
+            {formatCurrency(payload[0].value, "GBP")}
           </p>
         </div>
       )
@@ -113,7 +106,7 @@ export function EarningsChart({ data, isLoading }: EarningsChartProps) {
               <YAxis 
                 className="text-xs text-gray-500 dark:text-gray-400"
                 tick={{ fill: 'currentColor' }}
-                tickFormatter={(value) => `$${value}`}
+                tickFormatter={(value) => formatCurrency(value, "GBP")}
               />
               <Tooltip content={<CustomTooltip />} />
               <Line

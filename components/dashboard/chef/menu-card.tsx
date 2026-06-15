@@ -16,22 +16,36 @@ interface MenuCardProps {
 }
 
 export function MenuCard({ menu, onEdit, onDelete, isDeleting = false }: MenuCardProps) {
+  const menuType = menu.menuType || "FREE_FORM"
+  const descriptionPreview = menu.description?.trim() || "No description provided."
+
   return (
     <Card className="rounded-lg border-border bg-card shadow-sm transition-shadow hover:shadow-md">
       <CardHeader className="gap-3 p-4 pb-0">
-        <div className="flex items-start justify-between gap-4">
-          <CardTitle className="min-w-0 text-base font-semibold text-foreground">
-            <span className="block truncate">{menu.title}</span>
-          </CardTitle>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0 space-y-2">
+            <CardTitle className="min-w-0 text-base font-semibold text-foreground">
+              <span className="block truncate">{menu.title}</span>
+            </CardTitle>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="secondary" className="rounded-md">
+                {menuType === "PRICED" ? "Priced Menu" : menuType === "SAMPLE" ? "Sample Menu" : "Free Form"}
+              </Badge>
+              {menu.cuisineType ? <Badge variant="outline" className="rounded-md">{menu.cuisineType}</Badge> : null}
+            </div>
+          </div>
           <div className="shrink-0 text-sm font-medium text-foreground">
-            {formatCurrency(menu.price, menu.currency || "GBP")}
+            {menuType === "PRICED" && typeof menu.price === "number" ? formatCurrency(menu.price, menu.currency || "GBP") : null}
           </div>
         </div>
       </CardHeader>
       <CardContent className="p-4 pt-0">
-        <p className="line-clamp-2 min-h-10 text-sm text-muted-foreground">
-          {menu.description?.trim() || "No description provided."}
-        </p>
+        <div className="space-y-3">
+          <div className="max-h-32 overflow-hidden whitespace-pre-wrap text-sm text-muted-foreground">
+            {descriptionPreview}
+          </div>
+          {menu.eventType ? <p className="text-xs text-muted-foreground">Best for: {menu.eventType}</p> : null}
+        </div>
       </CardContent>
       <CardFooter className="flex items-center justify-between gap-3 p-4 pt-0">
         <Badge variant="secondary" className="rounded-md">

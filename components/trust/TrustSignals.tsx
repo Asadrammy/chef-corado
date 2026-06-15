@@ -22,13 +22,13 @@ export function TrustSignals({ chef, experience, request, className }: TrustSign
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Shield className="w-5 h-5" />
-          Verification Status
+          Profile Signals
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Verification Badges - Only show real verified data */}
         <div className="space-y-3">
-          <h4 className="text-sm font-medium">Platform Verification</h4>
+          <h4 className="text-sm font-medium">Visible platform signals</h4>
           <div className="flex flex-wrap gap-2">
             {chef?.verified && (
               <Badge className="bg-green-50 text-green-600 border-green-200">
@@ -44,7 +44,7 @@ export function TrustSignals({ chef, experience, request, className }: TrustSign
             )}
             {!chef?.verified && !chef?.isApproved && (
               <Badge className="bg-gray-50 text-gray-600 border-gray-200">
-                Pending Verification
+                No visible verification badge
               </Badge>
             )}
           </div>

@@ -90,6 +90,8 @@ export function useRealtime<T = any>({
     return () => {
       stopPolling();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // startPolling/stopPolling are intentionally stable inner functions; adding them would cause infinite re-renders.
   }, [endpoint, interval, enabled]);
 
   return {
@@ -247,6 +249,8 @@ export function useWebSocket(url: string, enabled = true) {
     return () => {
       disconnect();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // connect/disconnect are intentionally stable inner functions with their own cleanup refs.
   }, [url, enabled]);
 
   return {

@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import { ArrowRight, Sparkles } from "lucide-react"
+import Link from "next/link"
+import { ArrowLeft, ArrowRight, Sparkles } from "lucide-react"
 
 import { LoginForm } from "@/components/auth/LoginForm"
 import { RegisterForm } from "@/components/auth/RegisterForm"
@@ -45,20 +46,40 @@ export default function LoginPage() {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setMode(mode === "login" ? "register" : "login")}
-                  className="mt-8 inline-flex w-fit items-center rounded-full border border-white/18 bg-white/10 px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(0,0,0,0.16)] backdrop-blur-md transition-all duration-200 hover:bg-white/16"
-                >
-                  {mode === "login" ? "Create account" : "Back to sign in"}
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </button>
+                <div className="mt-8 flex flex-col items-start gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setMode(mode === "login" ? "register" : "login")}
+                    className="inline-flex w-fit items-center rounded-full border border-white/18 bg-white/10 px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_34px_rgba(0,0,0,0.16)] backdrop-blur-md transition-all duration-200 hover:bg-white/16"
+                  >
+                    {mode === "login" ? "Create account" : "Back to sign in"}
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </button>
+
+                  <Link
+                    href="/"
+                    className="inline-flex w-fit items-center rounded-full border border-white/12 bg-black/10 px-4 py-2.5 text-sm font-semibold text-white/76 shadow-[0_10px_26px_rgba(0,0,0,0.12)] backdrop-blur-md transition-all duration-200 hover:border-white/22 hover:bg-white/10 hover:text-white"
+                  >
+                    <ArrowLeft className="mr-2 h-4 w-4" />
+                    Back to Homepage
+                  </Link>
+                </div>
               </div>
             </section>
 
             <section className="flex min-h-0 items-center justify-center py-4 lg:justify-end lg:py-8">
-              <div className="w-full max-w-lg max-lg:max-h-[calc(100vh-3rem)] max-lg:overflow-y-auto rounded-[28px] border border-white/30 bg-white/75 shadow-[0_24px_60px_rgba(4,10,22,0.22)] backdrop-blur-xl lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto">
-                {mode === "login" ? <LoginForm onToggleMode={() => setMode("register")} /> : <RegisterForm onToggleMode={() => setMode("login")} />}
+              <div className="flex w-full max-w-lg flex-col items-center gap-4">
+                <div className="w-full max-lg:max-h-[calc(100vh-6rem)] max-lg:overflow-y-auto rounded-[28px] border border-white/30 bg-white/75 shadow-[0_24px_60px_rgba(4,10,22,0.22)] backdrop-blur-xl lg:max-h-[calc(100vh-4rem)] lg:overflow-y-auto">
+                  {mode === "login" ? <LoginForm onToggleMode={() => setMode("register")} /> : <RegisterForm onToggleMode={() => setMode("login")} />}
+                </div>
+
+                <Link
+                  href="/"
+                  className="inline-flex items-center rounded-full border border-white/24 bg-white/12 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(0,0,0,0.16)] backdrop-blur-md transition-all duration-200 hover:bg-white/18 lg:hidden"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to Homepage
+                </Link>
               </div>
             </section>
           </div>

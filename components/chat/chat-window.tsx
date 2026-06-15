@@ -235,7 +235,17 @@ export function ChatWindow({
 
       if (!response.ok) throw new Error('Failed to send message');
 
-      await response.json();
+      const payload = (await response.json()) as ApiEnvelope<ChatMessage>;
+      if (payload.data) {
+        setMessages((prev) =>
+          prev.map((message) => (message.id === optimisticId ? payload.data as ChatMessage : message))
+        );
+        lastMessageTimestampRef.current = payload.data.createdAt;
+      } else {
+        setMessages((prev) =>
+          prev.map((message) => (message.id === optimisticId ? { ...message, pending: false } : message))
+        );
+      }
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);

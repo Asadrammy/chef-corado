@@ -12,6 +12,9 @@ export async function POST(request: NextRequest) {
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email: validatedData.email.toLowerCase() },
+      select: {
+        id: true,
+      },
     })
 
     if (existingUser) {
@@ -48,6 +51,7 @@ export async function POST(request: NextRequest) {
           userId: user.id,
           location: "",
           radius: 50, // Default radius
+          // Legacy field kept only for schema compatibility. Active compliance is handled via structured confirmations and approval status.
           insuranceStatus: "pending",
         } as any,
       })

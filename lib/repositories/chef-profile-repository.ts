@@ -1,20 +1,23 @@
 import { prisma } from "@/lib/prisma"
 
+const userProfileSelect = {
+  name: true,
+  email: true,
+  phone: true,
+  verified: true,
+  experienceLevel: true,
+  termsAcceptedAt: true,
+  termsVersion: true,
+  acceptedVia: true,
+}
+
 export const chefProfileRepository = {
   findByUserId(userId: string) {
     return prisma.chefProfile.findUnique({
       where: { userId },
       include: {
         user: {
-          select: {
-            name: true,
-            email: true,
-            phone: true,
-            verified: true,
-            experienceLevel: true,
-            termsAcceptedAt: true,
-            termsVersion: true,
-          },
+          select: userProfileSelect,
         },
         _count: {
           select: {
@@ -32,6 +35,8 @@ export const chefProfileRepository = {
 
   createForUser(userId: string, data: {
     phone?: string
+    firstName?: string
+    surname?: string
     bio?: string
     experience?: number
     location: string
@@ -41,9 +46,17 @@ export const chefProfileRepository = {
     profileImage?: string
     chefType?: string
     certifications?: string
+    cuisineType?: string
     eventsPerMonth?: number
     stripeAccountId?: string
     stripeOnboardingComplete?: boolean
+    rightToWorkUkConfirmed?: boolean
+    foodHygieneLevel2Confirmed?: boolean
+    foodHygieneCertificateUrl?: string
+    foodHygieneCertificateUploadedAt?: Date
+    foodHygieneCertificateReviewedAt?: Date
+    foodHygieneCertificateReviewedBy?: string
+    foodHygieneCertificateReviewStatus?: string
     latitude: number | null
     longitude: number | null
   }) {
@@ -51,7 +64,9 @@ export const chefProfileRepository = {
       if (data.phone !== undefined) {
         await tx.user.update({
           where: { id: userId },
-          data: { phone: data.phone || null },
+          data: {
+            phone: data.phone || null,
+          },
         })
       }
 
@@ -66,24 +81,24 @@ export const chefProfileRepository = {
           profileImage: data.profileImage,
           chefType: data.chefType,
           certifications: data.certifications,
+          cuisineType: data.cuisineType,
           eventsPerMonth: data.eventsPerMonth,
           stripeAccountId: data.stripeAccountId,
           stripeOnboardingComplete: data.stripeOnboardingComplete,
+          rightToWorkUkConfirmed: data.rightToWorkUkConfirmed,
+          foodHygieneLevel2Confirmed: data.foodHygieneLevel2Confirmed,
+          foodHygieneCertificateUrl: data.foodHygieneCertificateUrl,
+          foodHygieneCertificateUploadedAt: data.foodHygieneCertificateUploadedAt,
+          foodHygieneCertificateReviewedAt: data.foodHygieneCertificateReviewedAt,
+          foodHygieneCertificateReviewedBy: data.foodHygieneCertificateReviewedBy,
+          foodHygieneCertificateReviewStatus: data.foodHygieneCertificateReviewStatus,
           latitude: data.latitude,
           longitude: data.longitude,
           user: { connect: { id: userId } },
-        } as any,
+        },
         include: {
           user: {
-            select: {
-              name: true,
-              email: true,
-              phone: true,
-              verified: true,
-              experienceLevel: true,
-              termsAcceptedAt: true,
-              termsVersion: true,
-            },
+            select: userProfileSelect,
           },
           _count: {
             select: {
@@ -102,6 +117,8 @@ export const chefProfileRepository = {
 
   updateByUserId(userId: string, data: {
     phone?: string
+    firstName?: string
+    surname?: string
     bio?: string
     experience?: number
     location: string
@@ -111,9 +128,17 @@ export const chefProfileRepository = {
     profileImage?: string
     chefType?: string
     certifications?: string
+    cuisineType?: string
     eventsPerMonth?: number
     stripeAccountId?: string
     stripeOnboardingComplete?: boolean
+    rightToWorkUkConfirmed?: boolean
+    foodHygieneLevel2Confirmed?: boolean
+    foodHygieneCertificateUrl?: string
+    foodHygieneCertificateUploadedAt?: Date
+    foodHygieneCertificateReviewedAt?: Date
+    foodHygieneCertificateReviewedBy?: string
+    foodHygieneCertificateReviewStatus?: string
     latitude: number | null
     longitude: number | null
   }) {
@@ -121,7 +146,9 @@ export const chefProfileRepository = {
       if (data.phone !== undefined) {
         await tx.user.update({
           where: { id: userId },
-          data: { phone: data.phone || null },
+          data: {
+            phone: data.phone || null,
+          },
         })
       }
 
@@ -137,23 +164,23 @@ export const chefProfileRepository = {
           profileImage: data.profileImage,
           chefType: data.chefType,
           certifications: data.certifications,
+          cuisineType: data.cuisineType,
           eventsPerMonth: data.eventsPerMonth,
           stripeAccountId: data.stripeAccountId,
           stripeOnboardingComplete: data.stripeOnboardingComplete,
+          rightToWorkUkConfirmed: data.rightToWorkUkConfirmed,
+          foodHygieneLevel2Confirmed: data.foodHygieneLevel2Confirmed,
+          foodHygieneCertificateUrl: data.foodHygieneCertificateUrl,
+          foodHygieneCertificateUploadedAt: data.foodHygieneCertificateUploadedAt,
+          foodHygieneCertificateReviewedAt: data.foodHygieneCertificateReviewedAt,
+          foodHygieneCertificateReviewedBy: data.foodHygieneCertificateReviewedBy,
+          foodHygieneCertificateReviewStatus: data.foodHygieneCertificateReviewStatus,
           latitude: data.latitude,
           longitude: data.longitude,
-        } as any,
+        },
         include: {
           user: {
-            select: {
-              name: true,
-              email: true,
-              phone: true,
-              verified: true,
-              experienceLevel: true,
-              termsAcceptedAt: true,
-              termsVersion: true,
-            },
+            select: userProfileSelect,
           },
           _count: {
             select: {

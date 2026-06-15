@@ -16,10 +16,6 @@ const nextConfig: NextConfig = {
   },
   webpack: (config) => {
     config.resolve.symlinks = false;
-    config.resolve.alias = {
-      ...(config.resolve.alias ?? {}),
-      "@": path.resolve(__dirname),
-    };
     return config;
   }
 };

@@ -7,7 +7,6 @@ import { DashboardStatCard } from "@/components/ui/dashboard-stat-card"
 interface ChefStatsProps {
   availableRequests: number
   quotesSentToday: number
-  quotesTarget: number
   menusCount: number
   menusTarget: number
   responseRate: number
@@ -32,7 +31,6 @@ interface ChefStatsProps {
 export function ChefStats({
   availableRequests,
   quotesSentToday,
-  quotesTarget,
   menusCount,
   menusTarget,
   responseRate,
@@ -43,17 +41,16 @@ export function ChefStats({
   proposalsSentWeek,
   messageMetrics,
 }: ChefStatsProps) {
-  const quotesProgress = Math.min((quotesSentToday / quotesTarget) * 100, 100)
   const menusProgress = Math.min((menusCount / menusTarget) * 100, 100)
 
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
       <DashboardStatCard
-        label="Quotes sent today"
-        value={`${quotesSentToday}/${quotesTarget}`}
-        description="Marketplace proposals sent since midnight"
+        label="Quote activity today"
+        value={quotesSentToday}
+        description="Marketplace proposals sent today"
         icon={<FileText className="h-5 w-5" />}
-        trend={quotesSentToday >= quotesTarget ? "Target completed." : "Below daily target."}
+        trend="Activity summary only — not a daily limit"
       />
       <DashboardStatCard
         label="Menus published"

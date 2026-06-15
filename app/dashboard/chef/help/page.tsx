@@ -26,14 +26,14 @@ const faqData: FAQ[] = [
     id: "gs-1",
     category: "getting-started",
     question: "How do I get started as a chef on the platform?",
-    answer: "Complete your profile with bio, cuisine type, and service radius. Add at least one menu with photos. Set your availability calendar. Once approved by our team, you'll appear in marketplace searches and can start receiving booking requests.",
+    answer: "Complete your profile with bio, cuisine type, events per month, and saved service radius. Add your menus using one clear free-form menu description for each menu. Set your availability calendar. Once approved by our team, you'll appear in marketplace searches and can start receiving booking requests.",
     keywords: ["start", "begin", "setup", "new", "onboard"],
   },
   {
     id: "gs-2",
     category: "getting-started",
     question: "What makes a complete chef profile?",
-    answer: "A complete profile includes: profile photo, bio describing your culinary background, cuisine specialties, certifications, service radius, pricing information, at least one menu, and connected Stripe account for payouts. Complete profiles rank higher in search results.",
+    answer: "A complete profile includes: profile photo, bio describing your culinary background, cuisine specialties, additional professional certifications, saved service radius, events per month, legal confirmations, at least one menu, and connected Stripe account for payouts. Complete profiles rank higher in search results.",
     keywords: ["profile", "complete", "photo", "bio", "required"],
   },
   {
@@ -48,7 +48,7 @@ const faqData: FAQ[] = [
     id: "bk-1",
     category: "bookings",
     question: "How do client requests work?",
-    answer: "Clients submit requests with event details, budget, and location. Requests matching your radius appear in your Requests tab. You can send quotes with custom pricing and menus. Clients review quotes and may message you before booking.",
+    answer: "Clients submit requests with event details, budget, and location. Open customer requests within your saved service radius appear in your Requests tab. You can send quotes with custom pricing and menus. Each client request can receive up to 10 quotes total across the platform, but your own quote activity is not capped per day.",
     keywords: ["request", "quote", "client", "send", "proposal"],
   },
   {
@@ -62,7 +62,7 @@ const faqData: FAQ[] = [
     id: "bk-3",
     category: "bookings",
     question: "How do blocked dates work?",
-    answer: "Open the availability calendar, choose a day, and mark it unavailable when you need to block travel, prep, or personal time. Unavailable dates prevent new bookings but don't affect existing confirmed bookings.",
+    answer: "Open the availability calendar, choose a day, and mark it unavailable when you need to block travel, prep, or personal time. Unavailable dates prevent new bookings but do not affect existing confirmed bookings.",
     keywords: ["availability", "block", "calendar", "date", "unavailable"],
   },
   {
@@ -135,7 +135,7 @@ const faqData: FAQ[] = [
     id: "ac-2",
     category: "account",
     question: "Can I change my service radius?",
-    answer: "Yes! In Profile Settings, adjust your radius to expand or contract your service area. A larger radius means more potential requests but may include locations with longer travel times.",
+    answer: "Yes! In Profile Settings, adjust your saved service radius to expand or contract your service area. A larger radius means more potential requests but may include locations with longer travel times. The Requests page slider only narrows the current view temporarily.",
     keywords: ["radius", "service", "area", "distance", "location"],
   },
   {
@@ -187,7 +187,7 @@ const faqData: FAQ[] = [
     id: "vis-4",
     category: "visibility",
     question: "What is the daily checklist and how does it help?",
-    answer: "The daily checklist helps you stay on track with platform best practices: sending quotes, responding to messages, and maintaining your response rate. Completing daily goals improves your marketplace visibility and client engagement.",
+    answer: "The daily checklist helps you stay on track with platform best practices: reviewing open requests, keeping quote activity moving, responding to messages, and maintaining your response rate. Completing these actions improves your marketplace visibility and client engagement.",
     keywords: ["checklist", "daily", "goals", "tasks", "improve"],
   },
 ]
@@ -248,7 +248,7 @@ export default function ChefHelpPage() {
             Support workspace
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground lg:text-4xl">Chef help desk</h1>
-          <p className="text-sm leading-6 text-muted-foreground">Find answers to common questions or reach out to our support team for personalized help.</p>
+          <p className="text-sm leading-6 text-muted-foreground">Browse the knowledge base, contact support by email, and check the latest guidance for menus, compliance, and requests. Live chat is planned for a future release.</p>
         </div>
       </div>
 

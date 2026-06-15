@@ -49,8 +49,16 @@ export async function checkQuoteLimit(requestId: string): Promise<QuoteLimitChec
     }
   });
 
-  // Total quotes = proposals (chat-based quotes create proposals too)
-  const totalCount = proposalCount;
+  const offerCount = await (prisma as any).offer.count({
+    where: {
+      requestId,
+      status: {
+        in: ['PENDING', 'ACCEPTED', 'REJECTED']
+      }
+    }
+  });
+
+  const totalCount = proposalCount + offerCount;
 
   const remaining = Math.max(0, MAX_QUOTES_PER_REQUEST - totalCount);
   

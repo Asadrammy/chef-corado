@@ -185,10 +185,10 @@ export function PremiumPerformanceV3({ totalEarnings, completedBookings, earning
                   
                   {/* Clean Y-axis */}
                   <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-gray-400 -ml-10 pb-12 font-medium">
-                    <span>$1.3k</span>
-                    <span>$1k</span>
-                    <span>$500</span>
-                    <span>$0</span>
+                    <span>£1.3k</span>
+                    <span>£1k</span>
+                    <span>£500</span>
+                    <span>£0</span>
                   </div>
                   
                   {/* Clean Baseline */}

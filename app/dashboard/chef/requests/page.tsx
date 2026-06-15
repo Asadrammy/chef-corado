@@ -5,13 +5,53 @@ import { redirect } from "next/navigation"
 
 import { authOptions } from "@/lib/auth"
 import { ChefRequestsMarketplace } from "@/components/chef-requests-marketplace"
-import { prisma } from "@/lib/prisma"
+import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { calculateDistance } from "@/lib/geo"
+import type { ChefRequestRow } from "@/components/chef-request-table"
 
 export const metadata: Metadata = generateMeta({
   title: "Incoming Requests",
   description: "Browse and respond to client requests in your area",
 })
+
+const localDemoRequests: ChefRequestRow[] = [
+  {
+    id: "local-request-anniversary",
+    eventDate: new Date(Date.now() + 9 * 24 * 60 * 60 * 1000).toISOString(),
+    location: "Downtown",
+    budget: 1450,
+    currency: "USD",
+    details: "Anniversary dinner for 10 guests with a refined seasonal tasting menu.",
+    distanceKm: 6.4,
+  },
+  {
+    id: "local-request-tasting",
+    eventDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    location: "West End",
+    budget: 2200,
+    currency: "USD",
+    details: "Modern Italian tasting menu with wine-friendly courses for a private celebration.",
+    distanceKm: 11.2,
+  },
+  {
+    id: "local-request-brunch",
+    eventDate: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
+    location: "Riverside",
+    budget: 980,
+    currency: "USD",
+    details: "Family brunch with pastries, plated mains, and relaxed tableside service.",
+    distanceKm: 4.8,
+  },
+  {
+    id: "local-request-corporate",
+    eventDate: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString(),
+    location: "Financial District",
+    budget: 3100,
+    currency: "USD",
+    details: "Executive chef's table for a small corporate hospitality evening.",
+    distanceKm: 13.7,
+  },
+]
 
 export default async function ChefRequestsPage() {
   const session = await getServerSession(authOptions)
@@ -24,58 +64,80 @@ export default async function ChefRequestsPage() {
     redirect("/dashboard")
   }
 
-  const chefProfile = await prisma.chefProfile.findUnique({
-    where: { userId },
-  })
+  try {
+    const chefProfile = await prisma.chefProfile.findUnique({
+      where: { userId },
+      select: {
+        id: true,
+        location: true,
+        latitude: true,
+        longitude: true,
+        radius: true,
+      },
+    })
 
-  if (!chefProfile) {
-    redirect("/dashboard/chef/profile")
-  }
+    if (!chefProfile) {
+      redirect("/dashboard/chef/profile")
+    }
 
-  if (chefProfile.latitude == null || chefProfile.longitude == null || chefProfile.radius <= 0) {
-    redirect("/dashboard/chef/profile")
-  }
+    if (chefProfile.latitude == null || chefProfile.longitude == null || chefProfile.radius <= 0) {
+      redirect("/dashboard/chef/profile")
+    }
 
-  const allRequests = await prisma.request.findMany({
-    where: {
-      latitude: { not: null },
-      longitude: { not: null },
-      eventDate: { gte: new Date() },
-      proposals: {
-        none: {
-          chefId: chefProfile.id,
+    const allRequests = await prisma.request.findMany({
+      where: {
+        latitude: { not: null },
+        longitude: { not: null },
+        eventDate: { gte: new Date() },
+        proposals: {
+          none: {
+            chefId: chefProfile.id,
+          },
         },
       },
-    },
-    orderBy: { eventDate: "desc" },
-    take: 100,
-  })
+      orderBy: { eventDate: "desc" },
+      take: 100,
+    })
 
-  const requests = allRequests
-    .map((request) => ({
-      id: request.id,
-      eventDate: request.eventDate.toISOString(),
-      location: request.location,
-      budget: request.budget,
-      currency: request.currency,
-      details: request.details,
-      distanceKm: Math.round(
-        calculateDistance(
-          chefProfile.latitude as number,
-          chefProfile.longitude as number,
-          request.latitude as number,
-          request.longitude as number
-        ) * 10
-      ) / 10,
-    }))
-    .filter((request) => request.distanceKm <= chefProfile.radius)
+    const requests = allRequests
+      .map((request) => ({
+        id: request.id,
+        eventDate: request.eventDate.toISOString(),
+        location: request.location,
+        budget: request.budget,
+        currency: request.currency,
+        details: request.details,
+        distanceKm: Math.round(
+          calculateDistance(
+            chefProfile.latitude as number,
+            chefProfile.longitude as number,
+            request.latitude as number,
+            request.longitude as number
+          ) * 10
+        ) / 10,
+      }))
+      .filter((request) => request.distanceKm <= chefProfile.radius)
 
-  return (
-    <ChefRequestsMarketplace
-      requests={requests}
-      serviceRadiusKm={chefProfile.radius}
-      baseLocation={chefProfile.location || undefined}
-      useSmartMatching={true}
-    />
-  )
+    return (
+      <ChefRequestsMarketplace
+        requests={requests}
+        serviceRadiusKm={chefProfile.radius}
+        baseLocation={chefProfile.location || undefined}
+        useSmartMatching={true}
+      />
+    )
+  } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return (
+        <ChefRequestsMarketplace
+          requests={localDemoRequests}
+          serviceRadiusKm={25}
+          baseLocation="Local demo kitchen"
+          useSmartMatching={false}
+        />
+      )
+    }
+
+    throw error
+  }
 }

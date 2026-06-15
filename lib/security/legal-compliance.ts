@@ -1,7 +1,7 @@
 /**
  * Legal Compliance Guard
  * 
- * Enforces terms acceptance and insurance verification requirements
+ * Enforces terms acceptance and structured chef compliance requirements
  * before allowing critical business actions.
  */
 
@@ -12,11 +12,11 @@ import { TERMS_VERSION } from '@/lib/request-options'
 export type ComplianceCheckResult = {
   termsAccepted: boolean
   termsCurrent: boolean
-  insuranceVerified: boolean
+  complianceConfirmed: boolean
   canProceed: boolean
   blockingReason?: string
   acceptedVia?: string | null
-  insuranceStatus?: string | null
+  approvalStatus?: string | null
 }
 
 /**
@@ -36,7 +36,7 @@ export async function checkTermsAcceptance(userId: string): Promise<ComplianceCh
     return {
       termsAccepted: false,
       termsCurrent: false,
-      insuranceVerified: false,
+      complianceConfirmed: false,
       canProceed: false,
       blockingReason: 'USER_NOT_FOUND',
     }
@@ -48,7 +48,7 @@ export async function checkTermsAcceptance(userId: string): Promise<ComplianceCh
   return {
     termsAccepted,
     termsCurrent,
-    insuranceVerified: false,
+    complianceConfirmed: false,
     canProceed: termsAccepted && termsCurrent,
     blockingReason: !termsAccepted ? 'TERMS_NOT_ACCEPTED' : !termsCurrent ? 'TERMS_OUTDATED' : undefined,
     acceptedVia: (user as any).acceptedVia,
@@ -56,63 +56,65 @@ export async function checkTermsAcceptance(userId: string): Promise<ComplianceCh
 }
 
 /**
- * Check if chef has verified insurance on file
+ * Check if chef has completed structured compliance and approval requirements
  */
-export async function checkInsuranceAcknowledgement(userId: string): Promise<ComplianceCheckResult> {
+export async function checkChefOperationalCompliance(userId: string): Promise<ComplianceCheckResult> {
   const chefProfile = await prisma.chefProfile.findUnique({
     where: { userId },
     select: {
-      insuranceStatus: true,
-      insuranceDocumentUrl: true,
-      insuranceExpiryDate: true,
-      insuranceVerifiedAt: true,
+      rightToWorkUkConfirmed: true,
+      foodHygieneLevel2Confirmed: true,
+      foodHygieneCertificateUrl: true,
+      chefApprovalStatus: true,
     },
-  })
+  } as any)
 
   if (!chefProfile) {
     return {
       termsAccepted: false,
       termsCurrent: false,
-      insuranceVerified: false,
+      complianceConfirmed: false,
       canProceed: false,
       blockingReason: 'CHEF_PROFILE_NOT_FOUND',
     }
   }
 
-  const insuranceExpired = chefProfile.insuranceExpiryDate ? chefProfile.insuranceExpiryDate.getTime() < Date.now() : false
-  const insuranceVerified = chefProfile.insuranceStatus === 'verified' && !!chefProfile.insuranceDocumentUrl && !!chefProfile.insuranceVerifiedAt && !insuranceExpired
+  const profile = chefProfile as any
+  const complianceConfirmed = Boolean(profile.rightToWorkUkConfirmed) && Boolean(profile.foodHygieneLevel2Confirmed)
+  const verificationStatus = profile.verificationStatus ?? 'PENDING'
+  const certificateReviewStatus = profile.foodHygieneCertificateReviewStatus ?? null
   let blockingReason: string | undefined
 
-  if (!chefProfile.insuranceDocumentUrl) {
-    blockingReason = 'INSURANCE_DOCUMENT_MISSING'
-  } else if (chefProfile.insuranceStatus === 'rejected') {
-    blockingReason = 'INSURANCE_REJECTED'
-  } else if (insuranceExpired) {
-    blockingReason = 'INSURANCE_EXPIRED'
-  } else if (!insuranceVerified) {
-    blockingReason = 'INSURANCE_NOT_VERIFIED'
+  if (!profile.rightToWorkUkConfirmed) {
+    blockingReason = 'RIGHT_TO_WORK_CONFIRMATION_REQUIRED'
+  } else if (!profile.foodHygieneLevel2Confirmed) {
+    blockingReason = 'FOOD_HYGIENE_CONFIRMATION_REQUIRED'
+  } else if (verificationStatus === 'REJECTED') {
+    blockingReason = 'CHEF_APPROVAL_REJECTED'
+  } else if (verificationStatus !== 'APPROVED') {
+    blockingReason = 'CHEF_APPROVAL_PENDING'
   }
 
   return {
     termsAccepted: false,
     termsCurrent: false,
-    insuranceVerified,
-    canProceed: insuranceVerified,
+    complianceConfirmed,
+    canProceed: complianceConfirmed && verificationStatus === 'APPROVED',
     blockingReason,
-    insuranceStatus: chefProfile.insuranceStatus,
+    approvalStatus: verificationStatus,
   }
 }
 
 /**
- * Full compliance check for chefs (terms + insurance)
+ * Full compliance check for chefs (terms + structured compliance + approval)
  */
 export async function checkChefCompliance(userId: string): Promise<ComplianceCheckResult> {
-  const [termsResult, insuranceResult] = await Promise.all([
+  const [termsResult, complianceResult] = await Promise.all([
     checkTermsAcceptance(userId),
-    checkInsuranceAcknowledgement(userId),
+    checkChefOperationalCompliance(userId),
   ])
 
-  const canProceed = termsResult.canProceed && insuranceResult.canProceed
+  const canProceed = termsResult.canProceed && complianceResult.canProceed
 
   let blockingReason: string | undefined
   if (!canProceed) {
@@ -121,18 +123,18 @@ export async function checkChefCompliance(userId: string): Promise<ComplianceChe
     } else if (!termsResult.termsCurrent) {
       blockingReason = 'TERMS_OUTDATED'
     } else {
-      blockingReason = insuranceResult.blockingReason
+      blockingReason = complianceResult.blockingReason
     }
   }
 
   return {
     termsAccepted: termsResult.termsAccepted,
     termsCurrent: termsResult.termsCurrent,
-    insuranceVerified: insuranceResult.insuranceVerified,
+    complianceConfirmed: complianceResult.complianceConfirmed,
     canProceed,
     blockingReason,
     acceptedVia: termsResult.acceptedVia,
-    insuranceStatus: insuranceResult.insuranceStatus,
+    approvalStatus: complianceResult.approvalStatus,
   }
 }
 
@@ -163,37 +165,33 @@ export async function enforceTermsAcceptance(userId: string): Promise<void> {
 }
 
 /**
- * Enforce insurance verification before chef action
+ * Enforce structured chef compliance before chef action
  */
-export async function enforceInsuranceAcknowledgement(userId: string): Promise<void> {
-  const result = await checkInsuranceAcknowledgement(userId)
+export async function enforceChefOperationalCompliance(userId: string): Promise<void> {
+  const result = await checkChefOperationalCompliance(userId)
 
   if (!result.canProceed) {
     switch (result.blockingReason) {
       case 'CHEF_PROFILE_NOT_FOUND':
         throw new ApiError(404, 'Chef profile not found')
-      case 'INSURANCE_DOCUMENT_MISSING':
+      case 'RIGHT_TO_WORK_CONFIRMATION_REQUIRED':
+      case 'FOOD_HYGIENE_CONFIRMATION_REQUIRED':
         throw new ApiError(
           403,
-          'INSURANCE_DOCUMENT_REQUIRED'
+          'LEGAL_COMPLIANCE_REQUIRED'
         )
-      case 'INSURANCE_NOT_VERIFIED':
-        throw new ApiError(
-          403,
-          'INSURANCE_VERIFICATION_REQUIRED'
-        )
-      case 'INSURANCE_REJECTED':
-        throw new ApiError(403, 'INSURANCE_REJECTED')
-      case 'INSURANCE_EXPIRED':
-        throw new ApiError(403, 'INSURANCE_EXPIRED')
+      case 'CHEF_APPROVAL_REJECTED':
+        throw new ApiError(403, 'CHEF_APPROVAL_REJECTED')
+      case 'CHEF_APPROVAL_PENDING':
+        throw new ApiError(403, 'CHEF_APPROVAL_PENDING')
       default:
-        throw new ApiError(403, 'INSURANCE_VERIFICATION_REQUIRED')
+        throw new ApiError(403, 'LEGAL_COMPLIANCE_REQUIRED')
     }
   }
 }
 
 /**
- * Enforce full chef compliance (terms + insurance)
+ * Enforce full chef compliance (terms + structured compliance + approval)
  */
 export async function enforceChefCompliance(userId: string): Promise<void> {
   const result = await checkChefCompliance(userId)
@@ -210,20 +208,13 @@ export async function enforceChefCompliance(userId: string): Promise<void> {
           403,
           'TERMS_ACCEPTANCE_OUTDATED'
         )
-      case 'INSURANCE_DOCUMENT_MISSING':
-        throw new ApiError(
-          403,
-          'INSURANCE_DOCUMENT_REQUIRED'
-        )
-      case 'INSURANCE_NOT_VERIFIED':
-        throw new ApiError(
-          403,
-          'INSURANCE_VERIFICATION_REQUIRED'
-        )
-      case 'INSURANCE_REJECTED':
-        throw new ApiError(403, 'INSURANCE_REJECTED')
-      case 'INSURANCE_EXPIRED':
-        throw new ApiError(403, 'INSURANCE_EXPIRED')
+      case 'RIGHT_TO_WORK_CONFIRMATION_REQUIRED':
+      case 'FOOD_HYGIENE_CONFIRMATION_REQUIRED':
+        throw new ApiError(403, 'LEGAL_COMPLIANCE_REQUIRED')
+      case 'CHEF_APPROVAL_REJECTED':
+        throw new ApiError(403, 'CHEF_APPROVAL_REJECTED')
+      case 'CHEF_APPROVAL_PENDING':
+        throw new ApiError(403, 'CHEF_APPROVAL_PENDING')
       default:
         throw new ApiError(403, 'LEGAL_COMPLIANCE_REQUIRED')
     }

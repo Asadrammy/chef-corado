@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { localDemoAdminAnalytics, localDemoChefAnalytics, localDemoClientAnalytics } from '@/lib/local-demo-data';
+import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
   try {
@@ -334,6 +335,21 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(analytics);
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
+      const { searchParams } = new URL(request.url);
+      const requestedRole = searchParams.get('role');
+
+      if (requestedRole === 'ADMIN') {
+        return NextResponse.json(localDemoAdminAnalytics());
+      }
+
+      if (requestedRole === 'CHEF') {
+        return NextResponse.json(localDemoChefAnalytics());
+      }
+
+      return NextResponse.json(localDemoClientAnalytics());
+    }
+
     console.error('Error fetching analytics:', error);
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
   }

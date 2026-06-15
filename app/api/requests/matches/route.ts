@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { SmartMatchingService } from "@/lib/services/smart-matching-service"
-import { prisma } from "@/lib/prisma"
+import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 
 /**
  * GET /api/requests/matches
@@ -128,6 +128,15 @@ export async function GET(request: NextRequest) {
       filtered: validMatches.length,
     })
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return NextResponse.json({
+        matches: [],
+        total: 0,
+        filtered: 0,
+        localDemo: true,
+      })
+    }
+
     console.error("Error calculating request matches:", error)
     return NextResponse.json(
       { error: "Failed to calculate matches" },

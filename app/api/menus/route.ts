@@ -1,70 +1,83 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { getCurrencyForCountry } from "@/lib/request-options"
 import { z } from "zod"
 import { validateMessageContent } from "@/lib/security/communication-policy"
 
-const menuItemSchema = z.object({
-  name: z.string().min(1, "Item name is required"),
-  description: z.string().optional(),
-  sortOrder: z.number().int().min(0).optional(),
-})
-
-const menuSectionSchema = z.object({
-  title: z.string().min(1, "Section title is required"),
-  sortOrder: z.number().int().min(0).optional(),
-  items: z.array(menuItemSchema).default([]),
-})
+const MENU_MAX_COUNT = 20
 
 const menuSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  description: z.string().optional(),
-  price: z.number().min(0, "Price must be positive"),
+  description: z.string().min(1, "Full menu description is required"),
+  price: z.number().min(0, "Price must be positive").optional(),
   currency: z.string().length(3).optional(),
+  menuType: z.enum(["PRICED", "SAMPLE", "FREE_FORM"]).default("FREE_FORM"),
   menuImage: z.string().url().optional(),
   cuisineType: z.string().optional(),
   eventType: z.string().optional(),
-  sections: z.array(menuSectionSchema).default([]),
 })
-
-type FormattedMenuItem = {
-  id: string
-  name: string
-  description?: string
-  sortOrder: number
-}
-
-type FormattedMenuSection = {
-  id: string
-  title: string
-  sortOrder: number
-  items?: FormattedMenuItem[]
-}
 
 function formatMenu(menu: any) {
   return {
     ...menu,
     description: menu.description ?? undefined,
+    price: menu.price ?? undefined,
     currency: menu.currency ?? undefined,
+    menuType: menu.menuType ?? "FREE_FORM",
     menuImage: menu.menuImage ?? undefined,
     cuisineType: menu.cuisineType ?? undefined,
     eventType: menu.eventType ?? undefined,
     createdAt: menu.createdAt.toISOString(),
     updatedAt: menu.updatedAt.toISOString(),
-    sections: ((menu.sections ?? []) as FormattedMenuSection[])
-      .sort((left: FormattedMenuSection, right: FormattedMenuSection) => left.sortOrder - right.sortOrder)
-      .map((section: FormattedMenuSection) => ({
-        ...section,
-        items: [...(section.items ?? [])]
-          .sort((left: FormattedMenuItem, right: FormattedMenuItem) => left.sortOrder - right.sortOrder)
-          .map((item: FormattedMenuItem) => ({
-            ...item,
-            description: item.description ?? undefined,
-          })),
-      })),
   }
+}
+
+function getLocalDemoMenus() {
+  const now = new Date().toISOString()
+
+  return [
+    {
+      id: "local-menu-anniversary",
+      title: "Anniversary Tasting Menu",
+      description: "A celebratory five-course private dining menu with seasonal seafood, handmade pasta, a vegetarian course, and a composed dessert.",
+      price: 185,
+      currency: "USD",
+      menuType: "PRICED",
+      menuImage: undefined,
+      cuisineType: "Modern European",
+      eventType: "Anniversary",
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: "local-menu-italian",
+      title: "Modern Italian Chef's Table",
+      description: "A relaxed tasting menu built around handmade pasta, bright antipasti, slow-cooked mains, and elegant family-style sides.",
+      price: 160,
+      currency: "USD",
+      menuType: "SAMPLE",
+      menuImage: undefined,
+      cuisineType: "Italian",
+      eventType: "Private Dinner",
+      createdAt: now,
+      updatedAt: now,
+    },
+    {
+      id: "local-menu-brunch",
+      title: "Private Weekend Brunch",
+      description: "Fresh pastries, seasonal fruit, plated egg dishes, roasted vegetables, and coffee service for an easy hosted morning.",
+      price: undefined,
+      currency: "USD",
+      menuType: "FREE_FORM",
+      menuImage: undefined,
+      cuisineType: "Brunch",
+      eventType: "Family Gathering",
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]
 }
 
 // GET all menus for the authenticated chef
@@ -84,6 +97,11 @@ export async function GET() {
 
     const chefProfile = await prisma.chefProfile.findUnique({
       where: { userId },
+      select: {
+        id: true,
+        preferredCurrency: true,
+        baseCountryCode: true,
+      },
     })
 
     if (!chefProfile) {
@@ -96,18 +114,14 @@ export async function GET() {
     const menus = await (prisma as any).menu.findMany({
       where: { chefId: chefProfile.id },
       orderBy: { createdAt: "desc" },
-      include: {
-        sections: {
-          include: {
-            items: true,
-          },
-          orderBy: { sortOrder: "asc" },
-        },
-      },
     })
 
     return NextResponse.json(menus.map(formatMenu))
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return NextResponse.json(getLocalDemoMenus())
+    }
+
     console.error("Error fetching menus:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
@@ -130,6 +144,11 @@ export async function POST(request: NextRequest) {
 
     const chefProfile = await prisma.chefProfile.findUnique({
       where: { userId },
+      select: {
+        id: true,
+        preferredCurrency: true,
+        baseCountryCode: true,
+      },
     })
 
     if (!chefProfile) {
@@ -156,16 +175,18 @@ export async function POST(request: NextRequest) {
       validateMessageContent(validatedData.eventType)
     }
 
-    // Validate section titles and item names/descriptions
-    validatedData.sections.forEach(section => {
-      validateMessageContent(section.title)
-      section.items.forEach(item => {
-        validateMessageContent(item.name)
-        if (item.description) {
-          validateMessageContent(item.description)
-        }
-      })
+    // Enforce price required only for PRICED menus
+    if (validatedData.menuType === "PRICED" && (validatedData.price === undefined || validatedData.price === null)) {
+      return NextResponse.json({ error: "Price is required for PRICED menus" }, { status: 400 })
+    }
+
+    const existingMenuCount = await prisma.menu.count({
+      where: { chefId: chefProfile.id },
     })
+
+    if (existingMenuCount >= MENU_MAX_COUNT) {
+      return NextResponse.json({ error: `You can only create up to ${MENU_MAX_COUNT} menus.` }, { status: 400 })
+    }
 
     const defaultCurrency = (chefProfile as any).preferredCurrency || getCurrencyForCountry((chefProfile as any).baseCountryCode)
 
@@ -175,36 +196,23 @@ export async function POST(request: NextRequest) {
         description: validatedData.description,
         price: validatedData.price,
         currency: validatedData.currency || defaultCurrency,
+        menuType: validatedData.menuType,
         menuImage: validatedData.menuImage,
         cuisineType: validatedData.cuisineType,
         eventType: validatedData.eventType,
         chefId: chefProfile.id,
-        sections: {
-          create: validatedData.sections.map((section, sectionIndex) => ({
-            title: section.title,
-            sortOrder: section.sortOrder ?? sectionIndex,
-            items: {
-              create: section.items.map((item, itemIndex) => ({
-                name: item.name,
-                description: item.description,
-                sortOrder: item.sortOrder ?? itemIndex,
-              })),
-            },
-          })),
-        },
-      },
-      include: {
-        sections: {
-          include: {
-            items: true,
-          },
-          orderBy: { sortOrder: "asc" },
-        },
       },
     })
 
     return NextResponse.json(formatMenu(menu), { status: 201 })
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return NextResponse.json(
+        { error: "Menus are unavailable in local demo mode" },
+        { status: 503 }
+      )
+    }
+
     console.error("Error creating menu:", error)
 
     if (error instanceof z.ZodError) {

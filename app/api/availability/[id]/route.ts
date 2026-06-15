@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
@@ -51,6 +51,13 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
+      return NextResponse.json(
+        { error: 'Availability changes are unavailable in local demo mode' },
+        { status: 503 }
+      );
+    }
+
     console.error('Error deleting availability:', error);
     return NextResponse.json(
       { error: 'Failed to delete availability' },

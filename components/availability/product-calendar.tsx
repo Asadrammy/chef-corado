@@ -62,7 +62,7 @@ export function ProductCalendar({
       case "available": return "bg-emerald-500/20 text-emerald-700 border-emerald-500/30";
       case "partial": return "bg-amber-500/20 text-amber-700 border-amber-500/30";
       case "full": return "bg-rose-500/20 text-rose-700 border-rose-500/30";
-      case "unavailable": return "bg-slate-200 text-slate-600 border-slate-300";
+      case "unavailable": return "bg-slate-300 text-slate-700 border-slate-400";
       default: return "";
     }
   };
@@ -194,7 +194,7 @@ export function ProductCalendar({
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-slate-400" />
-            <span className="text-xs text-gray-600">Unavailable</span>
+            <span className="text-xs text-gray-600">Blocked / Unavailable</span>
           </div>
         </div>
       </div>

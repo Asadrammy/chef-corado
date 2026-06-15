@@ -43,6 +43,7 @@ export default function ChefTermsPage() {
       title: "Insurance, approval, and payouts",
       points: [
         CHEF_LEGAL_ACKNOWLEDGEMENT,
+        "The platform handles insurance after chef approval and after right-to-work and Level 2 Food Hygiene confirmations are complete. Chefs do not upload insurance documents.",
         "Chef access to public discovery, booking readiness, and payouts may depend on profile approval, current legal acknowledgement, and successful payment onboarding.",
         "The platform may hold, review, delay, or restrict payouts where moderation, booking status, compliance, or payment processing issues require review.",
         "Platform commission fees are deducted from payments before payouts are released to chefs.",

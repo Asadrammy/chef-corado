@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client"
 import { createNotification } from "@/lib/notifications"
 
 type VerificationAction = "APPROVE" | "REJECT"
-type ReviewType = "profile" | "insurance"
+type ReviewType = "profile"
 
 type VerificationChef = Prisma.ChefProfileGetPayload<{
   include: {
@@ -52,7 +52,7 @@ export const adminVerificationService = {
   async listVerificationQueue(status: string | null, page: number, limit: number) {
     const where: Prisma.ChefProfileWhereInput = {}
     if (status) {
-      where.verificationStatus = status
+      ;(where as any).chefApprovalStatus = status
     }
 
     const [chefs, total] = await Promise.all([
@@ -93,6 +93,14 @@ export const adminVerificationService = {
       chefs: chefs.map((chef) => ({
         ...chef,
         profileCompletion: calculateProfileCompletion(chef),
+        verificationStatus: chef.verificationStatus,
+        rightToWorkUkConfirmed: (chef as any).rightToWorkUkConfirmed ?? false,
+        foodHygieneLevel2Confirmed: (chef as any).foodHygieneLevel2Confirmed ?? false,
+        foodHygieneCertificateUrl: (chef as any).foodHygieneCertificateUrl ?? null,
+        foodHygieneCertificateUploadedAt: (chef as any).foodHygieneCertificateUploadedAt ?? null,
+        foodHygieneCertificateReviewedAt: (chef as any).foodHygieneCertificateReviewedAt ?? null,
+        foodHygieneCertificateReviewedBy: (chef as any).foodHygieneCertificateReviewedBy ?? null,
+        foodHygieneCertificateReviewStatus: (chef as any).foodHygieneCertificateReviewStatus ?? null,
       })),
       pagination: {
         page,
@@ -103,7 +111,7 @@ export const adminVerificationService = {
     }
   },
 
-  async updateVerificationStatus(chefId: string, action: VerificationAction, reason?: string, reviewType: ReviewType = "profile", adminUserId?: string) {
+  async updateVerificationStatus(chefId: string, action: VerificationAction, reason?: string, adminUserId?: string) {
     const chef = await prisma.chefProfile.findUnique({
       where: { id: chefId },
       include: {
@@ -117,16 +125,16 @@ export const adminVerificationService = {
 
     const updatedChef = await prisma.chefProfile.update({
       where: { id: chefId },
-      data: (reviewType === "insurance"
-        ? {
-            insuranceStatus: action === "APPROVE" ? "verified" : "rejected",
-            insuranceVerifiedAt: action === "APPROVE" ? new Date() : null,
-            insuranceVerifiedBy: action === "APPROVE" ? (adminUserId ?? null) : null,
-          }
-        : {
-            verified: action === "APPROVE",
-            verificationStatus: action === "APPROVE" ? "APPROVED" : "REJECTED",
-          }) as never,
+      data: {
+        isApproved: action === "APPROVE",
+        verified: action === "APPROVE",
+        verificationStatus: action === "APPROVE" ? "APPROVED" : "REJECTED",
+        approvedAt: action === "APPROVE" ? new Date() : null,
+        approvedBy: action === "APPROVE" ? (adminUserId ?? null) : null,
+        foodHygieneCertificateReviewedAt: action === "APPROVE" ? new Date() : null,
+        foodHygieneCertificateReviewedBy: action === "APPROVE" ? (adminUserId ?? null) : null,
+        foodHygieneCertificateReviewStatus: action === "APPROVE" ? "APPROVED" : "REJECTED",
+      } as never,
       include: {
         user: {
           select: {
@@ -139,34 +147,24 @@ export const adminVerificationService = {
       },
     })
 
-    if (reviewType === "profile") {
-      await prisma.user.update({
-        where: { id: chef.user.id },
-        data: {
-          verified: action === "APPROVE",
-        },
-      })
-    }
+    await prisma.user.update({
+      where: { id: chef.user.id },
+      data: {
+        verified: action === "APPROVE",
+      },
+    })
 
     await createNotification(
       chef.user.id,
-      reviewType === "insurance"
-        ? action === "APPROVE" ? "VERIFICATION_APPROVED" : "VERIFICATION_REJECTED"
-        : action === "APPROVE" ? "VERIFICATION_APPROVED" : "VERIFICATION_REJECTED",
-      reviewType === "insurance"
-        ? action === "APPROVE"
-          ? "Your insurance document has been verified and your compliance status is now active."
-          : `Your insurance submission was rejected. ${reason ? `Reason: ${reason}` : "Please upload an updated document."}`
-        : action === "APPROVE"
-          ? "Congratulations! Your chef profile has been verified."
-          : `Your verification request was rejected. ${reason ? `Reason: ${reason}` : ""}`
+      action === "APPROVE" ? "VERIFICATION_APPROVED" : "VERIFICATION_REJECTED",
+      action === "APPROVE"
+        ? "Congratulations! Your chef profile has been approved and is now visible to clients."
+        : `Your chef approval request was rejected. ${reason ? `Reason: ${reason}` : "Please review your compliance details and try again."}`
     )
 
     return {
       chef: updatedChef,
-      message: reviewType === "insurance"
-        ? `Insurance ${action === "APPROVE" ? "approved" : "rejected"} successfully`
-        : `Chef ${action === "APPROVE" ? "approved" : "rejected"} successfully`,
+      message: `Chef ${action === "APPROVE" ? "approved" : "rejected"} successfully`,
     }
   },
 }

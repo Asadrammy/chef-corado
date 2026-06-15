@@ -30,14 +30,12 @@ interface ChefSettingsResponse {
     termsVersion: string | null
     acceptedVia: string | null
     termsCurrent: boolean
-    insuranceAcknowledgedAt: string | null
-    insuranceVersion: string | null
-    insuranceCurrent: boolean
-    insuranceStatus: "pending" | "verified" | "rejected"
-    insuranceDocumentUrl: string | null
-    insuranceExpiryDate: string | null
-    insuranceVerifiedAt: string | null
-    insuranceVerifiedBy: string | null
+    rightToWorkUkConfirmed: boolean
+    foodHygieneLevel2Confirmed: boolean
+    foodHygieneCertificateUrl: string | null
+    verificationStatus: "PENDING" | "APPROVED" | "REJECTED"
+    approvedAt: string | null
+    approvedBy: string | null
   }
   stripe: {
     accountId: string | null
@@ -78,9 +76,6 @@ export default function ChefSettingsPage() {
   const [saving, setSaving] = useState(false)
   const [connectingStripe, setConnectingStripe] = useState(false)
   const [message, setMessage] = useState("")
-  const [insuranceDocumentUrl, setInsuranceDocumentUrl] = useState("")
-  const [insuranceExpiryDate, setInsuranceExpiryDate] = useState("")
-  const [submittingInsurance, setSubmittingInsurance] = useState(false)
 
   const fetchSettings = async () => {
     try {
@@ -155,45 +150,6 @@ export default function ChefSettingsPage() {
     }
   }
 
-  const handleInsuranceSubmit = async () => {
-    if (!insuranceDocumentUrl || !insuranceExpiryDate) {
-      toast.error("Please provide both document URL and expiry date")
-      return
-    }
-
-    setSubmittingInsurance(true)
-    setMessage("")
-
-    try {
-      const response = await fetch("/api/chef/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          insuranceSubmission: {
-            insuranceDocumentUrl,
-            insuranceExpiryDate,
-          },
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to submit insurance")
-      }
-
-      toast.success("Insurance document submitted for review")
-      setInsuranceDocumentUrl("")
-      setInsuranceExpiryDate("")
-      fetchSettings()
-    } catch (error: any) {
-      console.error("Insurance submission error:", error)
-      setMessage(error.message || "Failed to submit insurance")
-      toast.error("Failed to submit insurance")
-    } finally {
-      setSubmittingInsurance(false)
-    }
-  }
-
   const handleStripeConnect = async (action: "onboarding" | "dashboard") => {
     setConnectingStripe(true)
     setMessage("")
@@ -250,7 +206,15 @@ export default function ChefSettingsPage() {
             Account control center
           </div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground lg:text-4xl">Chef settings</h1>
-          <p className="text-sm leading-6 text-muted-foreground">Manage notifications, payout readiness, and account preferences from a cleaner premium workspace.</p>
+          <p className="text-sm leading-6 text-muted-foreground">Manage notifications, Stripe connection, and legal status here. Use your chef profile for account details, professional information, service radius, and compliance data.</p>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild variant="outline" size="sm">
+              <Link href="/dashboard/chef/profile">Edit professional profile</Link>
+            </Button>
+            <Button asChild variant="outline" size="sm">
+              <Link href="/dashboard/chef/profile">Update compliance details</Link>
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -262,13 +226,14 @@ export default function ChefSettingsPage() {
       ) : null}
 
       {/* Legal warning banner */}
-      {settings && (!settings.legal.termsCurrent || !settings.legal.insuranceCurrent) && (
+      {settings && (!settings.legal.termsCurrent || !settings.legal.rightToWorkUkConfirmed || !settings.legal.foodHygieneLevel2Confirmed) && (
         <Alert variant="destructive">
           <AlertTitle>Legal acknowledgement required</AlertTitle>
           <AlertDescription>
             {!settings.legal.termsCurrent && "Your terms acknowledgement needs review. "}
-            {!settings.legal.insuranceCurrent && "Your insurance acknowledgement needs review. "}
-            Please review and re-accept the updated terms and insurance requirements to maintain full platform access.
+            {!settings.legal.rightToWorkUkConfirmed && "Your right-to-work confirmation is missing. "}
+            {!settings.legal.foodHygieneLevel2Confirmed && "Your Level 2 Food Hygiene confirmation is missing. "}
+            Please complete the required compliance confirmations in your chef profile to maintain full platform access.
           </AlertDescription>
         </Alert>
       )}
@@ -320,9 +285,9 @@ export default function ChefSettingsPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Mail className="size-5" />
-              Legal acknowledgement
+              Legal status
             </CardTitle>
-            <CardDescription>Chefs must acknowledge the platform&apos;s insurance and legal requirements before offering services.</CardDescription>
+            <CardDescription>Track your legal confirmations and approval readiness without a chef-facing insurance upload flow.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 text-sm text-muted-foreground">
             <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5">
@@ -331,92 +296,47 @@ export default function ChefSettingsPage() {
               <p className="mt-1 text-xs">Version: {settings?.legal.termsVersion ?? "Not recorded"} · {settings?.legal.termsCurrent ? "Current" : "Needs review"}</p>
             </div>
             <div className="rounded-[24px] border border-white/60 bg-white/70 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5">
-              <p className="font-medium text-foreground">Insurance verification</p>
+              <p className="font-medium text-foreground">Compliance confirmations</p>
               <div className="mt-2 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm">Status:</span>
+                  <span className="text-sm">Approval:</span>
                   <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                    settings?.legal.insuranceStatus === 'verified' ? 'bg-green-100 text-green-700' :
-                    settings?.legal.insuranceStatus === 'rejected' ? 'bg-red-100 text-red-700' :
+                    settings?.legal.verificationStatus === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                    settings?.legal.verificationStatus === 'REJECTED' ? 'bg-red-100 text-red-700' :
                     'bg-yellow-100 text-yellow-700'
                   }`}>
-                    {settings?.legal.insuranceStatus?.toUpperCase() || 'PENDING'}
+                    {settings?.legal.verificationStatus?.toUpperCase() || 'PENDING'}
                   </span>
                 </div>
-                {settings?.legal.insuranceDocumentUrl && (
+                <div className="text-xs">Right to work in the UK: {settings?.legal.rightToWorkUkConfirmed ? "Confirmed" : "Missing"}</div>
+                <div className="text-xs">Level 2 Food Hygiene: {settings?.legal.foodHygieneLevel2Confirmed ? "Confirmed" : "Missing"}</div>
+                {settings?.legal.foodHygieneCertificateUrl ? (
                   <div className="text-xs">
-                    <span>Document: </span>
-                    <a href={settings.legal.insuranceDocumentUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
-                      View insurance document
+                    <span>Private certificate document on file: </span>
+                    <a href={settings.legal.foodHygieneCertificateUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                      View admin review document
                     </a>
                   </div>
-                )}
-                {settings?.legal.insuranceExpiryDate && (
+                ) : null}
+                {settings?.legal.approvedAt ? (
                   <div className="text-xs">
-                    <span>Expires: {new Date(settings.legal.insuranceExpiryDate).toLocaleDateString()}</span>
+                    <span>Approved: {new Date(settings.legal.approvedAt).toLocaleString()}</span>
                   </div>
-                )}
-                {settings?.legal.insuranceVerifiedAt && (
-                  <div className="text-xs">
-                    <span>Verified: {new Date(settings.legal.insuranceVerifiedAt).toLocaleString()}</span>
-                  </div>
-                )}
+                ) : null}
               </div>
             </div>
             <div className="rounded-[24px] border border-dashed border-primary/20 bg-primary/5 p-4 space-y-3">
-              <p className="font-medium text-foreground">Upload insurance document</p>
-              <div className="space-y-3">
-                <div>
-                  <Label htmlFor="insuranceUrl" className="text-xs">Document URL</Label>
-                  <Input
-                    id="insuranceUrl"
-                    type="url"
-                    placeholder="https://drive.google.com/file/d/..."
-                    value={insuranceDocumentUrl}
-                    onChange={(e) => setInsuranceDocumentUrl(e.target.value)}
-                    className="mt-1"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Accepted: Google Drive, Dropbox, OneDrive, Cloudinary, AWS S3
-                  </p>
-                </div>
-                <div>
-                  <Label htmlFor="insuranceExpiry" className="text-xs">Expiry Date</Label>
-                  <Input
-                    id="insuranceExpiry"
-                    type="date"
-                    min={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}
-                    value={insuranceExpiryDate}
-                    onChange={(e) => setInsuranceExpiryDate(e.target.value)}
-                    className="mt-1"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Must be valid for at least 1 year from today
-                  </p>
-                </div>
-                <Button
-                  onClick={handleInsuranceSubmit}
-                  disabled={submittingInsurance || !insuranceDocumentUrl || !insuranceExpiryDate}
-                  className="w-full"
-                  size="sm"
-                >
-                  {submittingInsurance ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Submit for Review
-                    </>
-                  )}
-                </Button>
-              </div>
+              <p className="font-medium text-foreground">Where to update compliance</p>
+              <p className="text-sm text-muted-foreground">
+                Legal right-to-work confirmation, Level 2 Food Hygiene confirmation, and private certificate document details are managed from your chef profile.
+              </p>
+              <Button asChild className="w-full" size="sm">
+                <Link href="/dashboard/chef/profile">Open chef profile</Link>
+              </Button>
             </div>
             <div className="rounded-[24px] border border-dashed border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
               <p>{CHEF_LEGAL_ACKNOWLEDGEMENT}</p>
-              <p className="mt-2">Your chef profile, booking readiness, and payout access may depend on keeping this acknowledgement current.</p>
+              <p className="mt-2">The platform handles insurance after chef approval. Your chef profile, booking readiness, and payout access may depend on keeping your terms and compliance confirmations current.</p>
               <div className="mt-3 flex flex-wrap gap-3 text-xs font-medium">
                 <Link href="/terms/chef" className="text-foreground hover:text-primary">Chef Terms</Link>
                 <Link href="/terms/client" className="text-foreground hover:text-primary">Client Terms</Link>
@@ -470,6 +390,11 @@ export default function ChefSettingsPage() {
                 <span className="font-medium">Payouts setup</span>
               </div>
               <p className="mt-2">Connect Stripe to receive payouts for accepted bookings. Your onboarding button now opens a live Stripe Connect flow and reflects the latest account status when you return.</p>
+              <div className="mt-3">
+                <Button asChild variant="outline" size="sm">
+                  <Link href="/dashboard/chef/settings">Manage notifications</Link>
+                </Button>
+              </div>
             </div>
 
             <Button type="button" variant="outline" className="w-full rounded-2xl border-white/70 bg-white/80 shadow-sm dark:border-white/10 dark:bg-white/5" disabled={connectingStripe || settings?.stripe.configured === false} onClick={() => handleStripeConnect(settings?.stripe.isConnected ? "dashboard" : "onboarding")}>

@@ -25,14 +25,14 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
     password: string
     role: Role
     acceptedTerms: boolean
-    acceptedInsurance: boolean
+    acceptedCompliance: boolean
   }>({
     name: "",
     email: "",
     password: "",
     role: Role.CLIENT,
     acceptedTerms: false,
-    acceptedInsurance: false,
+    acceptedCompliance: false,
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -47,7 +47,7 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
     setFormData((prev) => ({ ...prev, role: value as Role }))
   }
 
-  const handleCheckboxChange = (field: "acceptedTerms" | "acceptedInsurance", checked: boolean) => {
+  const handleCheckboxChange = (field: "acceptedTerms" | "acceptedCompliance", checked: boolean) => {
     setFormData((prev) => ({ ...prev, [field]: checked }))
   }
 
@@ -62,8 +62,8 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
       return
     }
 
-    if (formData.role === Role.CHEF && !formData.acceptedInsurance) {
-      setError("Chefs must acknowledge the insurance requirement to create an account")
+    if (formData.role === Role.CHEF && !formData.acceptedCompliance) {
+      setError("Chefs must acknowledge the legal and compliance requirement to create an account")
       setLoading(false)
       return
     }
@@ -252,12 +252,12 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
             {formData.role === Role.CHEF && (
               <label className="flex items-start gap-3 rounded-2xl border border-primary/15 bg-primary/5 px-3 py-3 text-muted-foreground">
                 <Checkbox
-                  checked={formData.acceptedInsurance}
-                  onCheckedChange={(checked) => handleCheckboxChange("acceptedInsurance", Boolean(checked))}
+                  checked={formData.acceptedCompliance}
+                  onCheckedChange={(checked) => handleCheckboxChange("acceptedCompliance", Boolean(checked))}
                   disabled={loading}
                 />
                 <span>
-                  Chefs must acknowledge the platform&apos;s insurance and legal requirements before offering services. I confirm that I have reviewed those requirements, will keep my profile accurate, and understand that communication, coordination, and payments for active bookings must remain on-platform.
+                  Chefs must acknowledge the platform&apos;s legal and compliance requirements before offering services. I confirm that I will keep my profile accurate, complete the required right-to-work and food hygiene confirmations, and keep communication, coordination, and payments for active bookings on-platform.
                 </span>
               </label>
             )}

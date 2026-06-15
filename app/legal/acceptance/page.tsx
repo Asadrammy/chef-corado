@@ -33,6 +33,11 @@ export default function LegalAcceptancePage() {
       }
     } catch (error: any) {
       console.error("Failed to check acceptance status:", error)
+      // If unauthorized, redirect to login
+      if (error.response?.status === 401) {
+        router.push("/login")
+        return
+      }
     } finally {
       setLoading(false)
     }
@@ -52,12 +57,17 @@ export default function LegalAcceptancePage() {
         acceptedTerms: true,
         acceptedVia: "legal_acceptance_page",
       })
-      
+
       toast.success("Terms accepted successfully")
       router.push(redirectPath)
     } catch (error: any) {
       console.error("Failed to accept terms:", error)
-      setError(error.response?.data?.error || "Failed to accept terms")
+      // If unauthorized, redirect to login
+      if (error.response?.status === 401) {
+        router.push("/login")
+        return
+      }
+      setError(typeof error.response?.data?.error === 'string' ? error.response.data.error : "Failed to accept terms")
       toast.error("Failed to accept terms")
     } finally {
       setSubmitting(false)

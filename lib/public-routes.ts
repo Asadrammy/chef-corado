@@ -1,0 +1,28 @@
+export const publicRoutePrefixes = [
+  "/browse-chefs",
+  "/find-local-chef",
+  "/pricing",
+  "/gift-cards",
+  "/become-a-chef",
+  "/our-story",
+  "/faq",
+  "/blog",
+  "/careers",
+  "/property-manager-affiliate",
+  "/be-a-venue-partner",
+  "/reviews",
+  "/chefs",
+  "/experiences",
+  "/privacy",
+  "/terms",
+];
+
+export const publicExactRoutes = [
+  "/",
+  "/login",
+  "/register",
+  "/account-banned",
+  "/legal/acceptance",
+  "/forgot-password",
+  "/reset-password",
+];

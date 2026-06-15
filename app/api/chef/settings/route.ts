@@ -2,10 +2,26 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
-import { prisma } from "@/lib/prisma"
+import { isPrismaConnectionError, prisma, withPrismaReconnect } from "@/lib/prisma"
 import { TERMS_VERSION } from "@/lib/request-options"
 import { getStripeService, StripeService } from "@/lib/services/stripe-service"
 import { Role } from "@/types"
+
+const chefSettingsLegalSelect = {
+  stripeAccountId: true,
+  stripeOnboardingComplete: true,
+  verificationStatus: true,
+  isApproved: true,
+  rightToWorkUkConfirmed: true,
+  foodHygieneLevel2Confirmed: true,
+  foodHygieneCertificateUrl: true,
+  foodHygieneCertificateUploadedAt: true,
+  foodHygieneCertificateReviewedAt: true,
+  foodHygieneCertificateReviewedBy: true,
+  foodHygieneCertificateReviewStatus: true,
+  approvedAt: true,
+  approvedBy: true,
+}
 
 const notificationPreferenceSchema = z.object({
   emailMessages: z.boolean(),
@@ -16,41 +32,8 @@ const notificationPreferenceSchema = z.object({
   inAppRequests: z.boolean(),
 })
 
-const insuranceSubmissionSchema = z.object({
-  insuranceDocumentUrl: z.string().url("A valid insurance document URL is required").refine(
-    (url) => {
-      // Validate URL is from allowed domains or storage services
-      const allowedDomains = [
-        'drive.google.com',
-        'docs.google.com',
-        'dropbox.com',
-        'onedrive.live.com',
-        'cloudinary.com',
-        'aws.amazon.com',
-        's3.amazonaws.com',
-        'storage.googleapis.com',
-      ]
-      try {
-        const urlObj = new URL(url)
-        return allowedDomains.some(domain => urlObj.hostname.includes(domain))
-      } catch {
-        return false
-      }
-    },
-    "Document URL must be from a trusted storage service (Google Drive, Dropbox, OneDrive, Cloudinary, AWS S3)"
-  ),
-  insuranceExpiryDate: z.string().refine((value) => {
-    const date = new Date(value)
-    const now = new Date()
-    const minExpiry = new Date()
-    minExpiry.setFullYear(minExpiry.getFullYear() + 1) // Must be at least 1 year in future
-    return !Number.isNaN(date.getTime()) && date > minExpiry
-  }, "Insurance must be valid for at least 1 year from today"),
-})
-
 const settingsUpdateSchema = z.object({
   notificationPreferences: notificationPreferenceSchema.optional(),
-  insuranceSubmission: insuranceSubmissionSchema.optional(),
 })
 
 function defaultPreferences(userId: string) {
@@ -66,73 +49,79 @@ function defaultPreferences(userId: string) {
 }
 
 export async function GET() {
+  let userId: string | null = null
+
   try {
     const session = await getRequiredSession(Role.CHEF)
-    const userId = getSessionUserId(session)
+    const authenticatedUserId = getSessionUserId(session)
+    userId = authenticatedUserId
 
     // Check if Stripe is properly configured
     const stripeConfigured = StripeService.isConfigured()
 
-    const [preferences, user, chefProfile] = await Promise.all([
-      prisma.notificationPreference.findUnique({
-        where: { userId },
-      }),
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          termsAcceptedAt: true,
-          termsVersion: true,
-          acceptedVia: true,
-        },
-      }),
-      prisma.chefProfile.findUnique({
-        where: { userId },
-        select: {
-          stripeAccountId: true,
-          stripeOnboardingComplete: true,
-          insuranceStatus: true,
-          insuranceDocumentUrl: true,
-          insuranceExpiryDate: true,
-          insuranceVerifiedAt: true,
-          insuranceVerifiedBy: true,
-        },
-      }),
-    ])
+    const [preferences, user, chefProfile] = await withPrismaReconnect(
+      async () => {
+        const preferences = await prisma.notificationPreference.findUnique({
+          where: { userId: authenticatedUserId },
+        })
+        const user = await prisma.user.findUnique({
+          where: { id: authenticatedUserId },
+          select: {
+            termsAcceptedAt: true,
+            termsVersion: true,
+            acceptedVia: true,
+          },
+        })
+        const chefProfile = await prisma.chefProfile.findUnique({
+          where: { userId: authenticatedUserId },
+          select: chefSettingsLegalSelect,
+        })
+
+        return [preferences, user, chefProfile] as const
+      },
+      process.env.NODE_ENV === "development" ? 0 : 1
+    )
+
+    const chefSettingsProfile = chefProfile as any
 
     let stripeAccount = null
-    if (stripeConfigured && chefProfile?.stripeAccountId) {
+    if (stripeConfigured && chefSettingsProfile?.stripeAccountId) {
       try {
         const stripeService = getStripeService()
-        stripeAccount = await stripeService.retrieveConnectAccount(chefProfile.stripeAccountId)
+        stripeAccount = await stripeService.retrieveConnectAccount(chefSettingsProfile.stripeAccountId)
       } catch (error) {
         console.error("Failed to retrieve Stripe account", error)
         // Continue with null stripe account
       }
     }
 
-    const insuranceExpired = chefProfile?.insuranceExpiryDate ? chefProfile.insuranceExpiryDate.getTime() < Date.now() : false
-
     return NextResponse.json({
-      notificationPreferences: preferences ?? defaultPreferences(userId),
+      notificationPreferences: preferences ?? defaultPreferences(authenticatedUserId),
       legal: {
         termsAcceptedAt: user?.termsAcceptedAt?.toISOString() ?? null,
         termsVersion: user?.termsVersion ?? null,
         acceptedVia: user?.acceptedVia ?? null,
         termsCurrent: Boolean(user?.termsAcceptedAt) && user?.termsVersion === TERMS_VERSION && Boolean(user?.acceptedVia),
-        insuranceStatus: chefProfile?.insuranceStatus ?? "pending",
-        insuranceDocumentUrl: chefProfile?.insuranceDocumentUrl ?? null,
-        insuranceExpiryDate: chefProfile?.insuranceExpiryDate?.toISOString() ?? null,
-        insuranceVerifiedAt: chefProfile?.insuranceVerifiedAt?.toISOString() ?? null,
-        insuranceVerifiedBy: chefProfile?.insuranceVerifiedBy ?? null,
-        insuranceCurrent: chefProfile?.insuranceStatus === "verified" && Boolean(chefProfile?.insuranceDocumentUrl) && Boolean(chefProfile?.insuranceVerifiedAt) && !insuranceExpired,
-        insuranceExpired,
+        rightToWorkUkConfirmed: chefSettingsProfile?.rightToWorkUkConfirmed ?? false,
+        foodHygieneLevel2Confirmed: chefSettingsProfile?.foodHygieneLevel2Confirmed ?? false,
+        foodHygieneCertificateUrl: chefSettingsProfile?.foodHygieneCertificateUrl ?? null,
+        foodHygieneCertificateUploadedAt: chefSettingsProfile?.foodHygieneCertificateUploadedAt?.toISOString() ?? null,
+        foodHygieneCertificateReviewedAt: chefSettingsProfile?.foodHygieneCertificateReviewedAt?.toISOString() ?? null,
+        foodHygieneCertificateReviewedBy: chefSettingsProfile?.foodHygieneCertificateReviewedBy ?? null,
+        foodHygieneCertificateReviewStatus: chefSettingsProfile?.foodHygieneCertificateReviewStatus ?? null,
+        verificationStatus: chefSettingsProfile?.verificationStatus ?? "PENDING",
+        isApproved: chefSettingsProfile?.isApproved ?? false,
+        approvedAt: chefSettingsProfile?.approvedAt?.toISOString() ?? null,
+        approvedBy: chefSettingsProfile?.approvedBy ?? null,
+        complianceConfirmed: Boolean(chefSettingsProfile?.rightToWorkUkConfirmed) && Boolean(chefSettingsProfile?.foodHygieneLevel2Confirmed),
+        readyForReview: Boolean(user?.termsAcceptedAt) && user?.termsVersion === TERMS_VERSION && Boolean(user?.acceptedVia) && Boolean(chefSettingsProfile?.rightToWorkUkConfirmed) && Boolean(chefSettingsProfile?.foodHygieneLevel2Confirmed),
       },
       stripe: {
-        accountId: chefProfile?.stripeAccountId ?? null,
+        accountId: chefSettingsProfile?.stripeAccountId ?? null,
         onboardingComplete: stripeAccount
           ? Boolean(stripeAccount.details_submitted && stripeAccount.charges_enabled)
-          : chefProfile?.stripeOnboardingComplete ?? false,
-        isConnected: Boolean(chefProfile?.stripeAccountId),
+          : chefSettingsProfile?.stripeOnboardingComplete ?? false,
+        isConnected: Boolean(chefSettingsProfile?.stripeAccountId),
         chargesEnabled: stripeAccount?.charges_enabled ?? false,
         payoutsEnabled: stripeAccount?.payouts_enabled ?? false,
         detailsSubmitted: stripeAccount?.details_submitted ?? false,
@@ -140,6 +129,41 @@ export async function GET() {
       },
     })
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development" && userId) {
+      return NextResponse.json({
+        notificationPreferences: defaultPreferences(userId),
+        legal: {
+          termsAcceptedAt: null,
+          termsVersion: null,
+          acceptedVia: null,
+          termsCurrent: false,
+          rightToWorkUkConfirmed: false,
+          foodHygieneLevel2Confirmed: false,
+          foodHygieneCertificateUrl: null,
+          foodHygieneCertificateUploadedAt: null,
+          foodHygieneCertificateReviewedAt: null,
+          foodHygieneCertificateReviewedBy: null,
+          foodHygieneCertificateReviewStatus: null,
+          verificationStatus: "PENDING",
+          isApproved: false,
+          approvedAt: null,
+          approvedBy: null,
+          complianceConfirmed: false,
+          readyForReview: false,
+        },
+        stripe: {
+          accountId: null,
+          onboardingComplete: false,
+          isConnected: false,
+          chargesEnabled: false,
+          payoutsEnabled: false,
+          detailsSubmitted: false,
+          configured: StripeService.isConfigured(),
+        },
+        localDemo: true,
+      })
+    }
+
     console.error("Failed to fetch chef settings", error)
     return NextResponse.json({ error: "Failed to fetch chef settings" }, { status: 500 })
   }
@@ -165,31 +189,8 @@ export async function PUT(request: NextRequest) {
       })
     }
 
-    let legal = null
-    if (payload.insuranceSubmission) {
-      const insuranceExpiryDate = new Date(payload.insuranceSubmission.insuranceExpiryDate)
-      legal = await prisma.chefProfile.update({
-        where: { userId },
-        data: {
-          insuranceDocumentUrl: payload.insuranceSubmission.insuranceDocumentUrl,
-          insuranceExpiryDate,
-          insuranceStatus: "pending",
-          insuranceVerifiedAt: null,
-          insuranceVerifiedBy: null,
-        } as never,
-        select: {
-          insuranceStatus: true,
-          insuranceDocumentUrl: true,
-          insuranceExpiryDate: true,
-          insuranceVerifiedAt: true,
-          insuranceVerifiedBy: true,
-        },
-      })
-    }
-
     return NextResponse.json({
       notificationPreferences: preferences,
-      legal,
     })
   } catch (error) {
     console.error("Failed to update chef settings", error)

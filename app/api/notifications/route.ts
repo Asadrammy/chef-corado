@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 
 const createNotificationSchema = z.object({
   userId: z.string(),
@@ -36,6 +36,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(notification);
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
+      return NextResponse.json(
+        { error: 'Notifications are unavailable in local demo mode' },
+        { status: 503 }
+      );
+    }
+
     console.error('Error creating notification:', error);
     return NextResponse.json({ error: 'Failed to create notification' }, { status: 500 });
   }
@@ -87,6 +94,14 @@ export async function GET(request: NextRequest) {
       unreadCount,
     });
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
+      return NextResponse.json({
+        notifications: [],
+        unreadCount: 0,
+        localDemo: true,
+      });
+    }
+
     console.error('Error fetching notifications:', error);
     return NextResponse.json({ error: 'Failed to fetch notifications' }, { status: 500 });
   }

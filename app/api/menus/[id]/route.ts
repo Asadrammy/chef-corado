@@ -1,48 +1,33 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { z } from "zod"
-
-const menuItemSchema = z.object({
-  name: z.string().min(1, "Item name is required"),
-  description: z.string().optional(),
-  sortOrder: z.number().int().min(0).optional(),
-})
-
-const menuSectionSchema = z.object({
-  title: z.string().min(1, "Section title is required"),
-  sortOrder: z.number().int().min(0).optional(),
-  items: z.array(menuItemSchema).default([]),
-})
+import { validateMessageContent } from "@/lib/security/communication-policy"
 
 const menuSchema = z.object({
   title: z.string().min(1, "Title is required"),
-  description: z.string().optional(),
-  price: z.number().min(0, "Price must be positive"),
+  description: z.string().min(1, "Full menu description is required"),
+  price: z.number().min(0, "Price must be positive").optional(),
   currency: z.string().length(3).optional(),
+  menuType: z.enum(["PRICED", "SAMPLE", "FREE_FORM"]).default("FREE_FORM"),
   menuImage: z.string().url().optional(),
   cuisineType: z.string().optional(),
   eventType: z.string().optional(),
-  sections: z.array(menuSectionSchema).default([]),
 })
 
 function formatMenu(menu: any) {
   return {
     ...menu,
     description: menu.description ?? undefined,
+    price: menu.price ?? undefined,
+    currency: menu.currency ?? undefined,
+    menuType: menu.menuType ?? "FREE_FORM",
     menuImage: menu.menuImage ?? undefined,
     cuisineType: menu.cuisineType ?? undefined,
     eventType: menu.eventType ?? undefined,
     createdAt: menu.createdAt.toISOString(),
     updatedAt: menu.updatedAt.toISOString(),
-    sections: (menu.sections ?? []).map((section: any) => ({
-      ...section,
-      items: (section.items ?? []).map((item: any) => ({
-        ...item,
-        description: item.description ?? undefined,
-      })),
-    })),
   }
 }
 
@@ -86,46 +71,43 @@ export async function PUT(
     const body = await request.json()
     const validatedData = menuSchema.parse(body)
 
-    await (prisma as any).menuSection.deleteMany({
-      where: { menuId: id },
-    })
+    validateMessageContent(validatedData.title)
+    validateMessageContent(validatedData.description)
+    if (validatedData.cuisineType) {
+      validateMessageContent(validatedData.cuisineType)
+    }
+    if (validatedData.eventType) {
+      validateMessageContent(validatedData.eventType)
+    }
 
-    const updatedMenu = await (prisma as any).menu.update({
+    // Enforce price required only for PRICED menus
+    if (validatedData.menuType === "PRICED" && (validatedData.price === undefined || validatedData.price === null)) {
+      return NextResponse.json({ error: "Price is required for PRICED menus" }, { status: 400 })
+    }
+
+    const updatedMenu = await prisma.menu.update({
       where: { id },
       data: {
         title: validatedData.title,
         description: validatedData.description,
         price: validatedData.price,
         currency: validatedData.currency,
+        menuType: validatedData.menuType,
         menuImage: validatedData.menuImage,
         cuisineType: validatedData.cuisineType,
         eventType: validatedData.eventType,
-        sections: {
-          create: validatedData.sections.map((section, sectionIndex) => ({
-            title: section.title,
-            sortOrder: section.sortOrder ?? sectionIndex,
-            items: {
-              create: section.items.map((item, itemIndex) => ({
-                name: item.name,
-                description: item.description,
-                sortOrder: item.sortOrder ?? itemIndex,
-              })),
-            },
-          })),
-        },
-      },
-      include: {
-        sections: {
-          include: {
-            items: true,
-          },
-          orderBy: { sortOrder: "asc" },
-        },
       },
     })
 
     return NextResponse.json(formatMenu(updatedMenu))
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return NextResponse.json(
+        { error: "Menus are unavailable in local demo mode" },
+        { status: 503 }
+      )
+    }
+
     console.error("Error updating menu:", error)
 
     if (error instanceof z.ZodError) {
@@ -182,6 +164,13 @@ export async function DELETE(
 
     return NextResponse.json({ message: "Menu deleted successfully" })
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return NextResponse.json(
+        { error: "Menus are unavailable in local demo mode" },
+        { status: 503 }
+      )
+    }
+
     console.error("Error deleting menu:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }

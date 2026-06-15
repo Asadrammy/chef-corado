@@ -22,7 +22,6 @@ type ChecklistItem = {
 
 interface DailyChecklistProps {
   quotesSentToday: number
-  quotesTarget: number
   responseRate: number
   availableRequests: number
   activeBookings: number
@@ -36,7 +35,6 @@ interface DailyChecklistProps {
 
 export function DailyChecklist({
   quotesSentToday,
-  quotesTarget,
   responseRate,
   availableRequests,
   activeBookings,
@@ -48,8 +46,8 @@ export function DailyChecklist({
   const checklistItems: ChecklistItem[] = [
     {
       id: "check-requests",
-      title: "Review new requests",
-      description: `${availableRequests} opportunities waiting`,
+      title: "Review open requests",
+      description: `${availableRequests} suitable requests waiting for review`,
       completed: availableRequests === 0,
       href: "/dashboard/chef/requests",
       icon: <Users className="h-4 w-4" />,
@@ -58,13 +56,13 @@ export function DailyChecklist({
     },
     {
       id: "send-quotes",
-      title: "Send quotes",
-      description: `${quotesSentToday}/${quotesTarget} daily target`,
-      completed: quotesSentToday >= quotesTarget,
+      title: "Send quotes to suitable requests",
+      description: `Quote activity today: ${quotesSentToday}. Each client request can receive up to 10 quotes total across the platform.`,
+      completed: availableRequests === 0,
       href: "/dashboard/chef/requests",
       icon: <FileText className="h-4 w-4" />,
-      priority: quotesSentToday < quotesTarget ? "high" : "low",
-      reward: "More quotes = more bookings",
+      priority: availableRequests > 0 ? "high" : "low",
+      reward: "Relevant quotes create stronger booking opportunities",
     },
     {
       id: "respond-messages",
@@ -98,7 +96,7 @@ export function DailyChecklist({
     {
       id: "send-proposals",
       title: "Respond to requests",
-      description: `${proposalResponseRate.toFixed(0)}% of nearby requests have proposals (target: 50%+)`,
+      description: `${proposalResponseRate.toFixed(0)}% of nearby requests have proposals from you`,
       completed: proposalResponseRate >= 50,
       href: "/dashboard/chef/requests",
       icon: <Users className="h-4 w-4" />,

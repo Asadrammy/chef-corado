@@ -56,7 +56,7 @@ async function seedUsers() {
   ];
 
   const chefs = await Promise.all(chefData.map((chef, i) => prisma.user.create({
-    data: { name: chef.name, email: chef.email, password: chefPwd, role: 'CHEF', verified: true, profileCompletion: 100, experienceLevel: chef.level, termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register', chefProfile: { create: { bio: chef.bio, experience: chef.experience, location: chef.location, latitude: chef.lat, longitude: chef.lng, radius: chef.radius, cuisineType: chef.cuisine, chefType: chef.type, certifications: chef.cert, eventsPerMonth: chef.events, experienceLevel: chef.level, profileImage: chef.img, isApproved: true, verified: true, profileCompletion: 100, verificationStatus: i < 3 ? 'APPROVED' : i < 4 ? 'PENDING' : 'REJECTED', stripeAccountId: `acct_${chef.name.split(' ')[0].toLowerCase()}123`, stripeOnboardingComplete: true } } } as any
+    data: { id: chef.email === 'chef@example.com' ? 'cmph911b10001byd5xgn4e5o1' : undefined, name: chef.name, email: chef.email, password: chefPwd, role: 'CHEF', verified: true, profileCompletion: 100, experienceLevel: chef.level, termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register', chefProfile: { create: { bio: chef.bio, experience: chef.experience, location: chef.location, latitude: chef.lat, longitude: chef.lng, radius: chef.radius, cuisineType: chef.cuisine, chefType: chef.type, certifications: chef.cert, eventsPerMonth: chef.events, experienceLevel: chef.level, profileImage: chef.img, isApproved: true, verified: true, profileCompletion: 100, verificationStatus: i < 3 ? 'APPROVED' : i < 4 ? 'PENDING' : 'REJECTED', stripeAccountId: `acct_${chef.name.split(' ')[0].toLowerCase()}123`, stripeOnboardingComplete: true } } } as any
   })));
 
   const clientNames = ['Michael Thompson', 'Jennifer Williams', 'David Martinez', 'Lisa Anderson', 'Robert Taylor', 'Amanda Brown', 'Christopher Lee', 'Jessica Garcia', 'Daniel Rodriguez', 'Michelle Kim'];
@@ -72,25 +72,19 @@ async function seedNotificationPreferences(users: any[]) {
   console.log('✅ Notification preferences created\n');
 }
 
-// Menus with sections and items
+// Menus with free-form descriptions
 async function seedMenus(chefProfiles: any[]) {
   const menuData = [
-    { chefIdx: 0, title: 'Classic Italian Feast', desc: 'Italian menu with antipasti, pasta, mains, desserts', price: 150, cuisine: 'ITALIAN', event: 'PRIVATE_DINNER', img: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=600', sections: [{ t: 'Antipasti', items: [{ n: 'Bruschetta Trio', d: 'Tomato basil, mushroom truffle, ricotta honey' }, { n: 'Caprese Salad', d: 'Fresh mozzarella, heirloom tomatoes' }] }, { t: 'Primi', items: [{ n: 'Fresh Pasta', d: 'Handmade tagliatelle with Bolognese' }] }] },
-    { chefIdx: 1, title: 'French Elegance', desc: 'Sophisticated French cuisine with modern presentation', price: 200, cuisine: 'FRENCH', event: 'PRIVATE_DINNER', img: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?w=600', sections: [{ t: 'Hors d\'oeuvres', items: [{ n: 'Escargot', d: 'Garlic butter snails in pastry shells' }] }, { t: 'Entrées', items: [{ n: 'Coq au Vin', d: 'Braised chicken with red wine' }] }] },
-    { chefIdx: 2, title: 'Asian Fusion', desc: 'Contemporary Asian dishes with international influences', price: 180, cuisine: 'ASIAN', event: 'CORPORATE_EVENT', img: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600', sections: [{ t: 'Appetizers', items: [{ n: 'Dim Sum Platter', d: 'Assorted steamed and fried dumplings' }] }, { t: 'Main Courses', items: [{ n: 'Wagyu Beef', d: 'A5 wagyu with truffle soy glaze' }] }] },
-    { chefIdx: 3, title: 'Mediterranean Spread', desc: 'Vibrant Mediterranean flavors perfect for sharing', price: 120, cuisine: 'MEDITERRANEAN', event: 'COCKTAIL_PARTY', img: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600', sections: [{ t: 'Mezze', items: [{ n: 'Hummus Trio', d: 'Classic, roasted red pepper, beet hummus' }] }, { t: 'Grilled', items: [{ n: 'Lamb Kofta', d: 'Spiced lamb skewers with tzatziki' }] }] },
-    { chefIdx: 4, title: 'Fusion Adventure', desc: 'Unexpected flavor combinations from around the world', price: 175, cuisine: 'FUSION', event: 'PRIVATE_DINNER', img: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600', sections: [{ t: 'Small Plates', items: [{ n: 'Taco Gyoza', d: 'Japanese dumplings with Mexican fillings' }] }, { t: 'Mains', items: [{ n: 'Kimchi Paella', d: 'Korean fermented rice with Spanish technique' }] }] },
+    { chefIdx: 0, title: 'Classic Italian Feast', desc: 'Italian menu with antipasti, pasta, mains, desserts', price: 150, cuisine: 'ITALIAN', event: 'PRIVATE_DINNER', img: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=600' },
+    { chefIdx: 1, title: 'French Elegance', desc: 'Sophisticated French cuisine with modern presentation', price: 200, cuisine: 'FRENCH', event: 'PRIVATE_DINNER', img: 'https://images.unsplash.com/photo-1559339352-11d035aa65de?w=600' },
+    { chefIdx: 2, title: 'Asian Fusion', desc: 'Contemporary Asian dishes with international influences', price: 180, cuisine: 'ASIAN', event: 'CORPORATE_EVENT', img: 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600' },
+    { chefIdx: 3, title: 'Mediterranean Spread', desc: 'Vibrant Mediterranean flavors perfect for sharing', price: 120, cuisine: 'MEDITERRANEAN', event: 'COCKTAIL_PARTY', img: 'https://images.unsplash.com/photo-1544025162-d76694265947?w=600' },
+    { chefIdx: 4, title: 'Fusion Adventure', desc: 'Unexpected flavor combinations from around the world', price: 175, cuisine: 'FUSION', event: 'PRIVATE_DINNER', img: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=600' },
   ];
 
   const menus = [];
   for (const menu of menuData) {
     const createdMenu = await prisma.menu.create({ data: { chefId: chefProfiles[menu.chefIdx].id, title: menu.title, description: menu.desc, price: menu.price, cuisineType: menu.cuisine, eventType: menu.event, menuImage: menu.img } });
-    for (const section of menu.sections) {
-      const createdSection = await prisma.menuSection.create({ data: { menuId: createdMenu.id, title: section.t, sortOrder: menu.sections.indexOf(section) } });
-      for (const item of section.items) {
-        await prisma.menuItem.create({ data: { menuSectionId: createdSection.id, name: item.n, description: item.d, sortOrder: section.items.indexOf(item) } });
-      }
-    }
     menus.push(createdMenu);
   }
   console.log(`✅ Created ${menus.length} menus\n`);

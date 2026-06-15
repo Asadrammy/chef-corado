@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     validateMessageContent(title)
     validateMessageContent(description)
 
-    // Enforce chef compliance (terms + insurance)
+    // Enforce chef compliance (terms + structured compliance + approval)
     await enforceChefCompliance(userId)
 
     // Check if user is a chef (only chefs can send offers)
@@ -198,6 +198,14 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('Error sending offer:', error);
+
+    if (error instanceof Error && (error.message === 'REQUEST_PROPOSAL_LIMIT_REACHED' || error.message.startsWith('QUOTA_EXCEEDED'))) {
+      return NextResponse.json(
+        { error: 'This request has already received the maximum of 10 quotes.' },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to send offer' },
       { status: 500 }

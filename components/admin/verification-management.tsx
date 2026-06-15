@@ -32,6 +32,14 @@ interface Chef {
   experience?: number;
   location: string;
   verified: boolean;
+  verificationStatus?: "PENDING" | "APPROVED" | "REJECTED";
+  rightToWorkUkConfirmed?: boolean;
+  foodHygieneLevel2Confirmed?: boolean;
+  foodHygieneCertificateUrl?: string | null;
+  foodHygieneCertificateUploadedAt?: string | null;
+  foodHygieneCertificateReviewedAt?: string | null;
+  foodHygieneCertificateReviewedBy?: string | null;
+  foodHygieneCertificateReviewStatus?: string | null;
   profileCompletion: number;
   experienceLevel: string;
   cuisineType?: string;
@@ -140,6 +148,35 @@ export function VerificationManagement({ onVerificationUpdate }: VerificationMan
     return 'bg-red-500';
   };
 
+  const getApprovalBadge = (chef: Chef) => {
+    const status = chef.verificationStatus ?? (chef.verified ? "APPROVED" : "PENDING");
+
+    if (status === "APPROVED") {
+      return (
+        <Badge className="bg-green-500 text-white">
+          <CheckCircle className="h-3 w-3 mr-1" />
+          Approved
+        </Badge>
+      );
+    }
+
+    if (status === "REJECTED") {
+      return (
+        <Badge variant="destructive">
+          <XCircle className="h-3 w-3 mr-1" />
+          Rejected
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge variant="secondary">
+        <Clock className="h-3 w-3 mr-1" />
+        Pending
+      </Badge>
+    );
+  };
+
   const ChefCard = ({ chef }: { chef: Chef }) => (
     <Card className="overflow-hidden">
       <CardHeader className="pb-3">
@@ -170,17 +207,7 @@ export function VerificationManagement({ onVerificationUpdate }: VerificationMan
               {chef.experienceLevel}
             </Badge>
             <div className="mt-2">
-              {chef.verified ? (
-                <Badge className="bg-green-500 text-white">
-                  <CheckCircle className="h-3 w-3 mr-1" />
-                  Verified
-                </Badge>
-              ) : (
-                <Badge variant="secondary">
-                  <Clock className="h-3 w-3 mr-1" />
-                  Pending
-                </Badge>
-              )}
+              {getApprovalBadge(chef)}
             </div>
           </div>
         </div>
@@ -239,8 +266,22 @@ export function VerificationManagement({ onVerificationUpdate }: VerificationMan
           </div>
         )}
 
+        {/* Compliance */}
+        <div className="rounded-xl border bg-muted/20 p-3 space-y-2 text-sm text-gray-600">
+          <p className="font-medium text-foreground">Compliance review</p>
+          <p>Right to work in the UK: {chef.rightToWorkUkConfirmed ? "Confirmed" : "Missing"}</p>
+          <p>Level 2 Food Hygiene: {chef.foodHygieneLevel2Confirmed ? "Confirmed" : "Missing"}</p>
+          {chef.foodHygieneCertificateUrl ? (
+            <a href={chef.foodHygieneCertificateUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+              View private certificate document
+            </a>
+          ) : (
+            <p>No private certificate document submitted</p>
+          )}
+        </div>
+
         {/* Action Buttons */}
-        {!chef.verified && (
+        {(chef.verificationStatus ?? (chef.verified ? "APPROVED" : "PENDING")) !== "APPROVED" && (
           <div className="flex gap-2 pt-2">
             <Button 
               onClick={() => handleApprove(chef.id)}
@@ -307,7 +348,7 @@ export function VerificationManagement({ onVerificationUpdate }: VerificationMan
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Verification Management</h2>
-          <p className="text-gray-600">Review and approve chef verification requests</p>
+          <p className="text-gray-600">Review and approve chef profiles, legal confirmations, and private food hygiene documents.</p>
         </div>
         
         <Select value={selectedStatus} onValueChange={setSelectedStatus}>
@@ -315,8 +356,8 @@ export function VerificationManagement({ onVerificationUpdate }: VerificationMan
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="PENDING">Pending ({chefs.filter(c => !c.verified).length})</SelectItem>
-            <SelectItem value="APPROVED">Approved ({chefs.filter(c => c.verified).length})</SelectItem>
+            <SelectItem value="PENDING">Pending ({chefs.filter(c => (c.verificationStatus ?? (c.verified ? "APPROVED" : "PENDING")) === "PENDING").length})</SelectItem>
+            <SelectItem value="APPROVED">Approved ({chefs.filter(c => (c.verificationStatus ?? (c.verified ? "APPROVED" : "PENDING")) === "APPROVED").length})</SelectItem>
             <SelectItem value="REJECTED">Rejected</SelectItem>
           </SelectContent>
         </Select>
@@ -342,7 +383,7 @@ export function VerificationManagement({ onVerificationUpdate }: VerificationMan
               <div>
                 <p className="text-sm font-medium text-gray-600">Pending</p>
                 <p className="text-2xl font-bold text-yellow-600">
-                  {chefs.filter(c => !c.verified).length}
+                  {chefs.filter(c => (c.verificationStatus ?? (c.verified ? "APPROVED" : "PENDING")) === "PENDING").length}
                 </p>
               </div>
               <Clock className="h-8 w-8 text-yellow-400" />
@@ -356,7 +397,7 @@ export function VerificationManagement({ onVerificationUpdate }: VerificationMan
               <div>
                 <p className="text-sm font-medium text-gray-600">Approved</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {chefs.filter(c => c.verified).length}
+                  {chefs.filter(c => (c.verificationStatus ?? (c.verified ? "APPROVED" : "PENDING")) === "APPROVED").length}
                 </p>
               </div>
               <CheckCircle className="h-8 w-8 text-green-400" />

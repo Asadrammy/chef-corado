@@ -14,9 +14,9 @@ type DashboardShellProps = {
   children: React.ReactNode
   legalNotice?: {
     needsAttention: boolean
-    chefInsuranceNeedsAttention?: boolean
+    chefComplianceNeedsAttention?: boolean
     termsVersion?: string | null
-    insuranceVersion?: string | null
+    complianceVersion?: string | null
   }
 }
 
@@ -75,7 +75,7 @@ export function DashboardShell({ children, legalNotice }: DashboardShellProps) {
                         <p className="font-semibold text-foreground">Please review the latest platform terms</p>
                         <p>
                           Your account is using an older or missing terms acknowledgement.
-                          {legalNotice.chefInsuranceNeedsAttention ? " Chef insurance and legal requirements are also part of the platform terms and need your confirmation." : ""}
+                          {legalNotice.chefComplianceNeedsAttention ? " Chef compliance requirements are also part of your booking readiness and need your confirmation." : ""}
                         </p>
                         <div className="flex flex-wrap items-center gap-3 text-xs font-medium">
                           <Link href="/terms/client" className="text-foreground hover:text-primary">Client Terms</Link>

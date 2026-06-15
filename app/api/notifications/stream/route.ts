@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth';
 
@@ -31,24 +31,49 @@ export async function GET(request: NextRequest) {
 
     const encoder = new TextEncoder();
     let lastUnreadCount = -1;
+    let localDemoMode = false;
 
     const stream = new ReadableStream({
       async start(controller) {
         const sendNotifications = async (forceCountUpdate = false) => {
-          const newNotifications = await (prisma as any).notification.findMany({
-            where: {
-              userId,
-              createdAt: { gt: since },
-            },
-            orderBy: { createdAt: 'asc' },
-          });
+          if (localDemoMode) {
+            return;
+          }
 
-          const unreadCount = await (prisma as any).notification.count({
-            where: {
-              userId,
-              isRead: false,
-            },
-          });
+          let newNotifications: any[] = [];
+          let unreadCount = 0;
+
+          try {
+            newNotifications = await (prisma as any).notification.findMany({
+              where: {
+                userId,
+                createdAt: { gt: since },
+              },
+              orderBy: { createdAt: 'asc' },
+            });
+
+            unreadCount = await (prisma as any).notification.count({
+              where: {
+                userId,
+                isRead: false,
+              },
+            });
+          } catch (error) {
+            if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
+              localDemoMode = true;
+              lastUnreadCount = 0;
+              const payload = {
+                notification: null,
+                unreadCount: 0,
+                localDemo: true,
+              };
+              const chunk = `event: notification\ndata: ${JSON.stringify(payload)}\n\n`;
+              controller.enqueue(encoder.encode(chunk));
+              return;
+            }
+
+            throw error;
+          }
 
           if (newNotifications.length > 0) {
             since = newNotifications[newNotifications.length - 1].createdAt;

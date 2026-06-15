@@ -8,88 +8,133 @@ datasource db {
 }
 
 model User {
-  id                String         @id @default(cuid())
-  name              String
-  email             String         @unique
-  password          String
-  phone             String?
-  role              String         @default("CLIENT")
-  isBanned          Boolean        @default(false)
-  banReason         String?
-  banAdminNotes     String?
-  bannedAt          DateTime?
-  bannedBy          String?
-  verified          Boolean        @default(false)
-  profileCompletion Int            @default(0)
-  experienceLevel   String         @default("BEGINNER")
-  termsAcceptedAt   DateTime?
-  termsVersion      String?
-  acceptedVia       String?
-  resetToken        String?        @unique
-  resetTokenExpires DateTime?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-  bookings          Booking[]      @relation("ClientBookings")
-  chefProfile       ChefProfile?
-  receivedMessages  Message[]      @relation("MessageReceiver")
-  sentMessages      Message[]      @relation("MessageSender")
-  notifications     Notification[]
+  id                     String                  @id @default(cuid())
+  name                   String
+  email                  String                  @unique
+  password               String
+  phone                  String?
+  role                   String                  @default("CLIENT")
+  isBanned               Boolean                 @default(false)
+  banReason              String?
+  banAdminNotes          String?
+  bannedAt               DateTime?
+  bannedBy               String?
+  verified               Boolean                 @default(false)
+  profileCompletion      Int                     @default(0)
+  experienceLevel        String                  @default("BEGINNER")
+  termsAcceptedAt        DateTime?
+  termsVersion           String?
+  acceptedVia            String?
+  resetToken             String?                 @unique
+  resetTokenExpires      DateTime?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  bookings               Booking[]               @relation("ClientBookings")
+  chefProfile            ChefProfile?
+  receivedMessages       Message[]               @relation("MessageReceiver")
+  sentMessages           Message[]               @relation("MessageSender")
+  notifications          Notification[]
   notificationPreference NotificationPreference?
-  requests          Request[]      @relation("ClientRequests")
-  reviews           Review[]       @relation("ClientReviews")
+  requests               Request[]               @relation("ClientRequests")
+  reviews                Review[]                @relation("ClientReviews")
+  accounts               Account[]
+  sessions               Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
 
 model ChefProfile {
-  id                String      @id @default(cuid())
-  userId            String      @unique
-  user              User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  location          String?
-  latitude          Float?
-  longitude         Float?
-  radius            Float       @default(50)
-  baseCountryCode   String      @default("GB")
-  preferredCurrency String      @default("GBP")
-  bio               String?
-  specialties       String?
-  cuisineTypes       String?
-  priceRange        String?
-  isApproved        Boolean     @default(false)
-  isBanned          Boolean     @default(false)
-  banReason         String?
-  banAdminNotes     String?
-  bannedAt          DateTime?
-  bannedBy          String?
-  profileCompletion Int         @default(0)
-  verificationStatus String      @default("PENDING")
-  certifications    String?
-  chefType          String?
-  cuisineType       String?
-  eventsPerMonth    Int?
-  experience        Int?
-  experienceLevel   String?
-  profileImage      String?
-  stripeAccountId   String?
+  id                       String              @id @default(cuid())
+  userId                   String              @unique
+  location                 String?
+  latitude                 Float?
+  longitude                Float?
+  radius                   Float               @default(50)
+  baseCountryCode          String              @default("GB")
+  preferredCurrency        String              @default("GBP")
+  bio                      String?
+  specialties              String?
+  cuisineTypes             String?
+  priceRange               String?
+  isApproved               Boolean             @default(false)
+  isBanned                 Boolean             @default(false)
+  banReason                String?
+  banAdminNotes            String?
+  bannedAt                 DateTime?
+  bannedBy                 String?
+  profileCompletion        Int                 @default(0)
+  verificationStatus       String              @default("PENDING")
+  certifications           String?
+  chefType                 String?
+  cuisineType              String?
+  eventsPerMonth           Int?
+  experience               Int?
+  experienceLevel          String?
+  profileImage             String?
+  stripeAccountId          String?
   stripeOnboardingComplete Boolean?
-  verified          Boolean     @default(false)
-  insuranceAcknowledgedAt DateTime?
-  insuranceVersion  String?
-  insuranceStatus   String      @default("pending")
-  insuranceDocumentUrl String?
-  insuranceExpiryDate DateTime?
-  insuranceVerifiedAt DateTime?
-  insuranceVerifiedBy String?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-
-  menus             Menu[]
-  experiences       Experience[]
-  availability       Availability[]
-  payouts           Payout[]
-  proposals         Proposal[]
-  reviews           Review[]
-  bookings          Booking[]    @relation("ChefBookings")
-  requestInvitations RequestInvitation[]
-  chefKpiSnapshots  ChefKpiSnapshot[]
+  verified                 Boolean             @default(false)
+  rightToWorkUkConfirmed   Boolean             @default(false)
+  foodHygieneLevel2Confirmed Boolean             @default(false)
+  foodHygieneCertificateUrl String?
+  foodHygieneCertificateUploadedAt DateTime?
+  foodHygieneCertificateReviewedAt DateTime?
+  foodHygieneCertificateReviewedBy String?
+  foodHygieneCertificateReviewStatus String?
+  approvedAt               DateTime?
+  approvedBy               String?
+  insuranceAcknowledgedAt  DateTime?
+  insuranceVersion         String?
+  insuranceStatus          String              @default("pending")
+  insuranceDocumentUrl     String?
+  insuranceExpiryDate      DateTime?
+  insuranceVerifiedAt      DateTime?
+  insuranceVerifiedBy      String?
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  availability             Availability[]
+  bookings                 Booking[]           @relation("ChefBookings")
+  chefKpiSnapshots         ChefKpiSnapshot[]
+  user                     User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  experiences              Experience[]
+  menus                    Menu[]
+  payouts                  Payout[]
+  proposals                Proposal[]
+  requestInvitations       RequestInvitation[]
+  reviews                  Review[]
 
   @@index([latitude, longitude])
   @@index([isApproved])
@@ -98,36 +143,37 @@ model ChefProfile {
 }
 
 model Menu {
-  id          String      @id @default(cuid())
+  id          String        @id @default(cuid())
   chefId      String
   title       String
   description String?
-  price       Float
-  currency    String      @default("GBP")
+  price       Float?
+  currency    String        @default("GBP")
+  menuType    String        @default("FREE_FORM")
   menuImage   String?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
   cuisineType String?
   eventType   String?
-  chef        ChefProfile @relation(fields: [chefId], references: [id])
+  chef        ChefProfile   @relation(fields: [chefId], references: [id])
   sections    MenuSection[]
   proposals   Proposal[]
 }
 
 model MenuSection {
   id        String     @id @default(cuid())
-  menuId     String
-  title      String
-  sortOrder  Int        @default(0)
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
-  items      MenuItem[]
-  menu       Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  menuId    String
+  title     String
+  sortOrder Int        @default(0)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  items     MenuItem[]
+  menu      Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
 }
 
 model MenuItem {
   id            String      @id @default(cuid())
-  menuSectionId  String
+  menuSectionId String
   name          String
   description   String?
   sortOrder     Int         @default(0)
@@ -137,30 +183,30 @@ model MenuItem {
 }
 
 model Experience {
-  id               String      @id @default(cuid())
-  title            String
-  description      String
-  price            Float
-  currency         String      @default("GBP")
-  duration         Int
-  includedServices String
-  eventType        String?
-  cuisineType      String?
-  maxGuests        Int?
-  minGuests        Int?
-  serviceType      String      @default("DINING")
-  offersCookingClasses Boolean @default(false)
-  classType        String?
-  pricePerStudent  Float?
-  difficulty       String      @default("EASY")
-  tags             String?
-  experienceImage  String?
-  chefId           String
-  isActive         Boolean     @default(true)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
-  bookings         Booking[]
-  chef             ChefProfile @relation(fields: [chefId], references: [id])
+  id                   String      @id @default(cuid())
+  title                String
+  description          String
+  price                Float
+  currency             String      @default("GBP")
+  duration             Int
+  includedServices     String
+  eventType            String?
+  cuisineType          String?
+  maxGuests            Int?
+  minGuests            Int?
+  serviceType          String      @default("DINING")
+  offersCookingClasses Boolean     @default(false)
+  classType            String?
+  pricePerStudent      Float?
+  difficulty           String      @default("EASY")
+  tags                 String?
+  experienceImage      String?
+  chefId               String
+  isActive             Boolean     @default(true)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+  bookings             Booking[]
+  chef                 ChefProfile @relation(fields: [chefId], references: [id])
 
   @@index([title])
   @@index([price])
@@ -174,39 +220,39 @@ model Experience {
 }
 
 model Request {
-  id          String     @id @default(cuid())
-  clientId    String
-  title       String?
-  eventType   String
-  cuisineTypes String?
+  id                  String              @id @default(cuid())
+  clientId            String
+  title               String?
+  eventType           String
+  cuisineTypes        String?
   dietaryRequirements String?
-  description String?
-  eventDate   DateTime
-  eventTime   String?
-  location    String
-  countryCode String      @default("GB")
-  currency    String      @default("GBP")
-  guestCount  Int
-  studentCount Int?
-  latitude    Float?
-  longitude   Float?
-  budget      Float
-  details     String?
-  createdAt   DateTime   @default(now())
-  invitations RequestInvitation[]
-  proposals   Proposal[]
-  client      User       @relation("ClientRequests", fields: [clientId], references: [id])
+  description         String?
+  eventDate           DateTime
+  eventTime           String?
+  location            String
+  countryCode         String              @default("GB")
+  currency            String              @default("GBP")
+  guestCount          Int
+  studentCount        Int?
+  latitude            Float?
+  longitude           Float?
+  budget              Float
+  details             String?
+  createdAt           DateTime            @default(now())
+  proposals           Proposal[]
+  client              User                @relation("ClientRequests", fields: [clientId], references: [id])
+  invitations         RequestInvitation[]
 }
 
 model RequestInvitation {
-  id         String      @id @default(cuid())
-  requestId   String
-  chefId      String
-  status      String      @default("PENDING")
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  chef        ChefProfile @relation(fields: [chefId], references: [id], onDelete: Cascade)
-  request     Request     @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  id        String      @id @default(cuid())
+  requestId String
+  chefId    String
+  status    String      @default("PENDING")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  chef      ChefProfile @relation(fields: [chefId], references: [id], onDelete: Cascade)
+  request   Request     @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@unique([requestId, chefId])
 }
@@ -224,8 +270,8 @@ model Proposal {
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
   booking   Booking?
-  menu      Menu?       @relation(fields: [menuId], references: [id])
   chef      ChefProfile @relation(fields: [chefId], references: [id])
+  menu      Menu?       @relation(fields: [menuId], references: [id])
   request   Request     @relation(fields: [requestId], references: [id])
 
   @@unique([chefId, requestId])
@@ -252,10 +298,10 @@ model Booking {
   version         Int         @default(1)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
-  experience      Experience? @relation(fields: [experienceId], references: [id])
-  proposal        Proposal?   @relation(fields: [proposalId], references: [id])
   chef            ChefProfile @relation("ChefBookings", fields: [chefId], references: [id])
   client          User        @relation("ClientBookings", fields: [clientId], references: [id])
+  experience      Experience? @relation(fields: [experienceId], references: [id])
+  proposal        Proposal?   @relation(fields: [proposalId], references: [id])
   disputes        Dispute[]
   ledgerEntries   Ledger[]
   payments        Payment?
@@ -269,25 +315,25 @@ model Booking {
 }
 
 model Payment {
-  id                    String    @id @default(cuid())
-  bookingId             String    @unique
-  totalAmount           Float     @default(0)
-  commissionAmount      Float     @default(0)
-  chefAmount            Float     @default(0)
-  currency              String    @default("GBP")
-  status                String    @default("HELD")
-  stripePaymentIntentId String?   @unique
-  stripeChargeId        String?   @unique
-  stripeCheckoutSessionId String? @unique
-  idempotencyKey        String?   @unique
-  releasedAt            DateTime?
-  releasedBy            String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  version               Int       @default(1)
-  ledgerEntries         Ledger[]
-  booking               Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  refunds               Refund[]
+  id                      String    @id @default(cuid())
+  bookingId               String    @unique
+  totalAmount             Float     @default(0)
+  commissionAmount        Float     @default(0)
+  chefAmount              Float     @default(0)
+  currency                String    @default("GBP")
+  status                  String    @default("HELD")
+  stripePaymentIntentId   String?   @unique
+  stripeChargeId          String?   @unique
+  stripeCheckoutSessionId String?   @unique
+  idempotencyKey          String?   @unique
+  releasedAt              DateTime?
+  releasedBy              String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  version                 Int       @default(1)
+  ledgerEntries           Ledger[]
+  booking                 Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  refunds                 Refund[]
 
   @@index([status])
   @@index([stripePaymentIntentId])
@@ -319,19 +365,19 @@ model Notification {
 }
 
 model NotificationPreference {
-  id                String   @id @default(cuid())
-  userId            String   @unique
-  emailMessages     Boolean  @default(true)
-  emailBookings     Boolean  @default(true)
-  emailRequests     Boolean  @default(true)
-  pushMessages      Boolean  @default(true)
-  pushBookings      Boolean  @default(true)
-  inAppMessages     Boolean  @default(true)
-  inAppBookings     Boolean  @default(true)
-  inAppRequests     Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  emailMessages Boolean  @default(true)
+  emailBookings Boolean  @default(true)
+  emailRequests Boolean  @default(true)
+  pushMessages  Boolean  @default(true)
+  pushBookings  Boolean  @default(true)
+  inAppMessages Boolean  @default(true)
+  inAppBookings Boolean  @default(true)
+  inAppRequests Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Message {
@@ -349,16 +395,16 @@ model Message {
 }
 
 model ModerationFlag {
-  id          String   @id @default(cuid())
-  entityType  String
-  entityId    String
-  fieldName   String?
+  id            String   @id @default(cuid())
+  entityType    String
+  entityId      String
+  fieldName     String?
   violationType String
-  excerpt     String?
-  status      String   @default("OPEN")
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  excerpt       String?
+  status        String   @default("OPEN")
+  createdBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([entityType, entityId])
   @@index([status])
@@ -476,10 +522,10 @@ model Ledger {
   metadata        String?
   createdBy       String
   createdAt       DateTime @default(now())
+  booking         Booking? @relation(fields: [bookingId], references: [id])
+  payment         Payment? @relation(fields: [paymentId], references: [id])
   payout          Payout?  @relation(fields: [payoutId], references: [id])
   refund          Refund?  @relation(fields: [refundId], references: [id])
-  payment         Payment? @relation(fields: [paymentId], references: [id])
-  booking         Booking? @relation(fields: [bookingId], references: [id])
 
   @@index([transactionType])
   @@index([createdAt])
@@ -508,17 +554,16 @@ model AuditLog {
   @@index([createdAt])
 }
 
-// SLOT LOCKING for concurrency control
 model SlotLock {
-  id            String   @id @default(cuid())
+  id             String   @id @default(cuid())
   availabilityId String
-  acquiredAt    DateTime @default(now())
-  expiresAt     DateTime
-  lockType      String   @default("BOOKING") // BOOKING, AVAILABILITY_UPDATE
-  
+  acquiredAt     DateTime @default(now())
+  expiresAt      DateTime
+  lockType       String   @default("BOOKING")
+
+  @@unique([availabilityId, lockType])
   @@index([availabilityId])
   @@index([expiresAt])
-  @@unique([availabilityId, lockType])
 }
 
 model EventQueue {
@@ -541,21 +586,20 @@ model EventQueue {
   @@index([priority])
 }
 
-// KPI tracking for chef analytics
 model ChefKpiSnapshot {
-  id                  String   @id @default(cuid())
-  chefId              String
-  date                DateTime
-  quotesSent          Int      @default(0)
-  proposalsAccepted   Int      @default(0)
-  proposalsRejected   Int      @default(0)
-  bookingsCompleted   Int      @default(0)
-  messageResponseRate Float    @default(0)
-  proposalResponseRate Float   @default(0)
-  earnings            Float    @default(0)
-  menusCount          Int      @default(0)
-  createdAt           DateTime @default(now())
-  chef                ChefProfile @relation(fields: [chefId], references: [id], onDelete: Cascade)
+  id                   String      @id @default(cuid())
+  chefId               String
+  date                 DateTime
+  quotesSent           Int         @default(0)
+  proposalsAccepted    Int         @default(0)
+  proposalsRejected    Int         @default(0)
+  bookingsCompleted    Int         @default(0)
+  messageResponseRate  Float       @default(0)
+  proposalResponseRate Float       @default(0)
+  earnings             Float       @default(0)
+  menusCount           Int         @default(0)
+  createdAt            DateTime    @default(now())
+  chef                 ChefProfile @relation(fields: [chefId], references: [id], onDelete: Cascade)
 
   @@unique([chefId, date])
   @@index([chefId])

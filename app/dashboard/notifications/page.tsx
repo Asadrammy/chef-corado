@@ -1,4 +1,5 @@
 import { Metadata } from "next"
+import type { Notification } from "@prisma/client"
 import { cookies } from "next/headers"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
@@ -7,7 +8,7 @@ import { Bell, Check, Trash2, Filter } from "lucide-react"
 
 import { authOptions } from "@/lib/auth"
 import { generateMeta } from "@/lib/utils"
-import { prisma } from "@/lib/prisma"
+import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,11 +26,21 @@ export default async function NotificationsPage() {
 
   cookies()
 
-  const notifications = await prisma.notification.findMany({
-    where: { userId: session.user.id },
-    orderBy: { createdAt: "desc" },
-    take: 50,
-  })
+  let notifications: Notification[]
+
+  try {
+    notifications = await prisma.notification.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    })
+  } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      notifications = []
+    } else {
+      throw error
+    }
+  }
 
   return (
     <div className="space-y-6">

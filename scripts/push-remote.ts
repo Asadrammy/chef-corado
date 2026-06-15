@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 
-const REMOTE_DATABASE_URL = "postgresql://postgresql_q3ho_user:j5N4g8KZXnFxijDZcHYXWDaKbcJ3fUT4@dpg-d7kl2vho3t8c73ds4li0-a.singapore-postgres.render.com/postgresql_q3ho?connection_limit=10&pool_timeout=20&connect_timeout=10";
+const REMOTE_DATABASE_URL = process.env.REMOTE_DATABASE_URL;
+
+if (!REMOTE_DATABASE_URL) {
+  throw new Error("REMOTE_DATABASE_URL is required to push schema to a remote database.");
+}
 
 const prisma = new PrismaClient({
   datasources: {

@@ -68,7 +68,7 @@ export function ModernAddDialog({
           isAvailable: formData.isAvailable === "true",
           recurringPattern: formData.recurringPattern === "NONE" ? null : formData.recurringPattern,
         });
-        toast.success(formData.isAvailable === "true" ? "Availability added successfully!" : "Date marked unavailable.");
+        toast.success(formData.isAvailable === "true" ? "Availability added successfully!" : "Date marked unavailable. This prevents new bookings but does not affect existing confirmed bookings.");
       }
       
       onOpenChange(false);

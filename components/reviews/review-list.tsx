@@ -32,28 +32,28 @@ export function ReviewList({ chefId }: ReviewListProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`/api/reviews?chefId=${chefId}`);
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch reviews');
+        }
+
+        const data = await response.json();
+        setReviews(data.reviews);
+        setAverageRating(data.averageRating);
+        setTotalReviews(data.totalReviews);
+      } catch (error) {
+        console.error('Error fetching reviews:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchReviews();
   }, [chefId]);
-
-  const fetchReviews = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch(`/api/reviews?chefId=${chefId}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch reviews');
-      }
-
-      const data = await response.json();
-      setReviews(data.reviews);
-      setAverageRating(data.averageRating);
-      setTotalReviews(data.totalReviews);
-    } catch (error) {
-      console.error('Error fetching reviews:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (

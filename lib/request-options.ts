@@ -5,7 +5,7 @@ export const PLATFORM_DEFAULT_CURRENCY = "GBP";
 export const PLATFORM_DEFAULT_LOCALE = "en-GB";
 export const COMMUNICATION_POLICY = "Keep all communication, booking coordination, and payments inside the platform. Sharing personal contact details or arranging active bookings outside the site is not allowed under the platform terms.";
 export const COMMUNICATION_POLICY_EXTENDED = "All communication, booking coordination, proposals, and payment arrangements for active transactions must remain inside the platform. Sharing personal contact details, moving bookings off-platform, or attempting to bypass platform checkout is not allowed under the platform terms.";
-export const CHEF_LEGAL_ACKNOWLEDGEMENT = "Chefs must acknowledge the platform's insurance and legal requirements before offering services. Keep your acknowledgement current so your profile, bookings, and payout readiness remain compliant.";
+export const CHEF_LEGAL_ACKNOWLEDGEMENT = "Chefs must confirm their legal right to work in the UK, confirm Level 2 Food Hygiene & Safety, and keep their legal acknowledgements current before offering services. Platform insurance is handled after approval by the website owner and is not uploaded by chefs in the dashboard.";
 export const FUTURE_CALLING_PROVIDER = "Twilio Voice";
 
 export const COUNTRY_OPTIONS = [

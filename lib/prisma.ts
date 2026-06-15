@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client"
 
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient
+  prismaMiddlewareAttached?: boolean
 }
 
 const normalizeDatabaseUrl = (url?: string) => {
@@ -23,18 +24,28 @@ const normalizeDatabaseUrl = (url?: string) => {
 
 const isValidDatabaseUrl = (url?: string) => Boolean(normalizeDatabaseUrl(url) && /^(postgresql|postgres):\/\//.test(normalizeDatabaseUrl(url) as string))
 
+const appendDatabaseParam = (url: string, key: string, value: string) => {
+  if (url.includes(`${key}=`)) {
+    return url
+  }
+
+  const separator = url.includes("?") ? "&" : "?"
+  return `${url}${separator}${key}=${value}`
+}
+
 const getDatabaseUrl = () => {
-  const url = normalizeDatabaseUrl(process.env.DATABASE_URL)
+  let url = normalizeDatabaseUrl(process.env.DATABASE_URL)
   if (!url) return url
 
   if (!isValidDatabaseUrl(url)) {
     return url
   }
 
-  if (process.env.NODE_ENV === "production" && !url.includes("connection_limit")) {
-    const separator = url.includes("?") ? "&" : "?"
-    return `${url}${separator}connection_limit=10&pool_timeout=20&connect_timeout=10`
-  }
+  url = appendDatabaseParam(url, "sslmode", "require")
+  url = appendDatabaseParam(url, "connection_limit", process.env.NODE_ENV === "production" ? "10" : "5")
+  url = appendDatabaseParam(url, "pool_timeout", "20")
+  url = appendDatabaseParam(url, "connect_timeout", "10")
+
   return url
 }
 
@@ -48,6 +59,60 @@ export const prisma =
       },
     },
   })
+
+export const isPrismaConnectionError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error)
+
+  return [
+    "Server has closed the connection",
+    "Connection terminated unexpectedly",
+    "Can't reach database server",
+    "Timed out fetching a new connection",
+    "the database system is starting up",
+    "prepared statement",
+    "Connection reset by peer",
+    "ECONNRESET",
+    "ETIMEDOUT",
+    "P1017",
+  ].some((pattern) => message.includes(pattern))
+}
+
+export async function withPrismaReconnect<T>(operation: () => Promise<T>, retries = 1): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (!isPrismaConnectionError(error) || retries <= 0) {
+      throw error
+    }
+
+    console.warn("Prisma connection was closed by the server. Resetting client connection and retrying operation once.")
+    await prisma.$disconnect().catch(() => undefined)
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    await prisma.$connect()
+
+    return withPrismaReconnect(operation, retries - 1)
+  }
+}
+
+if (!globalForPrisma.prismaMiddlewareAttached) {
+  prisma.$use(async (params, next) => {
+    try {
+      return await next(params)
+    } catch (error) {
+      if (!isPrismaConnectionError(error)) {
+        throw error
+      }
+
+      console.warn("Prisma connection was closed by the server. Reconnecting and retrying query once.")
+      await prisma.$disconnect().catch(() => undefined)
+      await new Promise((resolve) => setTimeout(resolve, 250))
+      await prisma.$connect()
+      return next(params)
+    }
+  })
+
+  globalForPrisma.prismaMiddlewareAttached = true
+}
 
 const shouldAttemptInitialConnection =
   process.env.NODE_ENV === "production" &&

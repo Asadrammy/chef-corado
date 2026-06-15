@@ -146,6 +146,9 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
               <Badge variant="destructive">Quote limit reached</Badge>
             ) : null}
           </div>
+          <p className="text-sm text-gray-500">
+            Each client request can receive up to 10 quotes total across the platform.
+          </p>
 
           {/* Additional Details */}
           {request.details && (
@@ -179,7 +182,7 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
           <CardHeader>
             <CardTitle>Send Proposal</CardTitle>
             <p className="text-gray-600">
-              Submit a proposal for this request with your pricing and message
+              Submit your pricing and message for this request. This request can receive up to 10 quotes total.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">

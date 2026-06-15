@@ -17,7 +17,8 @@ import {
 
 import { authOptions } from "@/lib/auth"
 import { formatCurrency } from "@/lib/currency"
-import { prisma } from "@/lib/prisma"
+import { localDemoClientRequestDetail } from "@/lib/local-demo-data"
+import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,34 +43,44 @@ export default async function RequestDetailsPage({
   const { requestId } = await params
   const userId = session.user.id as string
 
-  const request = await prisma.request.findUnique({
-    where: { 
-      id: requestId,
-      clientId: userId,
-    },
-    include: {
-      _count: {
-        select: {
-          proposals: true,
-        },
+  let request
+
+  try {
+    request = await prisma.request.findUnique({
+      where: {
+        id: requestId,
+        clientId: userId,
       },
-      proposals: {
-        include: {
-          chef: {
-            include: {
-              user: {
-                select: {
-                  name: true,
-                  email: true,
+      include: {
+        _count: {
+          select: {
+            proposals: true,
+          },
+        },
+        proposals: {
+          include: {
+            chef: {
+              include: {
+                user: {
+                  select: {
+                    name: true,
+                    email: true,
+                  },
                 },
               },
             },
           },
+          orderBy: { createdAt: "desc" },
         },
-        orderBy: { createdAt: "desc" },
       },
-    },
-  })
+    })
+  } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      request = localDemoClientRequestDetail(requestId)
+    } else {
+      throw error
+    }
+  }
 
   if (!request) {
     notFound()

@@ -19,7 +19,6 @@ interface ChefActionPanelProps {
   activeBookings: number
   availableRequests: number
   quotesSentToday: number
-  quotesTarget: number
   menusCount: number
   menusTarget: number
   responseRate: number
@@ -67,18 +66,17 @@ export function ChefActionPanel({
   activeBookings,
   availableRequests,
   quotesSentToday,
-  quotesTarget,
   menusCount,
   menusTarget,
   responseRate,
   responseRateWindowDays,
 }: ChefActionPanelProps) {
   const suggestions = [
-    quotesSentToday < quotesTarget
+    availableRequests > 0
       ? {
           id: "quotes",
-          title: `Send ${Math.max(quotesTarget - quotesSentToday, 0)} more quotes today`,
-          description: "Hitting your daily proposal target lifts booking conversion.",
+          title: "Send quotes to suitable requests",
+          description: `You have sent ${quotesSentToday} quote${quotesSentToday === 1 ? "" : "s"} today. Each client request can receive up to 10 quotes total across the platform.`,
         }
       : null,
     menusCount < menusTarget

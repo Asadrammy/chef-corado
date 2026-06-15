@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { localDemoOnboardingProgress } from '@/lib/local-demo-data';
+import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
+  let userRole: string | undefined;
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
@@ -11,7 +14,7 @@ export async function GET(request: NextRequest) {
     }
 
     const userId = session.user.id;
-    const userRole = session.user.role;
+    userRole = session.user.role;
 
     let onboardingData: any = {};
 
@@ -115,6 +118,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(onboardingData);
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
+      return NextResponse.json(localDemoOnboardingProgress(userRole));
+    }
+
     console.error('Error fetching onboarding progress:', error);
     return NextResponse.json({ error: 'Failed to fetch onboarding progress' }, { status: 500 });
   }

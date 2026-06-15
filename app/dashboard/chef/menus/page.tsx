@@ -6,7 +6,7 @@ import { Loader2, Plus } from "lucide-react"
 import { MenuDialog } from "@/components/dashboard/chef/menu-dialog"
 import { MenuEmptyState } from "@/components/dashboard/chef/menu-empty-state"
 import { MenuGrid } from "@/components/dashboard/chef/menu-grid"
-import type { Menu, MenuFormData } from "@/components/dashboard/chef/menu-types"
+import type { Menu, MenuDialogSubmitData, MenuFormData } from "@/components/dashboard/chef/menu-types"
 import { Button } from "@/components/ui/button"
 import {
   AlertDialog,
@@ -20,6 +20,9 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Card, CardContent } from "@/components/ui/card"
 
+const MENU_RECOMMENDED_MIN = 5
+const MENU_MAX_COUNT = 20
+
 // Prevent static generation
 export const dynamic = 'force-dynamic'
 
@@ -31,16 +34,10 @@ export default function MenusPage() {
     description: "",
     price: "",
     currency: defaultCurrency,
+    menuType: "FREE_FORM",
     menuImage: "",
     cuisineType: "",
     eventType: "",
-    sections: [
-      {
-        title: "Starter",
-        sortOrder: 0,
-        items: [],
-      },
-    ],
   })
 
   const [menus, setMenus] = useState<Menu[]>([])
@@ -110,24 +107,12 @@ export default function MenusPage() {
       setFormData({
         title: menu.title,
         description: menu.description || "",
-        price: menu.price.toString(),
+        price: menu.price?.toString() || "",
         currency: menu.currency || "GBP",
+        menuType: menu.menuType || "FREE_FORM",
         menuImage: menu.menuImage || "",
         cuisineType: menu.cuisineType || "",
         eventType: menu.eventType || "",
-        sections: menu.sections?.length
-          ? menu.sections.map((section, sectionIndex) => ({
-              id: section.id,
-              title: section.title,
-              sortOrder: section.sortOrder ?? sectionIndex,
-              items: section.items.map((item, itemIndex) => ({
-                id: item.id,
-                name: item.name,
-                description: item.description || "",
-                sortOrder: item.sortOrder ?? itemIndex,
-              })),
-            }))
-          : createInitialFormData().sections,
       })
     } else {
       resetForm()
@@ -135,44 +120,11 @@ export default function MenusPage() {
     setDialogOpen(true)
   }
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
-  }
-
-  const handleSectionsChange = (sections: MenuFormData["sections"]) => {
-    setFormData((prev) => ({ ...prev, sections }))
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (submitData: MenuDialogSubmitData) => {
     setSaving(true)
     setError("")
 
     try {
-      const submitData = {
-        title: formData.title,
-        description: formData.description || undefined,
-        price: parseFloat(formData.price),
-        currency: formData.currency,
-        menuImage: formData.menuImage || undefined,
-        cuisineType: formData.cuisineType || undefined,
-        eventType: formData.eventType || undefined,
-        sections: formData.sections
-          .filter((section) => section.title.trim())
-          .map((section, sectionIndex) => ({
-            title: section.title.trim(),
-            sortOrder: sectionIndex,
-            items: section.items
-              .filter((item) => item.name.trim())
-              .map((item, itemIndex) => ({
-                name: item.name.trim(),
-                description: item.description?.trim() || undefined,
-                sortOrder: itemIndex,
-              })),
-          })),
-      }
-
       const url = editingMenu ? `/api/menus/${editingMenu.id}` : "/api/menus"
       const method = editingMenu ? "PUT" : "POST"
 
@@ -250,12 +202,27 @@ export default function MenusPage() {
           <div className="space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">Menu Management</h1>
             <p className="text-sm text-muted-foreground">Create, update, and manage your menu offerings.</p>
+            <p className="text-sm text-muted-foreground">Use free-form descriptions so clients can understand your menu in your own words.</p>
+            <p className="text-xs text-muted-foreground">Recommended minimum: {MENU_RECOMMENDED_MIN} menus. Maximum allowed: {MENU_MAX_COUNT} menus.</p>
           </div>
-          <Button type="button" onClick={() => openDialog()} className="rounded-lg sm:self-start">
+          <Button type="button" onClick={() => openDialog()} className="rounded-lg sm:self-start" disabled={menus.length >= MENU_MAX_COUNT}>
             <Plus className="size-4" />
-            <span>Create Menu</span>
+            <span>{menus.length >= MENU_MAX_COUNT ? "Menu Limit Reached" : "Create Menu"}</span>
           </Button>
         </header>
+
+        <Card className="rounded-lg border-border bg-card shadow-sm">
+          <CardContent className="p-4">
+            <p className="text-sm text-muted-foreground">
+              You currently have <span className="font-medium text-foreground">{menus.length}</span> menu{menus.length === 1 ? "" : "s"}.
+              {menus.length < MENU_RECOMMENDED_MIN
+                ? ` Add ${MENU_RECOMMENDED_MIN - menus.length} more to reach the recommended profile minimum.`
+                : menus.length < MENU_MAX_COUNT
+                  ? ` You can add ${MENU_MAX_COUNT - menus.length} more before reaching the maximum.`
+                  : " You have reached the maximum allowed menus for one chef profile."}
+            </p>
+          </CardContent>
+        </Card>
 
         {successMessage ? (
           <Card className="rounded-lg border-border bg-card shadow-sm">
@@ -291,10 +258,6 @@ export default function MenusPage() {
           saving={saving}
           error={error}
           onOpenChange={handleDialogOpenChange}
-          onChange={handleChange}
-          onImageChange={(url) => setFormData((prev) => ({ ...prev, menuImage: url }))}
-          onImageRemove={() => setFormData((prev) => ({ ...prev, menuImage: "" }))}
-          onSectionsChange={handleSectionsChange}
           onSubmit={handleSubmit}
         />
 

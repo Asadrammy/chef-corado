@@ -42,22 +42,19 @@ export function SearchFilters({ onFiltersChange, initialFilters = {} }: SearchFi
   });
 
   const [showFilters, setShowFilters] = useState(false);
-  const [activeFiltersCount, setActiveFiltersCount] = useState(0);
+
+  // Count active filters directly from state
+  const activeFiltersCount = [
+    filters.query,
+    filters.location,
+    filters.minPrice > 0,
+    filters.maxPrice < 1000,
+    filters.minRating > 1,
+    filters.maxRating < 5,
+  ].filter(Boolean).length;
 
   useEffect(() => {
     onFiltersChange(filters);
-    
-    // Count active filters
-    const count = [
-      filters.query,
-      filters.location,
-      filters.minPrice > 0,
-      filters.maxPrice < 1000,
-      filters.minRating > 1,
-      filters.maxRating < 5,
-    ].filter(Boolean).length;
-    
-    setActiveFiltersCount(count);
   }, [filters, onFiltersChange]);
 
   const updateFilter = (key: keyof SearchFilters, value: any) => {
@@ -136,7 +133,7 @@ export function SearchFilters({ onFiltersChange, initialFilters = {} }: SearchFi
 
             {/* Price range */}
             <div>
-              <Label>Price Range: ${filters.minPrice} - ${filters.maxPrice}</Label>
+              <Label>Price Range: £{filters.minPrice} - £{filters.maxPrice}</Label>
               <div className="px-2">
                 <Slider
                   value={[filters.minPrice, filters.maxPrice]}

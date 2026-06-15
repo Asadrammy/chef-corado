@@ -21,6 +21,7 @@ import {
   Star
 } from 'lucide-react';
 import { Role } from '@/types';
+import { formatCurrency } from '@/lib/currency';
 
 export default function AdvancedDashboard() {
   const { data: session, status } = useSession();
@@ -69,7 +70,7 @@ export default function AdvancedDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Revenue</p>
-                <p className="text-2xl font-bold">$12,450</p>
+                <p className="text-2xl font-bold">{formatCurrency(12450, 'GBP')}</p>
                 <p className="text-xs text-muted-foreground">+12% from last month</p>
               </div>
               <Wallet className="h-8 w-8 text-green-600" />

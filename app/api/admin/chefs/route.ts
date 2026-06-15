@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 
 import { getRequiredSession } from "@/lib/auth-helpers"
 import { handleApiError } from "@/lib/error-handler"
+import { localDemoChefs } from "@/lib/local-demo-data"
+import { isPrismaConnectionError } from "@/lib/prisma"
 import { adminService } from "@/lib/services/admin-service"
 import { Role } from "@/types"
 
@@ -13,6 +15,10 @@ export async function GET() {
 
     return NextResponse.json(chefs)
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return NextResponse.json(localDemoChefs)
+    }
+
     return handleApiError(error, "Admin Chefs GET")
   }
 }
