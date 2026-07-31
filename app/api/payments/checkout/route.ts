@@ -87,7 +87,7 @@ export async function POST(request: Request) {
   // Enforce chef moderation - chef must not be banned
   await enforceChefModeration(proposal.chefId)
 
-  // Enforce chef compliance (terms + insurance)
+  // Enforce chef compliance (terms + structured legal confirmations + approval)
   await enforceChefCompliance(proposal.chef.userId)
 
   if (proposal.request.clientId !== session.user.id) {

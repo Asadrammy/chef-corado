@@ -65,7 +65,7 @@ export default async function NotificationsPage() {
               <Bell className="h-9 w-9" />
             </div>
             <h2 className="text-2xl font-semibold tracking-tight text-foreground">No notifications yet</h2>
-            <p className="mt-2 text-sm text-muted-foreground">You'll see notifications here when there's activity on your account.</p>
+            <p className="mt-2 text-sm text-muted-foreground">You&apos;ll see notifications here when there&apos;s activity on your account.</p>
           </div>
         </div>
       ) : (

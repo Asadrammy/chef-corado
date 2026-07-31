@@ -8,7 +8,11 @@ import { getStripeService, StripeService } from "@/lib/services/stripe-service"
 import { Role } from "@/types"
 
 const connectActionSchema = z.object({
-  action: z.enum(["onboard", "refresh"]),
+  action: z.enum(["onboard", "refresh", "onboarding", "dashboard"]).transform((action) => {
+    if (action === "onboarding") return "onboard"
+    if (action === "dashboard") return "refresh"
+    return action
+  }),
 })
 
 function getBaseUrl(request: NextRequest) {

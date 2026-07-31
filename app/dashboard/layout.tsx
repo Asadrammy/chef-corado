@@ -3,9 +3,9 @@ import { redirect } from "next/navigation"
 import { getServerSession } from "next-auth"
 import Providers from "@/components/providers"
 
-import { authOptions } from "@/lib/auth"
+import { authOptions, isLocalDemoSessionUser } from "@/lib/auth"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
-import { INSURANCE_VERSION, isCurrentInsuranceVersion, isCurrentTermsVersion, TERMS_VERSION } from "@/lib/request-options"
+import { isCurrentTermsVersion, TERMS_VERSION } from "@/lib/request-options"
 
 // Prevent static generation
 export const dynamic = 'force-dynamic'
@@ -15,6 +15,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   if (!session?.user?.id) {
     redirect("/login")
+  }
+
+  if (isLocalDemoSessionUser(session.user.id, session.user.email)) {
+    const legalNotice = {
+      needsAttention: Boolean(session.user.needsTermsAcceptance || session.user.needsChefCompliance),
+      chefComplianceNeedsAttention: Boolean(session.user.needsChefCompliance),
+      termsVersion: TERMS_VERSION,
+    }
+
+    return (
+      <Providers>
+        <DashboardShell legalNotice={legalNotice}>{children}</DashboardShell>
+      </Providers>
+    )
   }
 
   let user
@@ -29,8 +43,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
         termsAcceptedAt: true,
         chefProfile: {
           select: {
-            insuranceAcknowledgedAt: true,
-            insuranceVersion: true,
+            rightToWorkUkConfirmed: true,
+            foodHygieneLevel2Confirmed: true,
+            foodHygieneCertificateUrl: true,
+            foodHygieneCertificateReviewStatus: true,
+            verificationStatus: true,
+            isApproved: true,
           },
         },
       },
@@ -38,10 +56,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
   } catch (error) {
     if (isPrismaConnectionError(error)) {
       const legalNotice = {
-        needsAttention: Boolean(session.user.needsTermsAcceptance || session.user.needsChefCompliance || session.user.needsInsuranceVerification),
-        chefInsuranceNeedsAttention: Boolean(session.user.needsChefCompliance || session.user.needsInsuranceVerification),
+        needsAttention: Boolean(session.user.needsTermsAcceptance || session.user.needsChefCompliance),
+        chefComplianceNeedsAttention: Boolean(session.user.needsChefCompliance),
         termsVersion: TERMS_VERSION,
-        insuranceVersion: INSURANCE_VERSION,
       }
 
       return (
@@ -58,15 +75,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
     redirect("/login?banned=1")
   }
 
-  const chefInsuranceNeedsAttention = user?.role === "CHEF"
-    ? !user.chefProfile?.insuranceAcknowledgedAt || !isCurrentInsuranceVersion(user.chefProfile?.insuranceVersion)
+  const chefComplianceNeedsAttention = user?.role === "CHEF"
+    ? !user.chefProfile?.rightToWorkUkConfirmed ||
+      !user.chefProfile?.foodHygieneLevel2Confirmed ||
+      !user.chefProfile?.foodHygieneCertificateUrl ||
+      user.chefProfile?.foodHygieneCertificateReviewStatus !== "APPROVED" ||
+      user.chefProfile?.verificationStatus !== "APPROVED" ||
+      !user.chefProfile?.isApproved
     : false
 
   const legalNotice = {
-    needsAttention: !isCurrentTermsVersion(user?.termsVersion) || !user?.termsAcceptedAt || chefInsuranceNeedsAttention,
-    chefInsuranceNeedsAttention,
+    needsAttention: !isCurrentTermsVersion(user?.termsVersion) || !user?.termsAcceptedAt || chefComplianceNeedsAttention,
+    chefComplianceNeedsAttention,
     termsVersion: user?.termsVersion ?? TERMS_VERSION,
-    insuranceVersion: user?.chefProfile?.insuranceVersion ?? INSURANCE_VERSION,
   }
 
   return (

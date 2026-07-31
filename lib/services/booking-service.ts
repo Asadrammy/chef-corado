@@ -12,6 +12,7 @@ import { prisma } from "@/lib/prisma"
 import { enforceUserModeration, enforceChefModeration } from "@/lib/security/moderation-guard"
 import { enforceClientCompliance, enforceChefCompliance } from "@/lib/security/legal-compliance"
 import { validatePolicyFields } from "@/lib/security/communication-policy"
+import { validateExperienceBookingCounts } from "@/lib/booking-counts"
 
 const SORTABLE_BOOKING_FIELDS = new Set(["createdAt", "eventDate", "totalPrice", "status"])
 
@@ -208,7 +209,7 @@ export const bookingService = {
         throw new ApiError(403, 'This chef is not currently available for booking')
       }
       
-      // Enforce chef compliance (terms + insurance)
+      // Enforce chef compliance (terms + structured legal confirmations + approval)
       if (experience.chef.user?.id) {
         await enforceChefCompliance(experience.chef.user.id)
       }
@@ -258,12 +259,7 @@ export const bookingService = {
       }
 
       const experienceCurrency = (experience as any).currency || 'GBP'
-      const serviceType = (experience as any).serviceType
-      const pricePerStudent = (experience as any).pricePerStudent
-      const pricePerUnit = serviceType === 'COOKING_CLASS'
-        ? (pricePerStudent ?? experience.price)
-        : experience.price
-      const totalPrice = pricePerUnit * input.guestCount
+      const bookingCounts = validateExperienceBookingCounts(experience as any, input.guestCount)
 
       // Create booking atomically
       const booking = await tx.booking.create({
@@ -275,8 +271,9 @@ export const bookingService = {
           location: input.location,
           latitude: input.latitude ?? null,
           longitude: input.longitude ?? null,
-          guestCount: input.guestCount,
-          totalPrice,
+          guestCount: bookingCounts.guestCount,
+          studentCount: bookingCounts.studentCount,
+          totalPrice: bookingCounts.totalPrice,
           currency: experienceCurrency,
           bookingType: 'INSTANT',
           status: BookingStatus.PENDING,

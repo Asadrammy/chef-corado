@@ -44,7 +44,7 @@ export default async function AdminPayoutsPage() {
   })
 
   const pendingPayouts = payouts.filter((p) => p.status === "PENDING")
-  const completedPayouts = payouts.filter((p) => p.status === "COMPLETED")
+  const completedPayouts = payouts.filter((p) => p.status === "PAID" || p.status === "COMPLETED")
   const totalPendingAmount = pendingPayouts.reduce((sum, p) => sum + p.amount, 0)
   const totalCompletedAmount = completedPayouts.reduce((sum, p) => sum + p.amount, 0)
 
@@ -61,7 +61,7 @@ export default async function AdminPayoutsPage() {
               {pendingPayouts.length} pending
             </Badge>
             <Badge variant="default" className="rounded-full">
-              {completedPayouts.length} completed
+              {completedPayouts.length} paid
             </Badge>
           </div>
         </div>
@@ -82,7 +82,7 @@ export default async function AdminPayoutsPage() {
         <Card className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur dark:border-white/10">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-muted-foreground">Completed Payouts</p>
+              <p className="text-sm font-medium text-muted-foreground">Paid Payouts</p>
               <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalCompletedAmount)}</p>
             </div>
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
@@ -126,7 +126,7 @@ export default async function AdminPayoutsPage() {
                       </div>
                     </div>
                     <Badge
-                      variant={payout.status === "COMPLETED" ? "default" : "secondary"}
+                      variant={payout.status === "PAID" || payout.status === "COMPLETED" ? "default" : "secondary"}
                       className="rounded-full"
                     >
                       {payout.status}
@@ -152,11 +152,11 @@ export default async function AdminPayoutsPage() {
                         </p>
                       </div>
                     )}
-                    {payout.stripeTransferId && (
+                    {(payout as any).externalReference && (
                       <div>
-                        <p className="text-muted-foreground">Transfer ID</p>
+                        <p className="text-muted-foreground">External reference</p>
                         <p className="text-foreground font-mono text-xs">
-                          {payout.stripeTransferId}
+                          {(payout as any).externalReference}
                         </p>
                       </div>
                     )}
@@ -164,7 +164,7 @@ export default async function AdminPayoutsPage() {
 
                   {payout.status === "PENDING" && (
                     <Button size="sm" className="rounded-xl">
-                      Process Payout
+                      Review Manual Payout
                     </Button>
                   )}
                 </div>

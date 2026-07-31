@@ -260,10 +260,11 @@ export function OptimizedChefRequestsMarketplace({ requests }: OptimizedChefRequ
 
 function OptimizedRequestCard({ request }: { request: OptimizedChefRequestRow }) {
   const [isHovered, setIsHovered] = React.useState(false)
+  const nowMs = new Date().getTime()
   
   // Calculate urgency
   const getUrgencyLevel = () => {
-    const daysUntil = (new Date(request.eventDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+    const daysUntil = (new Date(request.eventDate).getTime() - nowMs) / (1000 * 60 * 60 * 24)
     if (daysUntil <= 3) return { level: 'urgent', color: 'red', text: 'Urgent!' }
     if (daysUntil <= 7) return { level: 'soon', color: 'orange', text: 'This Week' }
     return { level: 'normal', color: 'blue', text: 'Upcoming' }
@@ -271,7 +272,7 @@ function OptimizedRequestCard({ request }: { request: OptimizedChefRequestRow })
 
   const urgency = getUrgencyLevel()
   const isHighBudget = request.budget >= 500
-  const isNew = request.createdAt ? new Date(request.createdAt).getTime() > Date.now() - 24 * 60 * 60 * 1000 : false
+  const isNew = request.createdAt ? new Date(request.createdAt).getTime() > nowMs - 24 * 60 * 60 * 1000 : false
 
   const handleQuickResponse = () => {
     // Track quick response click

@@ -1,6 +1,5 @@
 "use client"
 
-import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Wallet, Calendar, Star, TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react"
@@ -22,12 +21,6 @@ export function PremiumPerformance({
   activeBookings, 
   earningsData 
 }: PremiumPerformanceProps) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
   // Calculate trend from earnings data
   const calculateTrend = (data: Array<{ month: string; earnings: number }>) => {
     if (data.length < 2) return { direction: 'neutral' as const, value: 0 }
@@ -43,22 +36,6 @@ export function PremiumPerformance({
 
   const earningsTrend = calculateTrend(earningsData)
   const bookingTrend = completedBookings > 0 ? { direction: 'up' as const, value: 12 } : { direction: 'neutral' as const, value: 0 }
-
-  if (!mounted) {
-    return (
-      <section className="space-y-8">
-        <div className="animate-pulse">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Performance Overview</h2>
-          <p className="text-gray-600 dark:text-gray-300">Track your key metrics and earnings</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />
-          ))}
-        </div>
-      </section>
-    )
-  }
 
   return (
     <section className="space-y-8">
@@ -186,7 +163,7 @@ export function PremiumPerformance({
                   <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                     <h4 className="font-medium text-green-800 dark:text-green-200 mb-1">Great start! 🎉</h4>
                     <p className="text-sm text-green-700 dark:text-green-300">
-                      You've completed {completedBookings} booking{completedBookings > 1 ? 's' : ''}. Keep up the excellent work!
+                      You&apos;ve completed {completedBookings} booking{completedBookings > 1 ? 's' : ''}. Keep up the excellent work!
                     </p>
                   </div>
                   
@@ -200,7 +177,7 @@ export function PremiumPerformance({
                   <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
                     <h4 className="font-medium text-purple-800 dark:text-purple-200 mb-1">Next milestone</h4>
                     <p className="text-sm text-purple-700 dark:text-purple-300">
-                      Complete {5 - completedBookings} more bookings to unlock the "Experienced Chef" badge.
+                      Complete {5 - completedBookings} more bookings to unlock the &quot;Experienced Chef&quot; badge.
                     </p>
                   </div>
                 </div>

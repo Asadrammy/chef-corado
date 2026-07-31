@@ -3,11 +3,12 @@
 import * as React from "react"
 import Link from "next/link"
 import { format } from "date-fns"
-import { FileText, MapPin, Calendar, Star, User, ArrowRight, CheckCircle2 } from "lucide-react"
+import { FileText, MapPin, Calendar, Star, User, ArrowRight, CheckCircle2, Columns3, MessageSquare } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -18,6 +19,8 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { analytics } from "@/lib/analytics"
+import { formatCurrency } from "@/lib/currency"
+import { cn } from "@/lib/utils"
 
 type ProposalStatus = "PENDING" | "ACCEPTED" | "ACCEPTED_PENDING_PAYMENT" | "REJECTED" | "EXPIRED" | "WITHDRAWN" | "BOOKED"
 type ProposalResolution = "ACCEPTED" | "REJECTED"
@@ -28,16 +31,32 @@ type ProposalStatusFilter = "all" | ProposalStatus
 type ProposalPayload = {
   id: string
   price: string
+  currency?: string
   message: string | null
   status: ProposalStatus
   createdAt?: string
   chef: {
+    userId?: string
     name: string | null
     rating?: number
+    reviewCount?: number
+    profileImage?: string | null
   }
   request?: {
+    title?: string | null
     eventDate: string
     location: string
+    guestCount?: number | null
+    preferredTime?: string | null
+  }
+  menu?: {
+    id: string
+    title: string
+    description?: string | null
+    cuisineType?: string | null
+    menuType?: string | null
+    price?: number | null
+    currency?: string | null
   }
 }
 
@@ -53,12 +72,12 @@ const statusBadgeVariant: Record<ProposalStatus, "secondary" | "default" | "dest
 
 const formatStatusLabel = (value: ProposalStatus) => `${value[0]}${value.slice(1).toLowerCase()}`
 
-const formatPrice = (value: string) => {
+const formatPrice = (value: string, currency = "GBP") => {
   const parsed = Number(value)
   if (Number.isNaN(parsed)) {
     return value
   }
-  return `$${parsed.toFixed(2)}`
+  return formatCurrency(parsed, currency)
 }
 
 const getNumericPrice = (value: string) => {
@@ -94,6 +113,24 @@ function RatingStars({ value }: { value: number }) {
   )
 }
 
+function getMenuPriceLabel(menu: ProposalPayload["menu"]) {
+  if (!menu) return "No menu attached"
+  if (menu.menuType === "PRICED" && typeof menu.price === "number" && menu.price > 0) {
+    return formatCurrency(menu.price, menu.currency ?? "GBP")
+  }
+  return "Pricing discussed with your request"
+}
+
+function getProposalDateLabel(proposal: ProposalPayload) {
+  const eventDate = proposal.request?.eventDate ? new Date(proposal.request.eventDate) : null
+  if (!eventDate || Number.isNaN(eventDate.getTime())) {
+    return "Not specified"
+  }
+
+  const date = format(eventDate, "MMM d, yyyy")
+  return proposal.request?.preferredTime ? `${date}, ${proposal.request.preferredTime}` : date
+}
+
 export function ClientProposalsList() {
   const [proposals, setProposals] = React.useState<ProposalPayload[]>([])
   const [loading, setLoading] = React.useState(true)
@@ -104,6 +141,8 @@ export function ClientProposalsList() {
   const [statusFilter, setStatusFilter] = React.useState<ProposalStatusFilter>("all")
   const [sort, setSort] = React.useState<ProposalSort>("newest")
   const [expandedProposalId, setExpandedProposalId] = React.useState<string | null>(null)
+  const [selectedProposalIds, setSelectedProposalIds] = React.useState<string[]>([])
+  const [compareMode, setCompareMode] = React.useState(false)
 
   React.useEffect(() => {
     let isMounted = true
@@ -202,6 +241,26 @@ export function ClientProposalsList() {
     }
   }, [proposals])
 
+  const selectedProposals = React.useMemo(
+    () => selectedProposalIds
+      .map((proposalId) => proposals.find((proposal) => proposal.id === proposalId))
+      .filter((proposal): proposal is ProposalPayload => Boolean(proposal)),
+    [proposals, selectedProposalIds]
+  )
+
+  const toggleProposalSelection = React.useCallback((proposalId: string) => {
+    setSelectedProposalIds((current) => {
+      if (current.includes(proposalId)) {
+        return current.filter((id) => id !== proposalId)
+      }
+      if (current.length >= 3) {
+        return current
+      }
+      return [...current, proposalId]
+    })
+    setCompareMode(false)
+  }, [])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center gap-3 rounded-[28px] border border-dashed border-border/80 bg-background/50 px-6 py-12">
@@ -285,6 +344,40 @@ export function ClientProposalsList() {
         </div>
       </div>
 
+      {proposals.length ? (
+        <div className="mb-6 flex flex-col gap-3 rounded-[24px] border border-white/60 bg-white/80 px-4 py-4 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-foreground">Compare proposals</p>
+            <p className="text-sm text-muted-foreground">
+              Select 2 to 3 proposals to compare price, menu, message, status, and payment context side by side.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="rounded-full"
+              disabled={selectedProposalIds.length === 0}
+              onClick={() => {
+                setSelectedProposalIds([])
+                setCompareMode(false)
+              }}
+            >
+              Clear
+            </Button>
+            <Button
+              type="button"
+              className="rounded-full"
+              disabled={selectedProposalIds.length < 2}
+              onClick={() => setCompareMode(true)}
+            >
+              <Columns3 className="mr-2 h-4 w-4" />
+              Compare Selected ({selectedProposalIds.length})
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {!proposals.length ? (
         <section className="rounded-[30px] border border-white/60 bg-white/80 p-8 shadow-xl shadow-slate-900/5 backdrop-blur">
           <div className="grid md:grid-cols-2 gap-8 items-center">
@@ -350,6 +443,161 @@ export function ClientProposalsList() {
             </div>
           </div>
         </div>
+      ) : compareMode && selectedProposals.length >= 2 ? (
+        <section className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">Proposal comparison</h2>
+              <p className="text-sm text-muted-foreground">Side-by-side view of your selected chef proposals.</p>
+            </div>
+            <Button type="button" variant="outline" className="rounded-full" onClick={() => setCompareMode(false)}>
+              Back to list
+            </Button>
+          </div>
+
+          <div className="overflow-x-auto rounded-[24px] border border-white/60 bg-white/90 shadow-sm">
+            <table className="min-w-[820px] w-full text-sm">
+              <caption className="sr-only">Selected proposal comparison</caption>
+              <thead>
+                <tr className="border-b border-border/60 bg-muted/40">
+                  <th className="w-48 px-4 py-3 text-left font-semibold text-muted-foreground">Criteria</th>
+                  {selectedProposals.map((proposal) => {
+                    const chefName = proposal.chef?.name ?? "Chef"
+                    return (
+                      <th key={proposal.id} className="px-4 py-3 text-left align-top">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="size-10">
+                            <AvatarImage src={proposal.chef.profileImage ?? undefined} alt={chefName} />
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+                              {getInitials(chefName)}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-semibold text-foreground">{chefName}</p>
+                            <Badge variant={statusBadgeVariant[proposal.status]} className="mt-1">
+                              {formatStatusLabel(proposal.status)}
+                            </Badge>
+                          </div>
+                        </div>
+                      </th>
+                    )
+                  })}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {[
+                  {
+                    label: "Price",
+                    render: (proposal: ProposalPayload) => formatPrice(proposal.price, proposal.currency),
+                  },
+                  {
+                    label: "Currency",
+                    render: (proposal: ProposalPayload) => proposal.currency ?? "GBP",
+                  },
+                  {
+                    label: "Event timing",
+                    render: (proposal: ProposalPayload) => getProposalDateLabel(proposal),
+                  },
+                  {
+                    label: "Location",
+                    render: (proposal: ProposalPayload) => proposal.request?.location ?? "Not specified",
+                  },
+                  {
+                    label: "Guests",
+                    render: (proposal: ProposalPayload) => proposal.request?.guestCount ? `${proposal.request.guestCount}` : "Not specified",
+                  },
+                  {
+                    label: "Menu",
+                    render: (proposal: ProposalPayload) => proposal.menu?.title ?? "No menu attached",
+                  },
+                  {
+                    label: "Menu summary",
+                    render: (proposal: ProposalPayload) => proposal.menu?.description ?? "Not specified",
+                  },
+                  {
+                    label: "Menu pricing",
+                    render: (proposal: ProposalPayload) => getMenuPriceLabel(proposal.menu),
+                  },
+                  {
+                    label: "Included services",
+                    render: () => "Not specified by chef",
+                  },
+                  {
+                    label: "Reviews",
+                    render: (proposal: ProposalPayload) =>
+                      proposal.chef.reviewCount
+                        ? `${(proposal.chef.rating ?? 0).toFixed(1)} from ${proposal.chef.reviewCount} review${proposal.chef.reviewCount === 1 ? "" : "s"}`
+                        : "No reviews yet",
+                  },
+                  {
+                    label: "Response date",
+                    render: (proposal: ProposalPayload) =>
+                      proposal.createdAt ? format(new Date(proposal.createdAt), "MMM d, yyyy") : "Not specified",
+                  },
+                  {
+                    label: "Payment",
+                    render: (proposal: ProposalPayload) =>
+                      proposal.status === "ACCEPTED_PENDING_PAYMENT"
+                        ? "Accepted. Payment is required to confirm the booking."
+                        : proposal.status === "PENDING"
+                          ? "Payment becomes available after accepting this proposal."
+                          : "Payment not available for this status.",
+                  },
+                ].map((row) => (
+                  <tr key={row.label} className="align-top">
+                    <th className="px-4 py-4 text-left font-semibold text-muted-foreground">{row.label}</th>
+                    {selectedProposals.map((proposal) => (
+                      <td key={`${proposal.id}-${row.label}`} className="max-w-[260px] px-4 py-4 text-foreground">
+                        <span className={row.label === "Menu summary" ? "line-clamp-5" : undefined}>
+                          {row.render(proposal)}
+                        </span>
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                <tr className="align-top">
+                  <th className="px-4 py-4 text-left font-semibold text-muted-foreground">Message</th>
+                  {selectedProposals.map((proposal) => (
+                    <td key={`${proposal.id}-message`} className="max-w-[260px] px-4 py-4 text-foreground">
+                      <p className="line-clamp-6">{proposal.message ?? "Not specified"}</p>
+                    </td>
+                  ))}
+                </tr>
+                <tr className="align-top">
+                  <th className="px-4 py-4 text-left font-semibold text-muted-foreground">Actions</th>
+                  {selectedProposals.map((proposal) => (
+                    <td key={`${proposal.id}-actions`} className="px-4 py-4">
+                      <div className="flex flex-wrap gap-2">
+                        {proposal.chef.userId ? (
+                          <Button asChild variant="outline" size="sm" className="rounded-full">
+                            <Link href={`/dashboard/chat?userId=${proposal.chef.userId}`}>
+                              <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+                              Message
+                            </Link>
+                          </Button>
+                        ) : null}
+                        {proposal.status === "ACCEPTED_PENDING_PAYMENT" ? (
+                          <Button asChild size="sm" className="rounded-full">
+                            <Link href={`/dashboard/client/proposals/payment?proposalId=${proposal.id}`}>Pay</Link>
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="rounded-full"
+                            disabled={proposal.status !== "PENDING" || actionLoading[proposal.id] === "accept"}
+                            onClick={() => handleAction(proposal.id, "ACCEPTED")}
+                          >
+                            {actionLoading[proposal.id] === "accept" ? "Accepting..." : "Accept"}
+                          </Button>
+                        )}
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       ) : (
         <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((proposal) => {
@@ -358,17 +606,37 @@ export function ClientProposalsList() {
             const location = proposal.request?.location ?? "—"
             const message = proposal.message ?? "—"
             const isExpanded = expandedProposalId === proposal.id
+            const isSelected = selectedProposalIds.includes(proposal.id)
+            const selectionDisabled = !isSelected && selectedProposalIds.length >= 3
             const initials = getInitials(chefName)
 
             return (
               <div
                 key={proposal.id}
-                className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+                className={cn(
+                  "rounded-[26px] border bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl",
+                  isSelected ? "border-primary/70 ring-2 ring-primary/15" : "border-white/60"
+                )}
               >
+                <div className="mb-4 flex items-center justify-between gap-3 rounded-2xl border border-border/60 bg-muted/30 px-3 py-2">
+                  <label htmlFor={`compare-${proposal.id}`} className="flex items-center gap-2 text-sm font-medium text-foreground">
+                    <Checkbox
+                      id={`compare-${proposal.id}`}
+                      checked={isSelected}
+                      disabled={selectionDisabled}
+                      onCheckedChange={() => toggleProposalSelection(proposal.id)}
+                    />
+                    Compare
+                  </label>
+                  <span className="text-xs text-muted-foreground">
+                    {selectionDisabled ? "Limit 3" : "Select up to 3"}
+                  </span>
+                </div>
+
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex items-start gap-3">
                     <Avatar className="size-10">
-                      <AvatarImage src={undefined} alt={chefName} />
+                      <AvatarImage src={proposal.chef.profileImage ?? undefined} alt={chefName} />
                       <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
                         {initials || <User className="h-4 w-4" />}
                       </AvatarFallback>
@@ -377,7 +645,16 @@ export function ClientProposalsList() {
                       <div className="text-sm text-muted-foreground">Chef</div>
                       <div className="text-lg font-semibold truncate">{chefName}</div>
                       <div className="mt-2">
-                        <RatingStars value={proposal.chef.rating || 0} />
+                        {proposal.chef.reviewCount ? (
+                          <div className="flex items-center gap-2">
+                            <RatingStars value={proposal.chef.rating || 0} />
+                            <span className="text-xs text-muted-foreground">
+                              {proposal.chef.reviewCount} review{proposal.chef.reviewCount === 1 ? "" : "s"}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No reviews yet</span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -387,7 +664,7 @@ export function ClientProposalsList() {
 
                 <div className="mt-6">
                   <div className="text-sm text-muted-foreground">Price</div>
-                  <div className="text-3xl font-semibold tracking-tight">{formatPrice(proposal.price)}</div>
+                  <div className="text-3xl font-semibold tracking-tight">{formatPrice(proposal.price, proposal.currency)}</div>
                 </div>
 
                 <div className="mt-6 space-y-3 text-sm">
@@ -401,12 +678,33 @@ export function ClientProposalsList() {
                   </div>
                 </div>
 
+                <div className="mt-6 rounded-2xl border border-border/60 bg-muted/30 p-4 text-sm">
+                  <div className="text-sm text-muted-foreground">Attached menu</div>
+                  <div className="mt-1 font-semibold text-foreground">{proposal.menu?.title ?? "No menu attached"}</div>
+                  {proposal.menu ? (
+                    <p className="mt-1 line-clamp-2 text-muted-foreground">
+                      {proposal.menu.cuisineType ? `${proposal.menu.cuisineType}. ` : ""}
+                      {proposal.menu.description ?? getMenuPriceLabel(proposal.menu)}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-muted-foreground">The chef can still tailor a menu after you discuss the request.</p>
+                  )}
+                </div>
+
                 <div className="mt-6">
                   <div className="text-sm text-muted-foreground">Message</div>
                   <p className={isExpanded ? "mt-2 text-sm" : "mt-2 text-sm line-clamp-3"}>{message}</p>
                 </div>
 
                 <div className="mt-6 flex flex-wrap items-center gap-2">
+                  {proposal.chef.userId ? (
+                    <Button variant="outline" asChild className="rounded-full">
+                      <Link href={`/dashboard/chat?userId=${proposal.chef.userId}`}>
+                        <MessageSquare className="mr-1.5 h-4 w-4" />
+                        Message
+                      </Link>
+                    </Button>
+                  ) : null}
                   <Button
                     variant="outline"
                     className="rounded-full"

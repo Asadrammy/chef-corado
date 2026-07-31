@@ -35,28 +35,32 @@ export default async function proxy(request: NextRequest) {
   }
 
   const needsTermsAcceptance = token?.needsTermsAcceptance
-  const needsChefCompliance = token?.needsChefCompliance ?? token?.needsInsuranceVerification ?? false
-
-  // Temporarily disable legal acceptance redirect to allow login
-  // if (
-  //   token &&
-  //   (needsTermsAcceptance || needsChefCompliance) &&
-  //   !pathname.startsWith(legalAcceptancePath) &&
-  //   !pathname.startsWith('/api/account/legal-acceptance') &&
-  //   !isApiRoute
-  // ) {
-  //   const redirectUrl = new URL(legalAcceptancePath, appBaseUrl)
-  //   if (needsTermsAcceptance) {
-  //     redirectUrl.searchParams.set('terms', '1')
-  //   }
-  //   if (needsChefCompliance) {
-  //     redirectUrl.searchParams.set('compliance', '1')
-  //   }
-  //   return NextResponse.redirect(redirectUrl)
-  // }
+  if (
+    token &&
+    needsTermsAcceptance &&
+    !pathname.startsWith(legalAcceptancePath) &&
+    !pathname.startsWith('/api/account/legal-acceptance') &&
+    !isApiRoute
+  ) {
+    const redirectUrl = new URL(legalAcceptancePath, appBaseUrl)
+    redirectUrl.searchParams.set('terms', '1')
+    redirectUrl.searchParams.set('redirect', `${pathname}${request.nextUrl.search}`)
+    return NextResponse.redirect(redirectUrl)
+  }
 
   if (!token && !isPublicPath) {
-    return NextResponse.redirect(new URL('/login', appBaseUrl))
+    const loginUrl = new URL('/login', appBaseUrl)
+    loginUrl.searchParams.set('callbackUrl', `${pathname}${request.nextUrl.search}`)
+
+    if (pathname.startsWith('/dashboard/client')) {
+      loginUrl.searchParams.set('role', 'CLIENT')
+    } else if (pathname.startsWith('/dashboard/chef')) {
+      loginUrl.searchParams.set('role', 'CHEF')
+    } else if (pathname.startsWith('/dashboard/admin')) {
+      loginUrl.searchParams.set('role', 'ADMIN')
+    }
+
+    return NextResponse.redirect(loginUrl)
   }
 
   if (token && (pathname === '/login' || pathname === '/register')) {

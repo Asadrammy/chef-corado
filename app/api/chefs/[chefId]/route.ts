@@ -51,6 +51,7 @@ function formatChefProfile(profile: any) {
       description: menu.description,
       price: menu.price,
       currency: menu.currency,
+      menuType: menu.menuType,
       menuImage: menu.menuImage,
       cuisineType: menu.cuisineType,
       eventType: menu.eventType,

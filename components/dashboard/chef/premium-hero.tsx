@@ -1,6 +1,5 @@
 "use client"
 
-import { useState, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,18 +13,6 @@ interface PremiumHeroProps {
 }
 
 export function PremiumHero({ userName, completionPercentage, availableRequests }: PremiumHeroProps) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) {
-    return (
-      <div className="h-80 bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950 rounded-3xl animate-pulse" />
-    )
-  }
-
   return (
     <div className="relative overflow-hidden rounded-3xl">
       {/* Gradient background */}

@@ -208,7 +208,7 @@ export const messageService = {
     // Enforce communication policy on quote message
     validateMessageContent(input.message)
 
-    // Enforce chef compliance (terms + insurance)
+    // Enforce chef compliance (terms + structured legal confirmations + approval)
     await enforceChefCompliance(input.senderId)
 
     // Enforce unified quote limit (10 quotes per request)
@@ -298,7 +298,7 @@ export const messageService = {
     // Enforce communication policy on quote message
     validateMessageContent(input.message)
 
-    // Enforce chef compliance (terms + insurance)
+    // Enforce chef compliance (terms + structured legal confirmations + approval)
     await enforceChefCompliance(input.senderId)
 
     const proposal = await messageRepository.findProposalOwnedByChef(input.proposalId, input.senderId)

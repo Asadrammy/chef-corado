@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth"
 import type { Session } from "next-auth"
 
-import { authOptions } from "@/lib/auth"
+import { authOptions, getLocalDemoSessionRecord, type SessionComplianceRecord } from "@/lib/auth"
 import { TERMS_VERSION } from "@/lib/request-options"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { Role } from "@/types"
@@ -13,30 +13,37 @@ export async function getRequiredSession(requiredRole?: Role | Role[]): Promise<
     throw new Error("UNAUTHORIZED")
   }
 
-  let currentUser
+  let currentUser: SessionComplianceRecord | null = getLocalDemoSessionRecord(session.user.id, session.user.email, session.user.role)
 
-  try {
-    currentUser = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: {
-        isBanned: true,
-        role: true,
-        termsAcceptedAt: true,
-        termsVersion: true,
-        acceptedVia: true,
-      },
-    })
-  } catch (error) {
-    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
-      currentUser = {
-        isBanned: false,
-        role: session.user.role,
-        termsAcceptedAt: new Date(),
-        termsVersion: TERMS_VERSION,
-        acceptedVia: "local-demo",
+  if (!currentUser) {
+    try {
+      currentUser = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: {
+          isBanned: true,
+          role: true,
+          termsAcceptedAt: true,
+          termsVersion: true,
+          acceptedVia: true,
+          chefProfile: {
+            select: {
+              rightToWorkUkConfirmed: true,
+              foodHygieneLevel2Confirmed: true,
+              foodHygieneCertificateUrl: true,
+              foodHygieneCertificateReviewStatus: true,
+              verificationStatus: true,
+              isApproved: true,
+              isBanned: true,
+            },
+          },
+        },
+      })
+    } catch (error) {
+      if (isPrismaConnectionError(error)) {
+        currentUser = getLocalDemoSessionRecord(session.user.id, session.user.email, session.user.role)
+      } else {
+        throw error
       }
-    } else {
-      throw error
     }
   }
 
@@ -49,12 +56,22 @@ export async function getRequiredSession(requiredRole?: Role | Role[]): Promise<
   }
 
   const needsTermsAcceptance = !currentUser.termsAcceptedAt || currentUser.termsVersion !== TERMS_VERSION || !currentUser.acceptedVia
+  const chefProfile = currentUser.chefProfile
 
   session.user.needsTermsAcceptance = needsTermsAcceptance
   session.user.complianceStatus = null
   session.user.needsChefCompliance = currentUser.role === Role.CHEF
+    ? !chefProfile ||
+      chefProfile.isBanned ||
+      !chefProfile.rightToWorkUkConfirmed ||
+      !chefProfile.foodHygieneLevel2Confirmed ||
+      !chefProfile.foodHygieneCertificateUrl ||
+      chefProfile.foodHygieneCertificateReviewStatus !== "APPROVED" ||
+      chefProfile.verificationStatus !== "APPROVED" ||
+      !chefProfile.isApproved
+    : false
   session.user.insuranceStatus = null
-  session.user.needsInsuranceVerification = currentUser.role === Role.CHEF
+  session.user.needsInsuranceVerification = false
 
   if (requiredRole) {
     const allowedRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole]

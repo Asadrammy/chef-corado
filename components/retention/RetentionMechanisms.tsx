@@ -326,7 +326,7 @@ export function EngagementPrompts({ userRole, userId, className }: EngagementPro
             <CheckCircle className="w-12 h-12 text-green-600 mx-auto mb-4" />
             <h4 className="text-lg font-semibold mb-2">All Caught Up!</h4>
             <p className="text-sm text-gray-600">
-              You're doing great! Check back later for new opportunities.
+              You&apos;re doing great! Check back later for new opportunities.
             </p>
           </div>
         )}

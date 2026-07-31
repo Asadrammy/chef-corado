@@ -6,22 +6,34 @@ import { logger } from "@/lib/logger"
 import { prisma } from "@/lib/prisma"
 import type { Prisma } from "@prisma/client"
 
-type PayoutAction = "process" | "complete" | "fail"
+type PayoutAction = "approve" | "process" | "pay" | "complete" | "fail" | "cancel" | "retry"
+
+type PayoutStatusUpdateInput = {
+  action: PayoutAction
+  externalReference?: string
+  adminNotes?: string
+  failureReason?: string
+  processedBy?: string
+}
 
 // Payout state machine constants
 const PAYOUT_STATUS = {
   PENDING: "PENDING",
+  APPROVED: "APPROVED",
   PROCESSING: "PROCESSING",
-  COMPLETED: "COMPLETED",
+  PAID: "PAID",
   FAILED: "FAILED",
+  CANCELLED: "CANCELLED",
   FROZEN: "FROZEN",
 } as const
 
 const PAYOUT_STATE_TRANSITIONS: Record<string, string[]> = {
-  [PAYOUT_STATUS.PENDING]: [PAYOUT_STATUS.PROCESSING, PAYOUT_STATUS.FROZEN, PAYOUT_STATUS.FAILED],
-  [PAYOUT_STATUS.PROCESSING]: [PAYOUT_STATUS.COMPLETED, PAYOUT_STATUS.FAILED],
+  [PAYOUT_STATUS.PENDING]: [PAYOUT_STATUS.APPROVED, PAYOUT_STATUS.CANCELLED, PAYOUT_STATUS.FROZEN, PAYOUT_STATUS.FAILED],
+  [PAYOUT_STATUS.APPROVED]: [PAYOUT_STATUS.PROCESSING, PAYOUT_STATUS.CANCELLED, PAYOUT_STATUS.FAILED],
+  [PAYOUT_STATUS.PROCESSING]: [PAYOUT_STATUS.PAID, PAYOUT_STATUS.FAILED],
   [PAYOUT_STATUS.FROZEN]: [PAYOUT_STATUS.PENDING], // Can unfreeze
-  [PAYOUT_STATUS.COMPLETED]: [], // Terminal state
+  [PAYOUT_STATUS.PAID]: [], // Terminal state
+  [PAYOUT_STATUS.CANCELLED]: [], // Terminal state
   [PAYOUT_STATUS.FAILED]: [PAYOUT_STATUS.PENDING], // Can retry
 } as const
 
@@ -51,7 +63,18 @@ export const payoutService = {
       throw new Error(`INSUFFICIENT_BALANCE:${availableBalance.toFixed(2)}`)
     }
 
-    return payoutRepository.createPayout(chefProfile.id, amount)
+    const existingActivePayout = await payoutRepository.listPayouts({
+      chefId: chefProfile.id,
+      amount,
+      status: { in: ["PENDING", "APPROVED", "PROCESSING", "FROZEN"] },
+    })
+
+    if (existingActivePayout.length > 0) {
+      throw new Error("DUPLICATE_ACTIVE_PAYOUT")
+    }
+
+    const idempotencyKey = generateIdempotencyKey("MANUAL_PAYOUT_REQUEST", chefProfile.id, { amount })
+    return payoutRepository.createPayout(chefProfile.id, amount, idempotencyKey)
   },
 
   async getPayoutBalance(userId: string) {
@@ -73,14 +96,14 @@ export const payoutService = {
 
     const paidPayouts = await payoutRepository.listPayouts({
       chefId: chefProfile.id,
-      status: "COMPLETED",
+      status: { in: ["PAID", "COMPLETED"] },
     })
 
     const totalPaidOut = paidPayouts.reduce((sum, payout) => sum + payout.amount, 0)
 
     const pendingPayouts = await payoutRepository.listPayouts({
       chefId: chefProfile.id,
-      status: { in: ["PENDING", "PROCESSING"] },
+      status: { in: ["PENDING", "APPROVED", "PROCESSING", "FROZEN"] },
     })
 
     const totalPendingPayouts = pendingPayouts.reduce((sum, payout) => sum + payout.amount, 0)
@@ -113,6 +136,15 @@ export const payoutService = {
     return payoutRepository.listPayouts(where)
   },
 
+  async listPayoutsForUser(userId: string, status?: string) {
+    const chefProfile = await payoutRepository.findChefProfile(userId)
+    if (!chefProfile) {
+      throw new Error("CHEF_PROFILE_NOT_FOUND")
+    }
+
+    return this.listPayouts(chefProfile.id, status)
+  },
+
   async getPayoutById(id: string) {
     const payout = await payoutRepository.findPayoutById(id)
     if (!payout) {
@@ -121,7 +153,7 @@ export const payoutService = {
     return payout
   },
 
-  async updatePayoutStatus(id: string, action: PayoutAction, stripeTransferId?: string, processedBy?: string) {
+  async updatePayoutStatus(id: string, input: PayoutStatusUpdateInput) {
     const payout = await payoutRepository.findPayoutById(id)
     if (!payout) {
       throw new Error("PAYOUT_NOT_FOUND")
@@ -129,18 +161,32 @@ export const payoutService = {
 
     // Validate state transition
     let newStatus: string
-    switch (action) {
+    switch (input.action) {
+      case "approve":
+        newStatus = PAYOUT_STATUS.APPROVED
+        break
       case "process":
         newStatus = PAYOUT_STATUS.PROCESSING
         break
+      case "pay":
       case "complete":
-        newStatus = PAYOUT_STATUS.COMPLETED
+        newStatus = PAYOUT_STATUS.PAID
         break
       case "fail":
         newStatus = PAYOUT_STATUS.FAILED
         break
+      case "cancel":
+        newStatus = PAYOUT_STATUS.CANCELLED
+        break
+      case "retry":
+        newStatus = PAYOUT_STATUS.PENDING
+        break
       default:
         throw new Error("INVALID_ACTION")
+    }
+
+    if (newStatus === PAYOUT_STATUS.PAID && !input.externalReference) {
+      throw new Error("EXTERNAL_REFERENCE_REQUIRED")
     }
 
     const allowedTransitions = PAYOUT_STATE_TRANSITIONS[payout.status] || []
@@ -164,14 +210,19 @@ export const payoutService = {
       const updatedPayout = await tx.payout.update({
         where: { id },
         data: {
-          status: action === "complete"
-              ? PAYOUT_STATUS.COMPLETED
-              : action === "fail"
-              ? PAYOUT_STATUS.FAILED
-              : PAYOUT_STATUS.PROCESSING,
-          processedBy,
-          processedAt: action === "complete" || action === "fail" ? new Date() : undefined,
-          stripeTransferId,
+          status: newStatus,
+          approvedAt: newStatus === PAYOUT_STATUS.APPROVED ? new Date() : undefined,
+          approvedBy: newStatus === PAYOUT_STATUS.APPROVED ? input.processedBy : undefined,
+          processedBy: [PAYOUT_STATUS.PROCESSING, PAYOUT_STATUS.PAID, PAYOUT_STATUS.FAILED].includes(newStatus as any)
+            ? input.processedBy
+            : undefined,
+          processedAt: newStatus === PAYOUT_STATUS.PAID || newStatus === PAYOUT_STATUS.FAILED ? new Date() : undefined,
+          cancelledAt: newStatus === PAYOUT_STATUS.CANCELLED ? new Date() : undefined,
+          cancelledBy: newStatus === PAYOUT_STATUS.CANCELLED ? input.processedBy : undefined,
+          externalReference: input.externalReference,
+          adminNotes: input.adminNotes,
+          failureReason: newStatus === PAYOUT_STATUS.FAILED ? input.failureReason : undefined,
+          stripeTransferId: undefined,
         },
         include: {
           chef: {
@@ -186,18 +237,20 @@ export const payoutService = {
 
       // CRITICAL: Record in ledger INSIDE transaction for atomicity
       // Ledger failures now block the entire payout operation
-      if (action === "complete") {
+      if (newStatus === PAYOUT_STATUS.PAID) {
         await ledgerService.recordPayout(
           id,
           updatedPayout.chefId,
           updatedPayout.amount,
-          processedBy || "SYSTEM",
-          stripeTransferId
+          input.processedBy || "SYSTEM",
+          input.externalReference
         )
       }
 
       return updatedPayout
     })
+
+    return updatedPayout
   },
 
   /**
@@ -208,7 +261,7 @@ export const payoutService = {
       const result = await tx.payout.updateMany({
         where: {
           chefId,
-          status: { in: [PAYOUT_STATUS.PENDING, PAYOUT_STATUS.PROCESSING] },
+          status: { in: [PAYOUT_STATUS.PENDING, PAYOUT_STATUS.APPROVED, PAYOUT_STATUS.PROCESSING] },
         },
         data: {
           status: PAYOUT_STATUS.FROZEN,

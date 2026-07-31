@@ -1,21 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { isLocalDemoSessionUser } from '@/lib/auth';
 import { localDemoAdminAnalytics, localDemoChefAnalytics, localDemoClientAnalytics } from '@/lib/local-demo-data';
 import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 
 export async function GET(request: NextRequest) {
+  let sessionRole: string | undefined
+
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id || !session.user.role) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    sessionRole = session.user.role
 
     const { searchParams } = new URL(request.url);
     const timeRange = searchParams.get('timeRange') || '30'; // days
 
     const userId = session.user.id;
     const userRole = session.user.role;
+
+    if (isLocalDemoSessionUser(userId, session.user.email)) {
+      if (userRole === 'ADMIN') {
+        return NextResponse.json(localDemoAdminAnalytics());
+      }
+
+      if (userRole === 'CHEF') {
+        return NextResponse.json(localDemoChefAnalytics());
+      }
+
+      return NextResponse.json(localDemoClientAnalytics());
+    }
 
     const daysAgo = new Date();
     daysAgo.setDate(daysAgo.getDate() - parseInt(timeRange));
@@ -337,7 +353,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
       const { searchParams } = new URL(request.url);
-      const requestedRole = searchParams.get('role');
+      const requestedRole = sessionRole || searchParams.get('role');
 
       if (requestedRole === 'ADMIN') {
         return NextResponse.json(localDemoAdminAnalytics());

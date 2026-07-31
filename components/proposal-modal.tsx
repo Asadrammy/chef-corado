@@ -9,6 +9,13 @@ import { formatCurrency } from "@/lib/currency"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
@@ -49,12 +56,60 @@ type ProposalErrorPayload = {
   details?: Array<{ field?: string; message: string }>
 }
 
+type ChefMenuOption = {
+  id: string
+  title: string
+  cuisineType?: string
+  menuType?: string
+}
+
 export function ProposalModal({ request, onSuccess, children }: ProposalModalProps) {
   const [open, setOpen] = React.useState(false)
   const [price, setPrice] = React.useState("")
   const [message, setMessage] = React.useState("")
+  const [menuId, setMenuId] = React.useState("none")
+  const [menus, setMenus] = React.useState<ChefMenuOption[]>([])
+  const [menusLoading, setMenusLoading] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (!open) {
+      return
+    }
+
+    let isMounted = true
+    const loadMenus = async () => {
+      setMenusLoading(true)
+      try {
+        const response = await fetch("/api/menus", {
+          cache: "no-store",
+          credentials: "include",
+        })
+        if (!response.ok) {
+          throw new Error("Unable to load menus")
+        }
+        const payload = (await response.json()) as ChefMenuOption[]
+        if (isMounted) {
+          setMenus(payload)
+        }
+      } catch {
+        if (isMounted) {
+          setMenus([])
+        }
+      } finally {
+        if (isMounted) {
+          setMenusLoading(false)
+        }
+      }
+    }
+
+    loadMenus()
+
+    return () => {
+      isMounted = false
+    }
+  }, [open])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -69,6 +124,7 @@ export function ProposalModal({ request, onSuccess, children }: ProposalModalPro
           requestId: request.id,
           price: Number(price),
           message,
+          menuId: menuId === "none" ? null : menuId,
         }),
       })
 
@@ -80,6 +136,7 @@ export function ProposalModal({ request, onSuccess, children }: ProposalModalPro
         setOpen(false)
         setPrice("")
         setMessage("")
+        setMenuId("none")
         onSuccess?.()
       } else {
         // ERROR
@@ -197,6 +254,29 @@ export function ProposalModal({ request, onSuccess, children }: ProposalModalPro
                   }
                 </div>
               )}
+            </div>
+
+            <div className="space-y-3">
+              <Label htmlFor="menuId" className="text-sm font-medium">
+                Attach a Menu
+                <span className="text-xs text-gray-500 ml-2">(Optional)</span>
+              </Label>
+              <Select value={menuId} onValueChange={setMenuId} disabled={loading || menusLoading}>
+                <SelectTrigger id="menuId" className="h-11">
+                  <SelectValue placeholder={menusLoading ? "Loading menus..." : "Select a menu"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No menu attached</SelectItem>
+                  {menus.map((menu) => (
+                    <SelectItem key={menu.id} value={menu.id}>
+                      {menu.title}{menu.cuisineType ? ` - ${menu.cuisineType}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-500">
+                Attach one of your current menus when it helps the client understand the style of your proposal.
+              </p>
             </div>
 
             <div className="space-y-3">

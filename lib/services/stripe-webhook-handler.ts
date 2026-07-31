@@ -8,6 +8,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { paymentService } from '@/lib/services/payment-service'
 import { redisLocks } from '@/lib/redis'
+import { getProposalBookingCounts } from '@/lib/booking-counts'
 import { PaymentStatus, BookingStatus, ProposalStatus } from '@/types'
 
 export class StripeWebhookHandler {
@@ -154,6 +155,7 @@ export class StripeWebhookHandler {
         const amount = paymentIntent.amount / 100
         const commissionAmount = amount * 0.2
         const chefAmount = amount * 0.8
+        const bookingCounts = getProposalBookingCounts(proposal.request)
 
         // Create booking
         const booking = await tx.booking.create({
@@ -167,7 +169,8 @@ export class StripeWebhookHandler {
             location: proposal.request.location,
             latitude: proposal.request.latitude,
             longitude: proposal.request.longitude,
-            guestCount: 1,
+            guestCount: bookingCounts.guestCount,
+            studentCount: bookingCounts.studentCount,
             bookingType: 'PROPOSAL',
           },
         })

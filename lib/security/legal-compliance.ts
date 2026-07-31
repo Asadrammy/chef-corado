@@ -65,9 +65,10 @@ export async function checkChefOperationalCompliance(userId: string): Promise<Co
       rightToWorkUkConfirmed: true,
       foodHygieneLevel2Confirmed: true,
       foodHygieneCertificateUrl: true,
-      chefApprovalStatus: true,
+      foodHygieneCertificateReviewStatus: true,
+      verificationStatus: true,
     },
-  } as any)
+  })
 
   if (!chefProfile) {
     return {
@@ -79,16 +80,18 @@ export async function checkChefOperationalCompliance(userId: string): Promise<Co
     }
   }
 
-  const profile = chefProfile as any
-  const complianceConfirmed = Boolean(profile.rightToWorkUkConfirmed) && Boolean(profile.foodHygieneLevel2Confirmed)
-  const verificationStatus = profile.verificationStatus ?? 'PENDING'
-  const certificateReviewStatus = profile.foodHygieneCertificateReviewStatus ?? null
+  const complianceConfirmed = Boolean(chefProfile.rightToWorkUkConfirmed) && Boolean(chefProfile.foodHygieneLevel2Confirmed)
+  const verificationStatus = chefProfile.verificationStatus ?? 'PENDING'
   let blockingReason: string | undefined
 
-  if (!profile.rightToWorkUkConfirmed) {
+  if (!chefProfile.rightToWorkUkConfirmed) {
     blockingReason = 'RIGHT_TO_WORK_CONFIRMATION_REQUIRED'
-  } else if (!profile.foodHygieneLevel2Confirmed) {
+  } else if (!chefProfile.foodHygieneLevel2Confirmed) {
     blockingReason = 'FOOD_HYGIENE_CONFIRMATION_REQUIRED'
+  } else if (!chefProfile.foodHygieneCertificateUrl) {
+    blockingReason = 'FOOD_HYGIENE_CERTIFICATE_REQUIRED'
+  } else if (chefProfile.foodHygieneCertificateReviewStatus !== 'APPROVED') {
+    blockingReason = 'FOOD_HYGIENE_CERTIFICATE_APPROVAL_PENDING'
   } else if (verificationStatus === 'REJECTED') {
     blockingReason = 'CHEF_APPROVAL_REJECTED'
   } else if (verificationStatus !== 'APPROVED') {
@@ -99,7 +102,11 @@ export async function checkChefOperationalCompliance(userId: string): Promise<Co
     termsAccepted: false,
     termsCurrent: false,
     complianceConfirmed,
-    canProceed: complianceConfirmed && verificationStatus === 'APPROVED',
+    canProceed:
+      complianceConfirmed &&
+      Boolean(chefProfile.foodHygieneCertificateUrl) &&
+      chefProfile.foodHygieneCertificateReviewStatus === 'APPROVED' &&
+      verificationStatus === 'APPROVED',
     blockingReason,
     approvalStatus: verificationStatus,
   }
@@ -176,6 +183,8 @@ export async function enforceChefOperationalCompliance(userId: string): Promise<
         throw new ApiError(404, 'Chef profile not found')
       case 'RIGHT_TO_WORK_CONFIRMATION_REQUIRED':
       case 'FOOD_HYGIENE_CONFIRMATION_REQUIRED':
+      case 'FOOD_HYGIENE_CERTIFICATE_REQUIRED':
+      case 'FOOD_HYGIENE_CERTIFICATE_APPROVAL_PENDING':
         throw new ApiError(
           403,
           'LEGAL_COMPLIANCE_REQUIRED'
@@ -210,6 +219,8 @@ export async function enforceChefCompliance(userId: string): Promise<void> {
         )
       case 'RIGHT_TO_WORK_CONFIRMATION_REQUIRED':
       case 'FOOD_HYGIENE_CONFIRMATION_REQUIRED':
+      case 'FOOD_HYGIENE_CERTIFICATE_REQUIRED':
+      case 'FOOD_HYGIENE_CERTIFICATE_APPROVAL_PENDING':
         throw new ApiError(403, 'LEGAL_COMPLIANCE_REQUIRED')
       case 'CHEF_APPROVAL_REJECTED':
         throw new ApiError(403, 'CHEF_APPROVAL_REJECTED')

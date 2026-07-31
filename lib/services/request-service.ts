@@ -1,4 +1,4 @@
-import { calculateDistance } from "@/lib/geo"
+import { calculateDistance, geocodeAddress } from "@/lib/geo"
 import { emailTemplates, sendPreferenceAwareEmail } from "@/lib/email"
 import { getCurrencyForCountry } from "@/lib/request-options"
 import { requestRepository } from "@/lib/repositories/request-repository"
@@ -66,6 +66,14 @@ export const requestService = {
       location: input.location,
     })
     const currency = getCurrencyForCountry(input.country)
+    const coordinates = input.latitude != null && input.longitude != null
+      ? {
+          latitude: input.latitude,
+          longitude: input.longitude,
+          provider: "client",
+          status: "VERIFIED" as const,
+        }
+      : await geocodeAddress(input.location, input.country)
 
     const created = await requestRepository.createRequest({
       clientId: userId,
@@ -80,19 +88,24 @@ export const requestService = {
       countryCode: input.country,
       currency,
       guestCount: input.guestCount,
-      latitude: input.latitude,
-      longitude: input.longitude,
+      latitude: coordinates?.latitude,
+      longitude: coordinates?.longitude,
+      locationCity: coordinates?.city,
+      locationRegion: coordinates?.region,
+      formattedAddress: coordinates?.formattedAddress,
+      geocodingProvider: coordinates?.provider,
+      geocodingStatus: coordinates ? "VERIFIED" : "UNAVAILABLE",
       budget: input.budget,
       details: input.details,
     })
 
     const createdTitle = created.title ?? title
 
-    if (created.latitude && created.longitude) {
+    if (created.latitude != null && created.longitude != null) {
       const matchingChefs = await requestRepository.findApprovedChefsWithCoordinates()
 
       const eligibleChefs = matchingChefs.filter((chef) => {
-        if (!chef.latitude || !chef.longitude || chef.radius <= 0) {
+        if (chef.latitude == null || chef.longitude == null || chef.radius <= 0) {
           return false
         }
 
@@ -156,9 +169,9 @@ export const requestService = {
         }
       }
 
-      if (chefProfile.latitude == null || chefProfile.longitude == null || chefProfile.radius <= 0) {
+      if (chefProfile.radius <= 0) {
         return {
-          error: "Chef location or radius not properly set. Please update your profile.",
+          error: "Chef service radius is not properly set. Please update your profile.",
           needsLocation: chefProfile.latitude == null || chefProfile.longitude == null,
           needsRadius: chefProfile.radius <= 0,
           requests: [],
@@ -169,6 +182,19 @@ export const requestService = {
       const allRequests = await requestRepository.listChefMarketplaceRequests(chefProfile.id)
       const filteredRequests = allRequests
         .map((request) => {
+          if (
+            chefProfile.latitude == null ||
+            chefProfile.longitude == null ||
+            request.latitude == null ||
+            request.longitude == null
+          ) {
+            return {
+              ...request,
+              distanceKm: null,
+              broaderMatching: true,
+            }
+          }
+
           const distance = calculateDistance(
             chefProfile.latitude as number,
             chefProfile.longitude as number,
@@ -181,7 +207,7 @@ export const requestService = {
             distanceKm: Math.round(distance * 10) / 10,
           }
         })
-        .filter((request) => request.distanceKm <= chefProfile.radius)
+        .filter((request) => request.distanceKm == null || request.distanceKm <= chefProfile.radius)
 
       return { requests: filteredRequests }
     }

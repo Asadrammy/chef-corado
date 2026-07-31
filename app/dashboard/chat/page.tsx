@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ConversationList, Conversation } from '@/components/chat/conversation-list';
 import { ChatWindow } from '@/components/chat/chat-window';
@@ -9,6 +10,8 @@ import type { ChatMessage } from '@/components/chat/types';
 
 export default function ChatPage() {
   const { data: session, status } = useSession();
+  const searchParams = useSearchParams();
+  const deepLinkedUserId = searchParams.get('userId');
   const currentUserId = session?.user?.id ?? null;
   const currentUserName = session?.user?.name ?? 'You';
 
@@ -32,6 +35,15 @@ export default function ChatPage() {
   useEffect(() => {
     fetchConversations();
   }, [currentUserId]);
+
+  useEffect(() => {
+    if (!deepLinkedUserId || selectedUserId === deepLinkedUserId) {
+      return;
+    }
+
+    const conversation = conversations.find((item) => item.otherUser.id === deepLinkedUserId);
+    handleSelectConversation(deepLinkedUserId, conversation?.otherUser.name || 'Conversation');
+  }, [conversations, deepLinkedUserId, selectedUserId]);
 
   const handleBackToList = () => {
     setSelectedUserId(null);

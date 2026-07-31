@@ -12,7 +12,7 @@ export default function DisplaySettingsPage() {
       <div>
         <h3 className="text-lg font-medium">Display Settings</h3>
         <p className="text-sm text-muted-foreground">
-          Configure your display preferences. Click save when you're done.
+          Configure your display preferences. Click save when you&apos;re done.
         </p>
       </div>
       

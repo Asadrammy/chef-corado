@@ -62,7 +62,10 @@ export default async function BrowseChefsPage({
     apiParams.set("location", location);
   }
 
-  const chefs = await fetchFromApp<SearchChef[]>(`/api/chefs/search${apiParams.toString() ? `?${apiParams.toString()}` : ""}`).catch(() => []);
+  const chefSearchResult = await fetchFromApp<SearchChef[]>(`/api/chefs/search${apiParams.toString() ? `?${apiParams.toString()}` : ""}`)
+    .then((data) => ({ chefs: data, unavailable: false }))
+    .catch(() => ({ chefs: [] as SearchChef[], unavailable: true }));
+  const { chefs } = chefSearchResult;
 
   const filteredChefs = chefs.filter((chef) => {
     const ratingPass = !minRating || (chef.averageRating ?? 0) >= minRating;
@@ -149,14 +152,22 @@ export default async function BrowseChefsPage({
         </form>
 
         <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">{filteredChefs.length} chefs available for private dining discovery</p>
+          <p className="text-sm text-muted-foreground">
+            {chefSearchResult.unavailable ? "Chef search is temporarily unavailable" : `${filteredChefs.length} chefs available for private dining discovery`}
+          </p>
           <Button asChild variant="outline" className="border-border/70 bg-background/80 sm:w-auto">
             <Link href="/reviews">See reviews</Link>
           </Button>
         </div>
 
         <div className="mt-8 grid gap-6 lg:grid-cols-3">
-          {filteredChefs.length > 0 ? (
+          {chefSearchResult.unavailable ? (
+            <Card className="lg:col-span-3 rounded-[28px] border-border/60">
+              <CardContent className="p-8 text-sm text-muted-foreground">
+                The chef catalogue is temporarily unavailable. Please try again shortly, or start a guided request so the details are ready when chef data is available.
+              </CardContent>
+            </Card>
+          ) : filteredChefs.length > 0 ? (
             filteredChefs.map((chef) => <PublicChefCard key={chef.id} chef={chef} />)
           ) : (
             <Card className="lg:col-span-3 rounded-[28px] border-border/60">

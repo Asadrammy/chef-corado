@@ -12,7 +12,7 @@ export default function NotificationSettingsPage() {
       <div>
         <h3 className="text-lg font-medium">Notification Settings</h3>
         <p className="text-sm text-muted-foreground">
-          Manage your notification preferences. Click save when you're done.
+          Manage your notification preferences. Click save when you&apos;re done.
         </p>
       </div>
       

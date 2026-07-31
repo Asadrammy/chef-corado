@@ -160,6 +160,10 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
             <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
               {request.distanceKm.toFixed(1)} km away
             </span>
+          ) : request.broaderMatching ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100">
+              Broader matching
+            </span>
           ) : null}
           <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
             <CalendarDays className="h-4 w-4" />

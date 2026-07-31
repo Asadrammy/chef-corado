@@ -12,7 +12,7 @@ export default function AppearanceSettingsPage() {
       <div>
         <h3 className="text-lg font-medium">Appearance Settings</h3>
         <p className="text-sm text-muted-foreground">
-          Customize the appearance of your dashboard. Click save when you're done.
+          Customize the appearance of your dashboard. Click save when you&apos;re done.
         </p>
       </div>
       

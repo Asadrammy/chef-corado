@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
+import { isPrismaConnectionError, prisma, withPrismaReconnect } from "@/lib/prisma"
 
 export async function GET() {
   try {
-    const chefs = await prisma.chefProfile.findMany({
+    const chefs = await withPrismaReconnect(() => prisma.chefProfile.findMany({
       where: {
         isApproved: true,
         isBanned: false,
@@ -41,11 +41,18 @@ export async function GET() {
       orderBy: {
         createdAt: 'desc',
       },
-    })
+    }), 1)
 
     return NextResponse.json(chefs)
   } catch (error) {
     console.error('Failed to fetch chefs:', error)
+    if (isPrismaConnectionError(error)) {
+      return NextResponse.json(
+        { error: 'Database connection temporarily unavailable' },
+        { status: 503 }
+      )
+    }
+
     return NextResponse.json(
       { error: 'Failed to fetch chefs' },
       { status: 500 }

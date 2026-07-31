@@ -52,7 +52,7 @@ export const adminVerificationService = {
   async listVerificationQueue(status: string | null, page: number, limit: number) {
     const where: Prisma.ChefProfileWhereInput = {}
     if (status) {
-      ;(where as any).chefApprovalStatus = status
+      where.verificationStatus = status
     }
 
     const [chefs, total] = await Promise.all([
@@ -132,7 +132,7 @@ export const adminVerificationService = {
         approvedAt: action === "APPROVE" ? new Date() : null,
         approvedBy: action === "APPROVE" ? (adminUserId ?? null) : null,
         foodHygieneCertificateReviewedAt: action === "APPROVE" ? new Date() : null,
-        foodHygieneCertificateReviewedBy: action === "APPROVE" ? (adminUserId ?? null) : null,
+        foodHygieneCertificateReviewedBy: adminUserId ?? null,
         foodHygieneCertificateReviewStatus: action === "APPROVE" ? "APPROVED" : "REJECTED",
       } as never,
       include: {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { isLocalDemoSessionUser } from '@/lib/auth';
 import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 
 const createNotificationSchema = z.object({
@@ -67,6 +68,14 @@ export async function GET(request: NextRequest) {
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+    }
+
+    if (isLocalDemoSessionUser(session.user.id, session.user.email)) {
+      return NextResponse.json({
+        notifications: [],
+        unreadCount: 0,
+        localDemo: true,
+      });
     }
 
     const where = {

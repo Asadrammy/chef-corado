@@ -270,7 +270,7 @@ export function OptimizedRequestForm() {
         {/* Event Details */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">What's the occasion?</CardTitle>
+            <CardTitle className="text-lg">What&apos;s the occasion?</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <FormFieldWrapper

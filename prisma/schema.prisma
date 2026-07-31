@@ -82,6 +82,11 @@ model ChefProfile {
   location                 String?
   latitude                 Float?
   longitude                Float?
+  locationCity             String?
+  locationRegion           String?
+  formattedAddress         String?
+  geocodingProvider        String?
+  geocodingStatus          String              @default("UNVERIFIED")
   radius                   Float               @default(50)
   baseCountryCode          String              @default("GB")
   preferredCurrency        String              @default("GBP")
@@ -236,6 +241,11 @@ model Request {
   studentCount        Int?
   latitude            Float?
   longitude           Float?
+  locationCity        String?
+  locationRegion      String?
+  formattedAddress    String?
+  geocodingProvider   String?
+  geocodingStatus     String              @default("UNVERIFIED")
   budget              Float
   details             String?
   createdAt           DateTime            @default(now())
@@ -432,8 +442,15 @@ model Payout {
   amount           Float
   status           String      @default("PENDING")
   stripeTransferId String?     @unique
+  externalReference String?
+  adminNotes       String?
+  failureReason    String?
+  approvedAt       DateTime?
+  approvedBy       String?
   processedAt      DateTime?
   processedBy      String?
+  cancelledAt      DateTime?
+  cancelledBy      String?
   idempotencyKey   String?     @unique
   version          Int         @default(1)
   createdAt        DateTime    @default(now())

@@ -35,12 +35,13 @@ export const payoutRepository = {
     })
   },
 
-  async createPayout(chefId: string, amount: number) {
+  async createPayout(chefId: string, amount: number, idempotencyKey: string) {
     return prisma.payout.create({
       data: {
         chefId,
         amount,
         status: "PENDING",
+        idempotencyKey,
       },
       include: {
         chef: {

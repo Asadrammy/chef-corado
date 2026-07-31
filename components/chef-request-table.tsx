@@ -13,6 +13,8 @@ export type ChefRequestRow = {
   currency: string
   details: string | null
   distanceKm?: number
+  broaderMatching?: boolean
+  geocodingStatus?: string | null
 }
 
 export function ChefRequestTable({

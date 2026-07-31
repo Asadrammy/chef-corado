@@ -35,7 +35,7 @@ export function PremiumOpportunitiesV3({ requests, availableRequestsCount }: Pre
             {/* Content */}
             <div className="space-y-6">
               <h3 className="text-4xl font-bold text-gray-900">
-                You're all set to start earning! 🎉
+                You&apos;re all set to start earning!
               </h3>
               <p className="text-xl text-gray-600 leading-relaxed">
                 New opportunities will appear here as clients discover your profile. 

@@ -41,6 +41,9 @@ export function MenuCard({ menu, onEdit, onDelete, isDeleting = false }: MenuCar
       </CardHeader>
       <CardContent className="p-4 pt-0">
         <div className="space-y-3">
+          {menu.menuImage ? (
+            <img src={menu.menuImage} alt={menu.title} className="h-40 w-full rounded-lg object-cover" />
+          ) : null}
           <div className="max-h-32 overflow-hidden whitespace-pre-wrap text-sm text-muted-foreground">
             {descriptionPreview}
           </div>

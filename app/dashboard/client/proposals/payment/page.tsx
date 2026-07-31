@@ -8,12 +8,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Loader2, ArrowLeft, CreditCard } from "lucide-react"
+import { formatCurrency } from "@/lib/currency"
 import { toast } from "sonner"
 import axios from "axios"
 
 type Proposal = {
   id: string
   price: string
+  currency: string
   message: string | null
   status: string
   createdAt: string
@@ -161,7 +163,7 @@ export default function ProposalPaymentPage() {
             <>
               <Separator />
               <div>
-                <p className="text-sm font-medium mb-2">Chef's Message</p>
+                <p className="text-sm font-medium mb-2">Chef Message</p>
                 <p className="text-sm text-muted-foreground">{proposal.message}</p>
               </div>
             </>
@@ -176,7 +178,7 @@ export default function ProposalPaymentPage() {
         <CardContent className="space-y-4">
           <div className="flex justify-between items-center">
             <span>Proposal Amount</span>
-            <span className="text-2xl font-bold">${proposal.price}</span>
+            <span className="text-2xl font-bold">{formatCurrency(proposal.price, proposal.currency)}</span>
           </div>
           
           <Separator />
@@ -200,7 +202,7 @@ export default function ProposalPaymentPage() {
             ) : (
               <>
                 <CreditCard className="mr-2 h-4 w-4" />
-                Pay ${proposal.price}
+                Pay {formatCurrency(proposal.price, proposal.currency)}
               </>
             )}
           </Button>

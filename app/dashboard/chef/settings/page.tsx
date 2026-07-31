@@ -33,6 +33,9 @@ interface ChefSettingsResponse {
     rightToWorkUkConfirmed: boolean
     foodHygieneLevel2Confirmed: boolean
     foodHygieneCertificateUrl: string | null
+    foodHygieneCertificateUploadedAt: string | null
+    foodHygieneCertificateReviewedAt: string | null
+    foodHygieneCertificateReviewStatus: string | null
     verificationStatus: "PENDING" | "APPROVED" | "REJECTED"
     approvedAt: string | null
     approvedBy: string | null
@@ -150,7 +153,7 @@ export default function ChefSettingsPage() {
     }
   }
 
-  const handleStripeConnect = async (action: "onboarding" | "dashboard") => {
+  const handleStripeConnect = async (action: "onboard" | "refresh") => {
     setConnectingStripe(true)
     setMessage("")
 
@@ -172,7 +175,7 @@ export default function ChefSettingsPage() {
           return
         }
         
-        throw new Error("Failed to launch Stripe onboarding")
+        throw new Error(errorData.error || "Failed to launch Stripe onboarding")
       }
 
       const data = await response.json()
@@ -183,7 +186,7 @@ export default function ChefSettingsPage() {
       }
     } catch (error) {
       console.error(error)
-      setMessage("Failed to start Stripe onboarding.")
+      setMessage(error instanceof Error ? error.message : "Failed to start Stripe onboarding.")
     } finally {
       setConnectingStripe(false)
     }
@@ -318,6 +321,13 @@ export default function ChefSettingsPage() {
                     </a>
                   </div>
                 ) : null}
+                <div className="text-xs">Certificate status: {settings?.legal.foodHygieneCertificateReviewStatus ?? (settings?.legal.foodHygieneCertificateUrl ? "PENDING" : "Not submitted")}</div>
+                {settings?.legal.foodHygieneCertificateUploadedAt ? (
+                  <div className="text-xs">Certificate uploaded: {new Date(settings.legal.foodHygieneCertificateUploadedAt).toLocaleString()}</div>
+                ) : null}
+                {settings?.legal.foodHygieneCertificateReviewedAt ? (
+                  <div className="text-xs">Certificate reviewed: {new Date(settings.legal.foodHygieneCertificateReviewedAt).toLocaleString()}</div>
+                ) : null}
                 {settings?.legal.approvedAt ? (
                   <div className="text-xs">
                     <span>Approved: {new Date(settings.legal.approvedAt).toLocaleString()}</span>
@@ -397,7 +407,7 @@ export default function ChefSettingsPage() {
               </div>
             </div>
 
-            <Button type="button" variant="outline" className="w-full rounded-2xl border-white/70 bg-white/80 shadow-sm dark:border-white/10 dark:bg-white/5" disabled={connectingStripe || settings?.stripe.configured === false} onClick={() => handleStripeConnect(settings?.stripe.isConnected ? "dashboard" : "onboarding")}>
+            <Button type="button" variant="outline" className="w-full rounded-2xl border-white/70 bg-white/80 shadow-sm dark:border-white/10 dark:bg-white/5" disabled={connectingStripe || settings?.stripe.configured === false} onClick={() => handleStripeConnect(settings?.stripe.isConnected ? "refresh" : "onboard")}>
               {connectingStripe ? <Loader2 className="size-4 animate-spin" /> : null}
               {settings?.stripe.configured === false ? "Stripe not configured" : (settings?.stripe.isConnected ? "Resume Stripe onboarding" : "Connect Stripe")}
             </Button>

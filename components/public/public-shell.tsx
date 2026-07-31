@@ -5,9 +5,9 @@ import { PublicNavbar } from "@/components/public/public-navbar";
 
 export function PublicShell({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="min-h-screen overflow-x-clip bg-background text-foreground">
       <PublicNavbar />
-      <main id="main-content" className="flex-1">{children}</main>
+      <main id="main-content" className="flex-1 scroll-mt-24">{children}</main>
       <PublicFooter />
     </div>
   );

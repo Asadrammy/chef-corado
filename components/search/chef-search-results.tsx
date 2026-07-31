@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Star, MapPin, User } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -40,6 +40,7 @@ interface ChefSearchResultsProps {
 export function ChefSearchResults({ onSelectChef }: ChefSearchResultsProps) {
   const [chefs, setChefs] = useState<Chef[]>([]);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [filters, setFilters] = useState<SearchFiltersType>({
     query: '',
     location: '',
@@ -49,11 +50,7 @@ export function ChefSearchResults({ onSelectChef }: ChefSearchResultsProps) {
     maxRating: 5,
   });
 
-  useEffect(() => {
-    searchChefs();
-  }, [filters]);
-
-  const searchChefs = async () => {
+  const searchChefs = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -71,12 +68,19 @@ export function ChefSearchResults({ onSelectChef }: ChefSearchResultsProps) {
       
       const data = await response.json();
       setChefs(data);
+      setErrorMessage('');
     } catch (error) {
       console.error('Error searching chefs:', error);
+      setChefs([]);
+      setErrorMessage('Chef search is temporarily unavailable. Please try again shortly.');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    searchChefs();
+  }, [searchChefs]);
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -109,6 +113,14 @@ export function ChefSearchResults({ onSelectChef }: ChefSearchResultsProps) {
           <div className="text-center py-8">
             <div className="text-muted-foreground">Searching chefs...</div>
           </div>
+        ) : errorMessage ? (
+          <Card>
+            <CardContent className="text-center py-8">
+              <User className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">Search unavailable</h3>
+              <p className="text-muted-foreground">{errorMessage}</p>
+            </CardContent>
+          </Card>
         ) : chefs.length === 0 ? (
           <Card>
             <CardContent className="text-center py-8">

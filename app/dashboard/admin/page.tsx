@@ -4,7 +4,9 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 
 import { authOptions } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
+import { isLocalDemoSessionUser } from "@/lib/auth"
+import { isPrismaConnectionError, prisma } from "@/lib/prisma"
+import { localDemoAdminDashboardStats } from "@/lib/local-demo-data"
 import { MarketplaceMetrics } from "@/components/dashboard/MarketplaceMetrics"
 import { RecentBookings } from "@/components/dashboard/RecentBookings"
 import { PlatformAnalytics } from "@/components/platform-analytics"
@@ -96,6 +98,10 @@ async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
       pendingPayouts,
     }
   } catch (error) {
+    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+      return localDemoAdminDashboardStats()
+    }
+
     console.error("Failed to load admin dashboard summary", error)
     return emptyAdminStats
   }
@@ -107,7 +113,9 @@ export default async function AdminDashboardPage() {
     redirect("/dashboard")
   }
 
-  const { totalChefs, pendingChefs, activeBookings, totalRevenue, pendingPayouts } = await getAdminDashboardStats()
+  const { totalChefs, pendingChefs, activeBookings, totalRevenue, pendingPayouts } = isLocalDemoSessionUser(session.user.id, session.user.email)
+    ? localDemoAdminDashboardStats()
+    : await getAdminDashboardStats()
 
   return (
     <div className="space-y-8">

@@ -17,8 +17,9 @@ export const dynamic = 'force-dynamic';
 interface Payout {
   id: string;
   amount: number;
-  status: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
-  stripeTransferId?: string;
+  status: 'PENDING' | 'APPROVED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'FROZEN';
+  externalReference?: string;
+  failureReason?: string;
   processedAt?: string;
   createdAt: string;
   chef: {
@@ -125,10 +126,16 @@ export default function PayoutsPage() {
         return <Badge variant="secondary">Pending</Badge>;
       case 'PROCESSING':
         return <Badge variant="default">Processing</Badge>;
-      case 'COMPLETED':
-        return <Badge className="bg-green-500">Completed</Badge>;
+      case 'APPROVED':
+        return <Badge variant="default">Approved</Badge>;
+      case 'PAID':
+        return <Badge className="bg-green-500">Paid</Badge>;
       case 'FAILED':
         return <Badge variant="destructive">Failed</Badge>;
+      case 'CANCELLED':
+        return <Badge variant="secondary">Cancelled</Badge>;
+      case 'FROZEN':
+        return <Badge variant="secondary">On hold</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -247,7 +254,7 @@ export default function PayoutsPage() {
         <CardHeader>
           <CardTitle>Request Payout</CardTitle>
           <CardDescription>
-            Withdraw your available earnings to your bank account
+            Submit a manual payout request for administrator processing
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -307,7 +314,7 @@ export default function PayoutsPage() {
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Payouts are typically processed within 3-5 business days. You'll receive a notification when your payout is processed.
+              Payouts are reviewed and processed manually by the platform team. A payout is only marked paid after an administrator records the external payment reference.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -342,9 +349,9 @@ export default function PayoutsPage() {
                         Processed {formatDistanceToNow(new Date(payout.processedAt), { addSuffix: true })}
                       </div>
                     )}
-                    {payout.stripeTransferId && (
+                    {payout.externalReference && (
                       <div className="text-xs text-muted-foreground">
-                        Transfer ID: {payout.stripeTransferId}
+                        External reference: {payout.externalReference}
                       </div>
                     )}
                   </div>

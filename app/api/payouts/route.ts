@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     const session = await getRequiredSession(Role.CHEF);
     const userId = getSessionUserId(session);
 
-    // Enforce chef compliance (terms + insurance) before allowing payouts
+    // Enforce chef compliance (terms + structured legal confirmations + approval) before allowing payouts.
     await enforceChefCompliance(userId);
 
     const body = await request.json();
@@ -41,6 +41,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         error: `Insufficient balance. Available: $${available}` 
       }, { status: 400 });
+    }
+    if (error instanceof Error && error.message === 'DUPLICATE_ACTIVE_PAYOUT') {
+      return NextResponse.json({ error: 'A matching payout request is already active.' }, { status: 409 });
     }
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors }, { status: 422 });
@@ -61,7 +64,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       // Force to their own chef profile
-      const ownPayouts = await payoutService.listPayouts(getSessionUserId(session), searchParams.get('status') || undefined);
+      const ownPayouts = await payoutService.listPayoutsForUser(getSessionUserId(session), searchParams.get('status') || undefined);
       return NextResponse.json(ownPayouts);
     }
     

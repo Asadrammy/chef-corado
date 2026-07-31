@@ -1,6 +1,17 @@
 import Link from "next/link";
+import { Globe, Mail, MessageCircle, Phone } from "lucide-react";
 
 import { footerSections } from "@/lib/public-site";
+
+const footerIcons = {
+  Email: Mail,
+  Facebook: Globe,
+  Instagram: Globe,
+  Telephone: Phone,
+  WhatsApp: MessageCircle,
+  "X/Twitter": Globe,
+  YouTube: Globe,
+};
 
 export function PublicFooter() {
   return (
@@ -26,18 +37,32 @@ export function PublicFooter() {
               <h3 className="text-sm font-semibold uppercase tracking-[0.18em] text-white/72">{section.title}</h3>
               <ul className="space-y-3.5 text-sm text-white/60">
                 {section.items.map((item) => {
-                  const external = item.href.startsWith("http") || item.href.startsWith("mailto:") || item.href.startsWith("tel:");
+                  const Icon = footerIcons[item.label as keyof typeof footerIcons];
+                  const external = item.href?.startsWith("http") || item.href?.startsWith("mailto:") || item.href?.startsWith("tel:");
+                  const content = (
+                    <span className="inline-flex min-h-5 items-center gap-2">
+                      {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
+                      <span>{item.label}</span>
+                      {item.note ? <span className="text-xs text-white/35">{item.note}</span> : null}
+                    </span>
+                  );
 
                   return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        target={external ? "_blank" : undefined}
-                        rel={external ? "noreferrer" : undefined}
-                        className="transition-colors hover:text-white"
-                      >
-                        {item.label}
-                      </Link>
+                    <li key={`${section.title}-${item.label}-${item.href ?? item.note}`}>
+                      {item.href ? (
+                        <Link
+                          href={item.href}
+                          target={external ? "_blank" : undefined}
+                          rel={external ? "noopener noreferrer" : undefined}
+                          className="transition-colors hover:text-white"
+                        >
+                          {content}
+                        </Link>
+                      ) : (
+                        <span className="cursor-default text-white/38" aria-disabled="true">
+                          {content}
+                        </span>
+                      )}
                     </li>
                   );
                 })}

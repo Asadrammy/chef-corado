@@ -71,6 +71,7 @@ const getClientNavGroups = (pathname: string): NavGroup[] => [
     items: [
       createNavItem("Proposals", "/dashboard/client/proposals", IconUsers, pathname),
       createNavItem("Bookings", "/dashboard/client/bookings", IconCalendar, pathname),
+      createNavItem("Messages", "/dashboard/chat", IconMessageCircle, pathname),
     ],
   },
 ]

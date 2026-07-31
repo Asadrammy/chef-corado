@@ -59,6 +59,11 @@ export const chefProfileRepository = {
     foodHygieneCertificateReviewStatus?: string
     latitude: number | null
     longitude: number | null
+    locationCity?: string | null
+    locationRegion?: string | null
+    formattedAddress?: string | null
+    geocodingProvider?: string | null
+    geocodingStatus?: string
   }) {
     return prisma.$transaction(async (tx) => {
       if (data.phone !== undefined) {
@@ -94,6 +99,11 @@ export const chefProfileRepository = {
           foodHygieneCertificateReviewStatus: data.foodHygieneCertificateReviewStatus,
           latitude: data.latitude,
           longitude: data.longitude,
+          locationCity: data.locationCity,
+          locationRegion: data.locationRegion,
+          formattedAddress: data.formattedAddress,
+          geocodingProvider: data.geocodingProvider,
+          geocodingStatus: data.geocodingStatus ?? "UNVERIFIED",
           user: { connect: { id: userId } },
         },
         include: {
@@ -141,6 +151,11 @@ export const chefProfileRepository = {
     foodHygieneCertificateReviewStatus?: string
     latitude: number | null
     longitude: number | null
+    locationCity?: string | null
+    locationRegion?: string | null
+    formattedAddress?: string | null
+    geocodingProvider?: string | null
+    geocodingStatus?: string
   }) {
     return prisma.$transaction(async (tx) => {
       if (data.phone !== undefined) {
@@ -177,6 +192,11 @@ export const chefProfileRepository = {
           foodHygieneCertificateReviewStatus: data.foodHygieneCertificateReviewStatus,
           latitude: data.latitude,
           longitude: data.longitude,
+          locationCity: data.locationCity,
+          locationRegion: data.locationRegion,
+          formattedAddress: data.formattedAddress,
+          geocodingProvider: data.geocodingProvider,
+          geocodingStatus: data.geocodingStatus ?? "UNVERIFIED",
         },
         include: {
           user: {

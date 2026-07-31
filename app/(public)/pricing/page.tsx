@@ -22,18 +22,19 @@ export default function PricingPage() {
     >
       <div className="space-y-4">
         <h2 className="text-xl font-semibold text-foreground">What shapes your quote</h2>
-        <p className="text-sm leading-6 text-muted-foreground">Chef expertise, ingredients, service style, travel, staffing, and the level of preparation all influence the final proposal.</p>
+        <p className="text-sm leading-6 text-muted-foreground">Chef expertise, ingredients, service style, travel, staffing, and the level of preparation all influence the final proposal. Marketplace requests preserve the request currency, with GBP for UK contexts and USD for US contexts where configured.</p>
         <ul className="space-y-3 text-sm text-muted-foreground">
           <li>Chef profile, cuisine specialization, and menu ambition</li>
           <li>Guest count, course structure, and level of service</li>
           <li>Ingredients, dietary needs, travel, and event setting</li>
           <li>Bookable experience pricing where a chef has published it</li>
+          <li>Deposit and payment timing depends on the accepted proposal and checkout flow</li>
         </ul>
       </div>
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-foreground">A calmer way to plan</h2>
-        <p className="text-sm leading-6 text-muted-foreground">Browse first, shortlist with confidence, then enquire with the occasion details that matter most.</p>
-        <p className="text-sm leading-6 text-muted-foreground">Ready to start? Browse chefs or find local coverage in your event area.</p>
+        <h2 className="text-xl font-semibold text-foreground">Indicative, not guaranteed</h2>
+        <p className="text-sm leading-6 text-muted-foreground">Public pages should help you understand cost drivers, but final pricing is set by the chef proposal or published experience. If a menu has no published price, pricing is discussed with your request.</p>
+        <p className="text-sm leading-6 text-muted-foreground">Ready to start? Browse chefs, compare proposals, or find local coverage in your event area.</p>
         <Link href="/reviews" className="text-sm font-semibold text-primary hover:underline">Read real reviews</Link>
       </div>
     </PublicContentPage>

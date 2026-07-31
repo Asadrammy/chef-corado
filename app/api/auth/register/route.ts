@@ -2,12 +2,21 @@ import { NextRequest, NextResponse } from "next/server"
 import { hash } from "bcrypt"
 import { prisma } from "@/lib/prisma"
 import { registerSchema } from "@/lib/validation-schemas"
+import { TERMS_VERSION } from "@/lib/request-options"
 import { Role } from "@/types"
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const validatedData = registerSchema.parse(body)
+    const lockedRole = request.nextUrl.searchParams.get("role")
+
+    if ((lockedRole === Role.CLIENT || lockedRole === Role.CHEF) && validatedData.role !== lockedRole) {
+      return NextResponse.json(
+        { error: `This signup link only supports ${lockedRole === Role.CHEF ? "chef" : "customer"} registration.` },
+        { status: 400 }
+      )
+    }
 
     // Check if user already exists
     const existingUser = await prisma.user.findUnique({
@@ -34,6 +43,9 @@ export async function POST(request: NextRequest) {
         email: validatedData.email.toLowerCase(),
         password: hashedPassword,
         role: validatedData.role,
+        termsAcceptedAt: new Date(),
+        termsVersion: TERMS_VERSION,
+        acceptedVia: "register",
       } as any,
       select: {
         id: true,

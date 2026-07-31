@@ -97,11 +97,16 @@ export const chefProfileService = {
       certifications: input.certifications,
     })
 
-    const coordinates = await geocodeAddress(input.location)
+    const coordinates = await geocodeAddress(input.location, input.baseCountryCode)
     await chefProfileRepository.createForUser(userId, {
       ...input,
       latitude: coordinates?.latitude ?? null,
       longitude: coordinates?.longitude ?? null,
+      locationCity: coordinates?.city ?? null,
+      locationRegion: coordinates?.region ?? null,
+      formattedAddress: coordinates?.formattedAddress ?? null,
+      geocodingProvider: coordinates?.provider ?? null,
+      geocodingStatus: coordinates ? "VERIFIED" : "UNAVAILABLE",
     })
 
     const profile = await chefProfileRepository.findByUserId(userId)
@@ -119,11 +124,16 @@ export const chefProfileService = {
       certifications: input.certifications,
     })
 
-    const coordinates = await geocodeAddress(input.location)
+    const coordinates = await geocodeAddress(input.location, input.baseCountryCode)
     await chefProfileRepository.updateByUserId(userId, {
       ...input,
       latitude: coordinates?.latitude ?? null,
       longitude: coordinates?.longitude ?? null,
+      locationCity: coordinates?.city ?? null,
+      locationRegion: coordinates?.region ?? null,
+      formattedAddress: coordinates?.formattedAddress ?? null,
+      geocodingProvider: coordinates?.provider ?? null,
+      geocodingStatus: coordinates ? "VERIFIED" : "UNAVAILABLE",
     })
 
     const profile = await chefProfileRepository.findByUserId(userId)

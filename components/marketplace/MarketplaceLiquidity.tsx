@@ -29,11 +29,7 @@ export function ActiveChefIndicator({ chefId, className }: ActiveChefIndicatorPr
   const [lastSeen, setLastSeen] = useState<Date | null>(null);
   const [responseTime, setResponseTime] = useState<number | null>(null);
 
-  useEffect(() => {
-    fetchChefActivity();
-  }, [chefId]);
-
-  const fetchChefActivity = async () => {
+  async function fetchChefActivity() {
     try {
       const response = await fetch(`/api/chefs/${chefId}/activity`);
       const data = await response.json();
@@ -44,11 +40,15 @@ export function ActiveChefIndicator({ chefId, className }: ActiveChefIndicatorPr
     } catch (error) {
       console.error('Error fetching chef activity:', error);
     }
-  };
+  }
+
+  useEffect(() => {
+    void Promise.resolve().then(fetchChefActivity);
+  }, [chefId]);
 
   const getActivityStatus = () => {
     if (isActive) return { status: 'online', color: 'bg-green-500', text: 'Online Now' };
-    if (lastSeen && Date.now() - lastSeen.getTime() < 24 * 60 * 60 * 1000) {
+    if (lastSeen && new Date().getTime() - lastSeen.getTime() < 24 * 60 * 60 * 1000) {
       return { status: 'recent', color: 'bg-yellow-500', text: 'Recently Active' };
     }
     return { status: 'offline', color: 'bg-gray-400', text: 'Offline' };
@@ -75,20 +75,14 @@ interface RequestPriorityProps {
 }
 
 export function RequestPriority({ request, className }: RequestPriorityProps) {
-  const [priority, setPriority] = useState<'low' | 'medium' | 'high'>('low');
   const [matchingChefs, setMatchingChefs] = useState(0);
 
-  useEffect(() => {
-    calculatePriority();
-    fetchMatchingChefs();
-  }, [request]);
-
-  const calculatePriority = () => {
+  function calculatePriority(): 'low' | 'medium' | 'high' {
     let score = 0;
 
     // Urgency based on event date
     if (request.eventDate) {
-      const daysUntilEvent = (new Date(request.eventDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+      const daysUntilEvent = (new Date(request.eventDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24);
       if (daysUntilEvent < 3) score += 3;
       else if (daysUntilEvent < 7) score += 2;
       else if (daysUntilEvent < 14) score += 1;
@@ -112,13 +106,12 @@ export function RequestPriority({ request, className }: RequestPriorityProps) {
     else if (proposalCount <= 2) score += 2;
     else if (proposalCount <= 5) score += 1;
 
-    // Set priority based on score
-    if (score >= 6) setPriority('high');
-    else if (score >= 3) setPriority('medium');
-    else setPriority('low');
-  };
+    if (score >= 6) return 'high';
+    if (score >= 3) return 'medium';
+    return 'low';
+  }
 
-  const fetchMatchingChefs = async () => {
+  async function fetchMatchingChefs() {
     try {
       const response = await fetch(`/api/requests/${request.id}/matching-chefs`);
       const data = await response.json();
@@ -126,7 +119,13 @@ export function RequestPriority({ request, className }: RequestPriorityProps) {
     } catch (error) {
       console.error('Error fetching matching chefs:', error);
     }
-  };
+  }
+
+  useEffect(() => {
+    void Promise.resolve().then(fetchMatchingChefs);
+  }, [request]);
+
+  const priority = calculatePriority();
 
   const getPriorityColor = () => {
     switch (priority) {
@@ -321,11 +320,7 @@ export function RequestBoost({ requestId, className }: RequestBoostProps) {
   const [isBoosted, setIsBoosted] = useState(false);
   const [boostRemaining, setBoostRemaining] = useState(0);
 
-  useEffect(() => {
-    fetchBoostStatus();
-  }, [requestId]);
-
-  const fetchBoostStatus = async () => {
+  async function fetchBoostStatus() {
     try {
       const response = await fetch(`/api/requests/${requestId}/boost`);
       const data = await response.json();
@@ -334,7 +329,11 @@ export function RequestBoost({ requestId, className }: RequestBoostProps) {
     } catch (error) {
       console.error('Error fetching boost status:', error);
     }
-  };
+  }
+
+  useEffect(() => {
+    void Promise.resolve().then(fetchBoostStatus);
+  }, [requestId]);
 
   const handleBoost = async () => {
     try {

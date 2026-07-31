@@ -114,7 +114,7 @@ export async function GET() {
         approvedAt: chefSettingsProfile?.approvedAt?.toISOString() ?? null,
         approvedBy: chefSettingsProfile?.approvedBy ?? null,
         complianceConfirmed: Boolean(chefSettingsProfile?.rightToWorkUkConfirmed) && Boolean(chefSettingsProfile?.foodHygieneLevel2Confirmed),
-        readyForReview: Boolean(user?.termsAcceptedAt) && user?.termsVersion === TERMS_VERSION && Boolean(user?.acceptedVia) && Boolean(chefSettingsProfile?.rightToWorkUkConfirmed) && Boolean(chefSettingsProfile?.foodHygieneLevel2Confirmed),
+        readyForReview: Boolean(user?.termsAcceptedAt) && user?.termsVersion === TERMS_VERSION && Boolean(user?.acceptedVia) && Boolean(chefSettingsProfile?.rightToWorkUkConfirmed) && Boolean(chefSettingsProfile?.foodHygieneLevel2Confirmed) && Boolean(chefSettingsProfile?.foodHygieneCertificateUrl),
       },
       stripe: {
         accountId: chefSettingsProfile?.stripeAccountId ?? null,

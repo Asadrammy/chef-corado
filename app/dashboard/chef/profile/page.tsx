@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2, Save, CheckCircle, Star, Award, Edit, User, FileText, MapPin as LocationIcon, Briefcase } from "lucide-react"
+import { Loader2, Save, CheckCircle, Star, Award, Edit, User, FileText, MapPin as LocationIcon, Briefcase, Upload } from "lucide-react"
 import { ReviewList } from "@/components/reviews/review-list"
 import { CHEF_LEGAL_ACKNOWLEDGEMENT, COUNTRY_OPTIONS, getCurrencyForCountry } from "@/lib/request-options"
 
@@ -33,7 +33,11 @@ interface ChefProfile {
   rightToWorkUkConfirmed?: boolean
   foodHygieneLevel2Confirmed?: boolean
   foodHygieneCertificateUrl?: string
-  chefApprovalStatus?: string
+  foodHygieneCertificateUploadedAt?: string | null
+  foodHygieneCertificateReviewedAt?: string | null
+  foodHygieneCertificateReviewedBy?: string | null
+  foodHygieneCertificateReviewStatus?: string | null
+  verificationStatus?: string
   approvedAt?: string | null
   approvedBy?: string | null
   termsAcceptedAt?: string | null
@@ -132,6 +136,7 @@ export default function ChefProfilePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [uploadingCertificate, setUploadingCertificate] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
 
@@ -285,7 +290,53 @@ export default function ChefProfilePage() {
     }
   }
 
+  const handleCertificateUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingCertificate(true)
+    setError("")
+    setSuccess(false)
+
+    try {
+      const payload = new FormData()
+      payload.append("file", file)
+
+      const response = await fetch("/api/chef/certificates", {
+        method: "POST",
+        body: payload,
+      })
+
+      const result = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(result?.error || "Failed to upload food hygiene certificate")
+      }
+
+      setFormData((prev) => ({ ...prev, foodHygieneCertificateUrl: result.url as string }))
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              foodHygieneCertificateUrl: result.url,
+              foodHygieneCertificateUploadedAt: result.uploadedAt,
+              foodHygieneCertificateReviewStatus: result.reviewStatus,
+              foodHygieneCertificateReviewedAt: null,
+              foodHygieneCertificateReviewedBy: null,
+            }
+          : current
+      )
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Failed to upload food hygiene certificate")
+    } finally {
+      setUploadingCertificate(false)
+      e.target.value = ""
+    }
+  }
+
   const approvalStatus = (profile as any)?.verificationStatus ?? (profile?.isApproved ? "APPROVED" : "PENDING")
+  const certificateStatus = profile?.foodHygieneCertificateReviewStatus ?? (formData.foodHygieneCertificateUrl ? "PENDING" : "NOT_SUBMITTED")
   const displayName = [formData.firstName.trim(), formData.surname.trim()].filter(Boolean).join(" ") || profile?.user.name || "Chef"
 
   if (loading) {
@@ -625,17 +676,45 @@ export default function ChefProfilePage() {
                       <span className="text-sm text-gray-600 dark:text-gray-300">I confirm I have completed Level 2 Food Hygiene & Safety training.</span>
                     </label>
 
-                    <div>
-                      <Label htmlFor="foodHygieneCertificateUrl" className="text-sm text-gray-500 dark:text-gray-300">Food hygiene certificate document</Label>
-                      <Input
-                        id="foodHygieneCertificateUrl"
-                        name="foodHygieneCertificateUrl"
-                        placeholder="Add a secure document link or uploaded file reference if available"
-                        value={formData.foodHygieneCertificateUrl}
-                        onChange={handleChange}
-                        className="mt-1 rounded-xl border-gray-200 bg-white transition-all duration-200 focus:scale-[1.01] focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500"
-                      />
-                      <p className="mt-1 text-xs text-gray-400">This is used for admin review only, is not shown on your public profile, and should be a private document reference.</p>
+                    <div className="rounded-xl border border-white bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <Label htmlFor="foodHygieneCertificateFile" className="text-sm text-gray-700 dark:text-gray-200">Upload Level 2 Food Hygiene certificate</Label>
+                          <p className="mt-1 text-xs text-gray-400">PDF, JPEG, PNG, or WebP. This private document is used for admin review only and is never shown on your public profile.</p>
+                        </div>
+                        <Badge variant={certificateStatus === "APPROVED" ? "default" : certificateStatus === "REJECTED" ? "destructive" : "secondary"}>
+                          {certificateStatus === "NOT_SUBMITTED" ? "Not submitted" : certificateStatus.toLowerCase()}
+                        </Badge>
+                      </div>
+
+                      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                        <Button type="button" variant="outline" disabled={uploadingCertificate} asChild>
+                          <label htmlFor="foodHygieneCertificateFile" className="cursor-pointer">
+                            {uploadingCertificate ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                            {formData.foodHygieneCertificateUrl ? "Replace certificate" : "Upload certificate"}
+                          </label>
+                        </Button>
+                        <input
+                          id="foodHygieneCertificateFile"
+                          type="file"
+                          accept="application/pdf,image/jpeg,image/png,image/webp"
+                          className="hidden"
+                          onChange={handleCertificateUpload}
+                          disabled={uploadingCertificate}
+                        />
+                        {formData.foodHygieneCertificateUrl ? (
+                          <Button type="button" variant="ghost" asChild>
+                            <Link href={formData.foodHygieneCertificateUrl} target="_blank" rel="noreferrer">View uploaded certificate</Link>
+                          </Button>
+                        ) : null}
+                      </div>
+
+                      {profile?.foodHygieneCertificateUploadedAt ? (
+                        <p className="mt-3 text-xs text-gray-400">Uploaded {new Date(profile.foodHygieneCertificateUploadedAt).toLocaleString()}</p>
+                      ) : null}
+                      {profile?.foodHygieneCertificateReviewedAt ? (
+                        <p className="mt-1 text-xs text-gray-400">Reviewed {new Date(profile.foodHygieneCertificateReviewedAt).toLocaleString()}</p>
+                      ) : null}
                     </div>
                   </div>
                 </div>

@@ -202,7 +202,7 @@ export default async function ExperiencePage({ params }: ExperiencePageProps) {
           {experience.includedServices ? (
             <Card className="rounded-[28px] border-border/60 shadow-sm">
               <CardHeader>
-                <CardTitle>What's included</CardTitle>
+                <CardTitle>What&apos;s included</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm leading-7 text-muted-foreground">{experience.includedServices}</p>

@@ -25,4 +25,6 @@ export const publicExactRoutes = [
   "/legal/acceptance",
   "/forgot-password",
   "/reset-password",
+  "/sitemap.xml",
+  "/robots.txt",
 ];

@@ -14,6 +14,7 @@ const proposalSchema = z.object({
   requestId: z.string().cuid().min(1, "Request ID is required"),
   price: secureSchemas.securePrice,
   message: secureSchemas.secureMessage,
+  menuId: z.string().cuid().optional().nullable(),
 }).strict() // No additional properties allowed
 
 const proposalUpdateSchema = z.object({
@@ -107,6 +108,17 @@ export async function POST(request: Request) {
       const response = NextResponse.json(
         { error: "This request has already received the maximum of 10 quotes." },
         { status: 409 }
+      )
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
+    if (error instanceof Error && error.message === "MENU_NOT_FOUND_OR_FORBIDDEN") {
+      const response = NextResponse.json(
+        { error: "Selected menu was not found for your chef profile." },
+        { status: 403 }
       )
       Object.entries(securityHeaders).forEach(([key, value]) => {
         response.headers.set(key, value)

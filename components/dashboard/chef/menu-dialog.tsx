@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import type { MenuDialogSubmitData, MenuFormData, MenuType } from "@/components/dashboard/chef/menu-types"
+import type { MenuDialogSubmitData, MenuFormData } from "@/components/dashboard/chef/menu-types"
 import { COUNTRY_OPTIONS } from "@/lib/request-options"
 import { cn } from "@/lib/utils"
 
@@ -38,28 +38,6 @@ const CUISINE_OPTIONS = [
   "Indian",
   "Middle Eastern",
 ] as const
-
-const MENU_TYPE_OPTIONS: Array<{
-  value: MenuType
-  title: string
-  description: string
-}> = [
-  {
-    value: "PRICED",
-    title: "Priced Menu",
-    description: "Show a clear menu price to clients. Price is required.",
-  },
-  {
-    value: "SAMPLE",
-    title: "Sample Menu",
-    description: "Show an example of your cooking style. Price is optional.",
-  },
-  {
-    value: "FREE_FORM",
-    title: "Free Form",
-    description: "Describe your menu in your own words. Price is optional.",
-  },
-]
 
 interface MenuDialogProps {
   open: boolean
@@ -87,6 +65,7 @@ export function MenuDialog({
 
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStep(1)
       setValidationError("")
       setLocalFormData({
@@ -127,13 +106,8 @@ export function MenuDialog({
       }
     }
 
-    if (currentStep === 4 && localFormData.menuType === "PRICED") {
-      if (!localFormData.price.trim()) {
-        setValidationError("Price is required for a Priced Menu.")
-        return false
-      }
-
-      if (Number.isNaN(Number(localFormData.price)) || Number(localFormData.price) < 0) {
+    if (currentStep === 2 && localFormData.price.trim()) {
+      if (Number.isNaN(Number(localFormData.price)) || Number(localFormData.price) <= 0) {
         setValidationError("Price must be a valid positive number.")
         return false
       }
@@ -165,14 +139,11 @@ export function MenuDialog({
       title: localFormData.title.trim(),
       description: localFormData.description.trim() || undefined,
       currency: localFormData.currency,
-      menuType: localFormData.menuType,
+      menuType: "FREE_FORM",
       menuImage: localFormData.menuImage || undefined,
       cuisineType: localFormData.cuisineType.trim() || undefined,
       eventType: localFormData.eventType.trim() || undefined,
-      price:
-        localFormData.menuType === "PRICED" && localFormData.price.trim()
-          ? Number(localFormData.price)
-          : undefined,
+      price: localFormData.price.trim() ? Number(localFormData.price) : undefined,
     })
   }
 
@@ -189,7 +160,7 @@ export function MenuDialog({
               : "Create a menu using free-form descriptions so clients can understand your menu in your own words."}
           </DialogDescription>
           <div className="flex flex-wrap gap-2 pt-2">
-            {["Menu Basics", "Menu Type", "Menu Content", "Media & Review"].map((label, index) => {
+            {["Menu title", "Optional price", "Free-form menu", "Image & metadata"].map((label, index) => {
               const current = index + 1
               const active = current === step
               const complete = current < step
@@ -267,45 +238,21 @@ export function MenuDialog({
 
             {step === 2 ? (
               <div className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-3">
-                  {MENU_TYPE_OPTIONS.map((option) => {
-                    const selected = localFormData.menuType === option.value
-
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => updateField("menuType", option.value)}
-                        className={cn(
-                          "rounded-2xl border p-4 text-left transition-colors",
-                          selected
-                            ? "border-primary bg-primary/5 shadow-sm"
-                            : "border-border hover:border-primary/40"
-                        )}
-                      >
-                        <p className="font-medium text-foreground">{option.title}</p>
-                        <p className="mt-2 text-sm text-muted-foreground">{option.description}</p>
-                      </button>
-                    )
-                  })}
-                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
-                    <Label htmlFor="price">Price</Label>
+                    <Label htmlFor="price">Optional price</Label>
                     <Input
                       id="price"
                       type="number"
-                      min="0"
+                      min="0.01"
                       step="0.01"
                       value={localFormData.price}
                       onChange={(event) => updateField("price", event.target.value)}
-                      placeholder={localFormData.menuType === "PRICED" ? "Required for priced menus" : "Optional"}
+                      placeholder="Leave blank if pricing is discussed per request"
                       className="rounded-lg"
                     />
                     <p className="text-xs text-muted-foreground">
-                      {localFormData.menuType === "PRICED"
-                        ? "Price is required for Priced Menu."
-                        : "Price is optional for Sample Menu and Free Form."}
+                      Leave price blank for menus where pricing depends on guests, location, or event format.
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -328,7 +275,16 @@ export function MenuDialog({
             ) : null}
 
             {step === 3 ? (
-              <div className="space-y-2">
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 text-sm text-muted-foreground">
+                  <p className="font-medium text-foreground">Free-form menu creation</p>
+                  <p className="mt-1">
+                    Write the menu naturally in one space. You can paste a complete menu, add dietary notes, describe the serving style, and use your own voice.
+                  </p>
+                  <div className="mt-3 rounded-xl bg-background/70 p-3 text-xs leading-5">
+                    Example style: Welcome bites, seasonal starter, handmade pasta or main course, dessert, optional cheese course, and notes for vegetarian or gluten-free guests.
+                  </div>
+                </div>
                 <Label htmlFor="description">Full Menu Description</Label>
                 <Textarea
                   id="description"
@@ -339,7 +295,7 @@ export function MenuDialog({
                   className="min-h-[320px] rounded-lg"
                 />
                 <p className="text-sm text-muted-foreground">
-                  Write or paste your full menu here. You can include starters, mains, desserts, dietary notes, serving style, and substitutions in your own words. You do not need to split the menu into sections.
+                  Do not divide this into menu-builder sections. Clients will see the final menu content as one natural description.
                 </p>
               </div>
             ) : null}
@@ -421,13 +377,7 @@ export function MenuDialog({
                   <p className="text-muted-foreground">Cuisine</p>
                   <p className="font-medium text-foreground">{localFormData.cuisineType || "Not selected"}</p>
                 </div>
-                <div>
-                  <p className="text-muted-foreground">Menu type</p>
-                  <p className="font-medium text-foreground">
-                    {MENU_TYPE_OPTIONS.find((option) => option.value === localFormData.menuType)?.title ?? "Free Form"}
-                  </p>
-                </div>
-                {localFormData.menuType === "PRICED" && localFormData.price.trim() ? (
+                {localFormData.price.trim() ? (
                   <div>
                     <p className="text-muted-foreground">Price</p>
                     <p className="font-medium text-foreground">{localFormData.currency} {localFormData.price}</p>

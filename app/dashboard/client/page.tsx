@@ -161,7 +161,7 @@ export default async function ClientDashboardPage() {
                 </Link>
               </Button>
               <Button asChild variant="outline" size="lg" className="border-border hover:bg-muted/50 hover:border-border/80 px-8 py-3">
-                <Link href="/experiences">
+                <Link href="/browse-chefs">
                   <Search className="mr-2 h-5 w-5" />
                   Browse Chefs
                 </Link>

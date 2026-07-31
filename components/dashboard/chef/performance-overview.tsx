@@ -1,6 +1,5 @@
 "use client"
 
-import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Wallet, Calendar, Star, TrendingUp, TrendingDown, Minus } from "lucide-react"
@@ -22,12 +21,6 @@ export function PerformanceOverview({
   earningsData,
   bookingsData = []
 }: PerformanceOverviewProps) {
-  const [mounted, setMounted] = useState(false)
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
   // Calculate trend from earnings data
   const calculateTrend = (data: Array<{ month: string; earnings: number }>) => {
     if (data.length < 2) return { trend: 'neutral', value: 0 }
@@ -46,7 +39,7 @@ export function PerformanceOverview({
   // Generate sample booking data if not provided
   const sampleBookingsData = earningsData.map(item => ({
     month: item.month,
-    bookings: Math.floor(Math.random() * 10) + 1
+    bookings: Math.max(1, Math.round(item.earnings / 100))
   }))
 
   const getTrendIcon = (trend: string) => {
@@ -63,22 +56,6 @@ export function PerformanceOverview({
       case 'down': return 'text-red-600'
       default: return 'text-gray-400'
     }
-  }
-
-  if (!mounted) {
-    return (
-      <section className="space-y-8">
-        <div className="animate-pulse">
-          <h2 className="text-2xl font-light text-gray-900 dark:text-white mb-2">Performance Overview</h2>
-          <p className="text-gray-600 dark:text-gray-300">Track your key metrics and earnings</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-32 bg-gray-200 dark:bg-gray-800 rounded-xl animate-pulse" />
-          ))}
-        </div>
-      </section>
-    )
   }
 
   return (

@@ -51,6 +51,23 @@ type AuthUser = {
   role: Role
 }
 
+export type SessionComplianceRecord = {
+  isBanned: boolean
+  termsAcceptedAt: Date | null
+  termsVersion: string | null
+  acceptedVia: string | null
+  role: Role | string
+  chefProfile: {
+    rightToWorkUkConfirmed: boolean
+    foodHygieneLevel2Confirmed: boolean
+    foodHygieneCertificateUrl: string | null
+    foodHygieneCertificateReviewStatus: string | null
+    verificationStatus: string | null
+    isApproved: boolean
+    isBanned: boolean
+  } | null
+}
+
 const localDemoUsers: Record<string, AuthUser & { password: string }> = {
   "admin@example.com": {
     id: "local-demo-admin-user",
@@ -75,6 +92,14 @@ const localDemoUsers: Record<string, AuthUser & { password: string }> = {
   },
 }
 
+const localDemoUserById = Object.values(localDemoUsers).reduce<Record<string, AuthUser & { password: string }>>(
+  (acc, user) => {
+    acc[user.id] = user
+    return acc
+  },
+  {}
+)
+
 function getLocalDemoUser(email: string, password: string): AuthUser | null {
   if (process.env.NODE_ENV !== "development") {
     return null
@@ -89,6 +114,50 @@ function getLocalDemoUser(email: string, password: string): AuthUser | null {
   return authUser
 }
 
+export function isLocalDemoSessionUser(userId?: string | null, email?: string | null) {
+  if (process.env.NODE_ENV !== "development") {
+    return false
+  }
+
+  return Boolean(
+    (email && localDemoUsers[email.toLowerCase()]) ||
+    (userId && localDemoUserById[userId]) ||
+    userId?.startsWith("local-demo-")
+  )
+}
+
+export function getLocalDemoSessionRecord(userId?: string | null, email?: string | null, role?: Role | string | null): SessionComplianceRecord | null {
+  if (process.env.NODE_ENV !== "development") {
+    return null
+  }
+
+  const demoUser = (email ? localDemoUsers[email.toLowerCase()] : null) || (userId ? localDemoUserById[userId] : null)
+  const resolvedRole = (demoUser?.role || role) as Role | undefined
+
+  if (!resolvedRole || (!demoUser && !userId?.startsWith("local-demo-") && !role)) {
+    return null
+  }
+
+  return {
+    isBanned: false,
+    termsAcceptedAt: new Date(),
+    termsVersion: TERMS_VERSION,
+    acceptedVia: "local-demo",
+    role: resolvedRole,
+    chefProfile: resolvedRole === Role.CHEF
+      ? {
+          rightToWorkUkConfirmed: true,
+          foodHygieneLevel2Confirmed: true,
+          foodHygieneCertificateUrl: "local-demo",
+          foodHygieneCertificateReviewStatus: "APPROVED",
+          verificationStatus: "APPROVED",
+          isApproved: true,
+          isBanned: false,
+        }
+      : null,
+  }
+}
+
 const nextAuthSecret = process.env.NEXTAUTH_SECRET ?? (process.env.NODE_ENV === "production" ? undefined : "chef-development-nextauth-secret")
 
 export const roleDashboardPath: Record<Role, string> = {
@@ -98,7 +167,7 @@ export const roleDashboardPath: Record<Role, string> = {
 }
 
 export const authOptions: AuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  adapter: process.env.NODE_ENV === "development" ? undefined : PrismaAdapter(prisma),
   providers: [
     CredentialsProvider({
       name: "Email",
@@ -115,6 +184,12 @@ export const authOptions: AuthOptions = {
         console.log("Attempting login for:", credentials.email.toLowerCase())
 
         const normalizedEmail = credentials.email.toLowerCase()
+        const localDemoUser = getLocalDemoUser(normalizedEmail, credentials.password)
+
+        if (localDemoUser) {
+          console.log("Local demo login successful for:", localDemoUser.email)
+          return localDemoUser
+        }
 
         let user
         try {
@@ -185,31 +260,40 @@ export const authOptions: AuthOptions = {
       if (user?.id) {
         token.sub = user.id
       }
-      // Add isBanned flag to token for middleware checks
-      if (user?.id) {
-        let dbUser
-        try {
-          dbUser = await prisma.user.findUnique({
-            where: { id: user.id },
-            select: {
-              isBanned: true,
-              termsAcceptedAt: true,
-              termsVersion: true,
-              acceptedVia: true,
-              role: true,
-            },
-          })
-        } catch (error) {
-          if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
-            dbUser = {
-              isBanned: false,
-              termsAcceptedAt: new Date(),
-              termsVersion: TERMS_VERSION,
-              acceptedVia: "local-demo",
-              role: user.role,
+      const tokenUserId = user?.id ?? token.sub
+      // Refresh legal/compliance flags whenever the JWT callback runs so re-acceptance updates are reflected.
+      if (tokenUserId) {
+        const currentRole = (user?.role ?? token.role) as Role | undefined
+        let dbUser: SessionComplianceRecord | null = getLocalDemoSessionRecord(tokenUserId, token.email, currentRole)
+        if (!dbUser) {
+          try {
+            dbUser = await prisma.user.findUnique({
+              where: { id: tokenUserId },
+              select: {
+                isBanned: true,
+                termsAcceptedAt: true,
+                termsVersion: true,
+                acceptedVia: true,
+                role: true,
+                chefProfile: {
+                  select: {
+                    rightToWorkUkConfirmed: true,
+                    foodHygieneLevel2Confirmed: true,
+                    foodHygieneCertificateUrl: true,
+                    foodHygieneCertificateReviewStatus: true,
+                    verificationStatus: true,
+                    isApproved: true,
+                    isBanned: true,
+                  },
+                },
+              },
+            })
+          } catch (error) {
+            if (isPrismaConnectionError(error) && currentRole) {
+              dbUser = getLocalDemoSessionRecord(tokenUserId, token.email, currentRole)
+            } else {
+              throw error
             }
-          } else {
-            throw error
           }
         }
 
@@ -218,8 +302,17 @@ export const authOptions: AuthOptions = {
           token.needsTermsAcceptance = !dbUser.termsAcceptedAt || dbUser.termsVersion !== TERMS_VERSION || !dbUser.acceptedVia
           token.complianceStatus = null
           token.needsChefCompliance = dbUser.role === Role.CHEF
+            ? !dbUser.chefProfile ||
+              dbUser.chefProfile.isBanned ||
+              !dbUser.chefProfile.rightToWorkUkConfirmed ||
+              !dbUser.chefProfile.foodHygieneLevel2Confirmed ||
+              !dbUser.chefProfile.foodHygieneCertificateUrl ||
+              dbUser.chefProfile.foodHygieneCertificateReviewStatus !== "APPROVED" ||
+              dbUser.chefProfile.verificationStatus !== "APPROVED" ||
+              !dbUser.chefProfile.isApproved
+            : false
           token.insuranceStatus = null
-          token.needsInsuranceVerification = dbUser.role === Role.CHEF
+          token.needsInsuranceVerification = false
         }
       }
       return token

@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 export async function requireAuth() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    redirect('/auth/login');
+    redirect('/login');
   }
   return session;
 }

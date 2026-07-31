@@ -50,6 +50,7 @@ const difficultyOptions = ["EASY", "MEDIUM", "HARD"];
 export default function ExperiencesPage() {
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
+  const [temporarilyUnavailable, setTemporarilyUnavailable] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
@@ -78,6 +79,7 @@ export default function ExperiencesPage() {
 
   const fetchExperiences = async () => {
     setLoading(true);
+    setTemporarilyUnavailable(false);
     try {
       const params = new URLSearchParams({
         page: pagination.page.toString(),
@@ -100,6 +102,13 @@ export default function ExperiencesPage() {
       setExperiences(response.data.experiences || []);
       setPagination(response.data.pagination || pagination);
     } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 503) {
+        setExperiences([]);
+        setPagination((current) => ({ ...current, total: 0, pages: 0 }));
+        setTemporarilyUnavailable(true);
+        return;
+      }
+
       console.error("Error fetching experiences:", error);
       toast.error("Failed to load experiences");
     } finally {
@@ -242,6 +251,19 @@ export default function ExperiencesPage() {
                 <div key={item} className="h-96 animate-pulse rounded-[28px] bg-muted" />
               ))}
             </div>
+          ) : temporarilyUnavailable ? (
+            <Card className="rounded-[28px] border-border/60">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Search className="mb-4 h-10 w-10 text-muted-foreground" />
+                <h3 className="mb-2 text-lg font-semibold">Experiences are temporarily unavailable</h3>
+                <p className="mb-4 max-w-md text-center text-sm text-muted-foreground">
+                  The experience catalogue could not be reached. Please try again shortly.
+                </p>
+                <Button onClick={fetchExperiences} className="brand-gradient-button rounded-2xl border-0">
+                  Try again
+                </Button>
+              </CardContent>
+            </Card>
           ) : experiences.length === 0 ? (
             <Card className="rounded-[28px] border-border/60">
               <CardContent className="flex flex-col items-center justify-center py-12">

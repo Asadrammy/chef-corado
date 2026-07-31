@@ -7,6 +7,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
+import { getProposalBookingCounts } from '@/lib/booking-counts'
 import Stripe from 'stripe'
 
 export class PaymentReconciliationService {
@@ -96,6 +97,7 @@ export class PaymentReconciliationService {
         const amount = paymentIntent.amount / 100
         const commissionAmount = amount * 0.2
         const chefAmount = amount * 0.8
+        const bookingCounts = getProposalBookingCounts(proposal.request)
 
         // Create booking
         const booking = await tx.booking.create({
@@ -109,7 +111,8 @@ export class PaymentReconciliationService {
             location: proposal.request.location,
             latitude: proposal.request.latitude,
             longitude: proposal.request.longitude,
-            guestCount: 1,
+            guestCount: bookingCounts.guestCount,
+            studentCount: bookingCounts.studentCount,
             bookingType: 'PROPOSAL',
           },
         })

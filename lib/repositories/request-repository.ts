@@ -16,6 +16,11 @@ export const requestRepository = {
     guestCount: number
     latitude?: number
     longitude?: number
+    locationCity?: string
+    locationRegion?: string
+    formattedAddress?: string
+    geocodingProvider?: string
+    geocodingStatus?: string
     budget: number
     details?: string
   }) {
@@ -34,6 +39,11 @@ export const requestRepository = {
       guestCount: input.guestCount,
       latitude: input.latitude ?? null,
       longitude: input.longitude ?? null,
+      locationCity: input.locationCity ?? null,
+      locationRegion: input.locationRegion ?? null,
+      formattedAddress: input.formattedAddress ?? null,
+      geocodingProvider: input.geocodingProvider ?? null,
+      geocodingStatus: input.geocodingStatus ?? "UNVERIFIED",
       budget: input.budget,
       details: input.details || null,
     } as any
@@ -79,8 +89,6 @@ export const requestRepository = {
   listChefMarketplaceRequests(chefId: string) {
     return prisma.request.findMany({
       where: {
-        latitude: { not: null },
-        longitude: { not: null },
         eventDate: { gte: new Date() },
         proposals: {
           none: {

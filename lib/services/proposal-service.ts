@@ -26,11 +26,15 @@ const PROPOSAL_STATUS = {
 const PROPOSAL_EXPIRY_HOURS = 72 // 3 days
 
 export const proposalService = {
-  async createProposal(userId: string, userName: string | null | undefined, input: { requestId: string; price: number; message: string }) {
+  async createProposal(
+    userId: string,
+    userName: string | null | undefined,
+    input: { requestId: string; price: number; message: string; menuId?: string | null }
+  ) {
     // Enforce moderation - user must not be banned
     await enforceUserModeration(userId)
 
-    // Enforce chef compliance (terms + insurance)
+    // Enforce chef compliance (terms + structured legal confirmations + approval)
     await enforceChefCompliance(userId)
 
     // Enforce communication policy in proposal message
@@ -47,6 +51,13 @@ export const proposalService = {
 
     // Enforce chef profile moderation
     await enforceChefModeration(chefProfile.id)
+
+    if (input.menuId) {
+      const ownedMenu = await proposalRepository.findOwnedMenu(input.menuId, chefProfile.id)
+      if (!ownedMenu) {
+        throw new Error("MENU_NOT_FOUND_OR_FORBIDDEN")
+      }
+    }
 
     const targetRequest = await proposalRepository.findRequestWithClient(input.requestId)
 
@@ -66,6 +77,7 @@ export const proposalService = {
       price: input.price,
       currency,
       message: input.message,
+      menuId: input.menuId ?? null,
       expiresAt,
     })
 
@@ -102,6 +114,7 @@ export const proposalService = {
         chef: {
           ...proposal.chef,
           name: proposal.chef.user?.name ?? null,
+          userId: proposal.chef.userId,
         },
       }))
     }
@@ -119,6 +132,9 @@ export const proposalService = {
           ...proposal.chef,
           name: proposal.chef.user?.name ?? null,
           rating: averageRating,
+          reviewCount: reviews.length,
+          profileImage: proposal.chef.profileImage ?? null,
+          userId: proposal.chef.userId,
         },
       }
     })

@@ -27,7 +27,7 @@ export function EngagingHero({ userName, completionPercentage, availableRequests
               Welcome back, {userName?.split(' ')[0] || 'Chef'} 👋
             </h1>
             <p className="text-xl text-gray-600 max-w-2xl font-medium">
-              Let's get your next booking today
+              Let&apos;s get your next booking today
             </p>
           </div>
           

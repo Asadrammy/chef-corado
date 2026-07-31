@@ -38,9 +38,10 @@ interface RequestCardProps {
 
 export function RequestCard({ request }: RequestCardProps) {
   const [imageError, setImageError] = useState(false);
+  const nowMs = new Date().getTime();
   const eventDate = new Date(request.eventDate);
-  const isPast = eventDate < new Date();
-  const isSoon = eventDate.getTime() - Date.now() < 7 * 24 * 60 * 60 * 1000; // Within 7 days
+  const isPast = eventDate.getTime() < nowMs;
+  const isSoon = eventDate.getTime() - nowMs < 7 * 24 * 60 * 60 * 1000; // Within 7 days
 
   const getStatusBadge = () => {
     if (isPast) {

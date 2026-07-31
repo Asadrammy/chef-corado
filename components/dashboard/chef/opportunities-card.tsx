@@ -29,7 +29,7 @@ export function OpportunitiesCard({ requests, availableRequestsCount }: Opportun
             
             <div className="space-y-4">
               <h3 className="text-2xl font-semibold text-gray-900">
-                You're all set to start earning
+                You&apos;re all set to start earning
               </h3>
               <p className="text-gray-600">
                 New opportunities will appear here as clients discover your profile

@@ -31,12 +31,25 @@ export const proposalRepository = {
     })
   },
 
+  findOwnedMenu(menuId: string, chefId: string) {
+    return prisma.menu.findFirst({
+      where: {
+        id: menuId,
+        chefId,
+      },
+      select: {
+        id: true,
+      },
+    })
+  },
+
   createProposal(input: {
     requestId: string
     chefId: string
     price: number
     currency: string
     message: string
+    menuId?: string | null
     expiresAt?: Date
   }) {
     return prisma.proposal.create({
@@ -46,6 +59,7 @@ export const proposalRepository = {
         price: input.price,
         currency: input.currency,
         message: input.message,
+        menuId: input.menuId ?? null,
         expiresAt: input.expiresAt,
         status: ProposalStatus.PENDING,
       } as any,
@@ -58,6 +72,7 @@ export const proposalRepository = {
     price: number
     currency: string
     message: string
+    menuId?: string | null
     expiresAt?: Date
   }) {
     return prisma.$transaction(async (tx) => {
@@ -76,6 +91,7 @@ export const proposalRepository = {
           price: input.price,
           currency: input.currency,
           message: input.message,
+          menuId: input.menuId ?? null,
           expiresAt: input.expiresAt,
           status: ProposalStatus.PENDING,
         } as any,
@@ -90,12 +106,14 @@ export const proposalRepository = {
       where: { chefId },
       orderBy: { createdAt: "desc" },
       include: {
+        menu: true,
         request: true,
         chef: {
           include: {
             user: {
               select: {
                 name: true,
+                id: true,
               },
             },
           },
@@ -109,12 +127,14 @@ export const proposalRepository = {
       where: { request: { clientId: userId } },
       orderBy: { createdAt: "desc" },
       include: {
+        menu: true,
         request: true,
         chef: {
           include: {
             user: {
               select: {
                 name: true,
+                id: true,
               },
             },
             reviews: {

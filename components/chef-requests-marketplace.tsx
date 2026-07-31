@@ -57,8 +57,8 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
   const filteredRequests = React.useMemo(() => {
     let filtered = requests
 
-    // Radius filter
-    filtered = filtered.filter((request) => (request.distanceKm ?? 0) <= radiusFilter)
+    // Radius filter applies only to exact-distance rows. Broader matches remain visible and labelled.
+    filtered = filtered.filter((request) => request.distanceKm == null || request.distanceKm <= radiusFilter)
 
     // Search filter
     if (searchQuery) {
@@ -113,6 +113,7 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
     ? formatCurrency(highestBudgetRequest.budget, highestBudgetRequest.currency || "GBP")
     : formatCurrency(0, "GBP")
   const activeServiceRadius = serviceRadiusKm ?? 50
+  const broaderMatchCount = requests.filter((request) => request.broaderMatching || request.distanceKm == null).length
 
   return (
     <div className="space-y-6 lg:space-y-7">
@@ -130,7 +131,7 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
                   Incoming Requests
                 </h1>
                 <p className="text-muted-foreground max-w-2xl text-sm leading-6 md:text-[15px]">
-                  Showing open customer requests within your saved service radius so you can review nearby demand and send polished proposals.
+                  Showing requests within your saved service radius. Requests without exact coordinates may appear under broader matching.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -146,6 +147,11 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
                   Sorted for fast proposal workflow
                 </div>
+                {broaderMatchCount > 0 ? (
+                  <div className="text-muted-foreground inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-900 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100">
+                    {broaderMatchCount} broader matching
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -208,7 +214,7 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
               {baseLocation ? ` from ${baseLocation}` : " from your saved base location"}
             </p>
             <p className="text-xs text-muted-foreground">
-              The slider below narrows this page temporarily to <span className="font-medium text-foreground">{radiusFilter} km</span>. It does not change your saved matching radius.
+              The slider below narrows exact-distance requests temporarily to <span className="font-medium text-foreground">{radiusFilter} km</span>. Requests without exact coordinates may remain visible under broader matching.
             </p>
             <div className="flex items-center gap-4 pt-2">
               <Slider

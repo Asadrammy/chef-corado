@@ -26,6 +26,7 @@ export async function GET(
     const proposal = await prisma.proposal.findUnique({
       where: { id: proposalId },
       include: {
+        menu: true,
         chef: { include: { user: true } },
         request: { include: { client: true } },
       },

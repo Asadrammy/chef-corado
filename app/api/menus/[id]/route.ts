@@ -8,7 +8,7 @@ import { validateMessageContent } from "@/lib/security/communication-policy"
 const menuSchema = z.object({
   title: z.string().min(1, "Title is required"),
   description: z.string().min(1, "Full menu description is required"),
-  price: z.number().min(0, "Price must be positive").optional(),
+  price: z.number().positive("Price must be positive").optional(),
   currency: z.string().length(3).optional(),
   menuType: z.enum(["PRICED", "SAMPLE", "FREE_FORM"]).default("FREE_FORM"),
   menuImage: z.string().url().optional(),

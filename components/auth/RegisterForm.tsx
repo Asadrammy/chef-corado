@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useSearchParams } from "next/navigation"
 import { AlertCircle, ArrowRight, Code, LockKeyhole, Sparkles } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -19,6 +20,12 @@ type RegisterFormProps = {
 
 export function RegisterForm({ onToggleMode }: RegisterFormProps) {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const requestedRole = searchParams.get("role")
+  const lockedRole = requestedRole === Role.CLIENT || requestedRole === Role.CHEF ? requestedRole : null
+  const initialRole = lockedRole === Role.CHEF ? Role.CHEF : Role.CLIENT
+  const callbackUrl = searchParams.get("callbackUrl")
+  const safeCallbackUrl = callbackUrl?.startsWith("/") && !callbackUrl.startsWith("//") ? callbackUrl : ""
   const [formData, setFormData] = useState<{
     name: string
     email: string
@@ -30,10 +37,17 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
     name: "",
     email: "",
     password: "",
-    role: Role.CLIENT,
+    role: initialRole,
     acceptedTerms: false,
     acceptedCompliance: false,
   })
+  const loginParams = new URLSearchParams({ role: formData.role })
+
+  if (safeCallbackUrl) {
+    loginParams.set("callbackUrl", safeCallbackUrl)
+  }
+
+  const loginHref = `/login?${loginParams.toString()}`
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
@@ -44,6 +58,10 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
   }
 
   const handleRoleChange = (value: string) => {
+    if (lockedRole) {
+      return
+    }
+
     setFormData((prev) => ({ ...prev, role: value as Role }))
   }
 
@@ -69,7 +87,8 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
     }
 
     try {
-      const response = await fetch("/api/auth/register", {
+      const registerUrl = lockedRole ? `/api/auth/register?role=${lockedRole}` : "/api/auth/register"
+      const response = await fetch(registerUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -90,10 +109,16 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
 
       setSuccess(true)
       setTimeout(() => {
+        const params = new URLSearchParams({ role: formData.role })
+        if (safeCallbackUrl) {
+          params.set("callbackUrl", safeCallbackUrl)
+        }
+
         if (onToggleMode) {
+          router.replace(`/login?${params.toString()}`)
           onToggleMode()
         } else {
-          router.push("/login")
+          router.push(`/login?${params.toString()}`)
         }
       }, 2000)
     } catch {
@@ -154,9 +179,13 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
               Secure access
             </div>
             <div className="space-y-1.5">
-              <h1 className="text-[1.75rem] font-semibold tracking-[-0.07em] text-foreground md:text-[2.05rem] md:leading-[0.96]">Create account</h1>
+              <h1 className="text-[1.75rem] font-semibold tracking-[-0.07em] text-foreground md:text-[2.05rem] md:leading-[0.96]">
+                {formData.role === Role.CHEF ? "Chef Signup" : "Customer Signup"}
+              </h1>
               <p className="max-w-sm text-[13px] leading-5 text-muted-foreground md:text-[14px]">
-                Create a new account to access your workspace with a cleaner, more focused control surface.
+                {formData.role === Role.CHEF
+                  ? "Create a chef account, then complete profile, compliance, menus, and approval before offering services."
+                  : "Create a customer account to request chefs, compare proposals, book, and message securely."}
               </p>
             </div>
           </div>
@@ -224,15 +253,25 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
 
           <div className="space-y-1.5">
             <Label htmlFor="role" className="text-[13px] font-semibold text-foreground">I want to register as</Label>
-            <Select value={formData.role} onValueChange={handleRoleChange} disabled={loading}>
-              <SelectTrigger className="h-11 rounded-[16px] border border-[#d7dfeb] bg-[#ffffff] px-4 text-[14px] text-[#0f172a] shadow-[0_1px_2px_rgba(16,24,40,0.03)] transition-all duration-200 hover:border-[#c5d0df] focus:ring-[4px] focus:ring-[rgba(33,89,214,0.12)] focus:ring-offset-0">
-                <SelectValue placeholder="Select your role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={Role.CLIENT}>Client - Looking for chefs</SelectItem>
-                <SelectItem value={Role.CHEF}>Chef - Offering services</SelectItem>
-              </SelectContent>
-            </Select>
+            {lockedRole ? (
+              <div
+                id="role"
+                aria-readonly="true"
+                className="flex h-11 items-center rounded-[16px] border border-[#d7dfeb] bg-[#f8fafc] px-4 text-[14px] font-medium text-[#0f172a] shadow-[0_1px_2px_rgba(16,24,40,0.03)]"
+              >
+                {lockedRole === Role.CHEF ? "Chef - Offering services" : "Client - Looking for chefs"}
+              </div>
+            ) : (
+              <Select value={formData.role} onValueChange={handleRoleChange} disabled={loading}>
+                <SelectTrigger className="h-11 rounded-[16px] border border-[#d7dfeb] bg-[#ffffff] px-4 text-[14px] text-[#0f172a] shadow-[0_1px_2px_rgba(16,24,40,0.03)] transition-all duration-200 hover:border-[#c5d0df] focus:ring-[4px] focus:ring-[rgba(33,89,214,0.12)] focus:ring-offset-0">
+                  <SelectValue placeholder="Select your role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={Role.CLIENT}>Client - Looking for chefs</SelectItem>
+                  <SelectItem value={Role.CHEF}>Chef - Offering services</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           <div className="space-y-3 rounded-[16px] border border-[#d7dfeb] bg-white px-4 py-3 text-sm text-[#344054]">
@@ -320,7 +359,7 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
                 Sign in
               </button>
             ) : (
-              <Link href="/login" className="font-semibold text-[#101828] transition-colors hover:text-[#1849be]">
+              <Link href={loginHref} className="font-semibold text-[#101828] transition-colors hover:text-[#1849be]">
                 Sign in
               </Link>
             )}

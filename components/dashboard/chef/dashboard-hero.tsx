@@ -25,7 +25,7 @@ export function DashboardHero({ userName, completionPercentage, availableRequest
               Welcome back, {userName?.split(' ')[0] || 'Chef'}
             </h1>
             <p className="text-gray-600">
-              Let's get your next booking today
+              Let&apos;s get your next booking today
             </p>
           </div>
           

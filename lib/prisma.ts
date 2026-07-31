@@ -24,13 +24,22 @@ const normalizeDatabaseUrl = (url?: string) => {
 
 const isValidDatabaseUrl = (url?: string) => Boolean(normalizeDatabaseUrl(url) && /^(postgresql|postgres):\/\//.test(normalizeDatabaseUrl(url) as string))
 
-const appendDatabaseParam = (url: string, key: string, value: string) => {
+const setDatabaseParam = (url: string, key: string, value: string) => {
   if (url.includes(`${key}=`)) {
-    return url
+    return url.replace(new RegExp(`([?&])${key}=[^&]*`), `$1${key}=${value}`)
   }
 
   const separator = url.includes("?") ? "&" : "?"
   return `${url}${separator}${key}=${value}`
+}
+
+const getConnectTimeoutSeconds = () => {
+  const configured = Number(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS)
+  if (Number.isFinite(configured) && configured > 0) {
+    return String(Math.min(configured, 30))
+  }
+
+  return process.env.NODE_ENV === "production" ? "10" : "3"
 }
 
 const getDatabaseUrl = () => {
@@ -41,10 +50,10 @@ const getDatabaseUrl = () => {
     return url
   }
 
-  url = appendDatabaseParam(url, "sslmode", "require")
-  url = appendDatabaseParam(url, "connection_limit", process.env.NODE_ENV === "production" ? "10" : "5")
-  url = appendDatabaseParam(url, "pool_timeout", "20")
-  url = appendDatabaseParam(url, "connect_timeout", "10")
+  url = setDatabaseParam(url, "sslmode", "require")
+  url = setDatabaseParam(url, "connection_limit", process.env.NODE_ENV === "production" ? "10" : "5")
+  url = setDatabaseParam(url, "pool_timeout", process.env.NODE_ENV === "production" ? "20" : "5")
+  url = setDatabaseParam(url, "connect_timeout", getConnectTimeoutSeconds())
 
   return url
 }
@@ -65,6 +74,7 @@ export const isPrismaConnectionError = (error: unknown) => {
 
   return [
     "Server has closed the connection",
+    "Error opening a TLS connection",
     "Connection terminated unexpectedly",
     "Can't reach database server",
     "Timed out fetching a new connection",
@@ -77,38 +87,34 @@ export const isPrismaConnectionError = (error: unknown) => {
   ].some((pattern) => message.includes(pattern))
 }
 
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const resetPrismaConnection = async (delayMs: number) => {
+  await prisma.$disconnect().catch(() => undefined)
+  await wait(delayMs)
+}
+
 export async function withPrismaReconnect<T>(operation: () => Promise<T>, retries = 1): Promise<T> {
-  try {
-    return await operation()
-  } catch (error) {
-    if (!isPrismaConnectionError(error) || retries <= 0) {
-      throw error
+  let attempt = 0
+
+  while (true) {
+    try {
+      return await operation()
+    } catch (error) {
+      if (!isPrismaConnectionError(error) || attempt >= retries) {
+        throw error
+      }
+
+      attempt += 1
+      console.warn(`Prisma connection was closed by the server. Resetting connection and retrying operation (${attempt}/${retries}).`)
+      await resetPrismaConnection(250 * attempt)
     }
-
-    console.warn("Prisma connection was closed by the server. Resetting client connection and retrying operation once.")
-    await prisma.$disconnect().catch(() => undefined)
-    await new Promise((resolve) => setTimeout(resolve, 250))
-    await prisma.$connect()
-
-    return withPrismaReconnect(operation, retries - 1)
   }
 }
 
 if (!globalForPrisma.prismaMiddlewareAttached) {
   prisma.$use(async (params, next) => {
-    try {
-      return await next(params)
-    } catch (error) {
-      if (!isPrismaConnectionError(error)) {
-        throw error
-      }
-
-      console.warn("Prisma connection was closed by the server. Reconnecting and retrying query once.")
-      await prisma.$disconnect().catch(() => undefined)
-      await new Promise((resolve) => setTimeout(resolve, 250))
-      await prisma.$connect()
-      return next(params)
-    }
+    return next(params)
   })
 
   globalForPrisma.prismaMiddlewareAttached = true

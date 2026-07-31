@@ -36,6 +36,37 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
   const bannedMessage = searchParams.get("banned") === "1"
     ? "This account has been suspended. Contact support if you believe this was a mistake."
     : ""
+  const requestedRole = searchParams.get("role")
+  const callbackUrl = searchParams.get("callbackUrl")
+  const safeCallbackUrl = callbackUrl?.startsWith("/") && !callbackUrl.startsWith("//") ? callbackUrl : ""
+  const roleCopy = requestedRole === "CHEF"
+    ? {
+        heading: "Chef Login",
+        description: "Sign in to manage requests, proposals, menus, bookings, compliance, messages, and payouts.",
+        signupHref: "/register?role=CHEF",
+      }
+    : requestedRole === "CLIENT"
+      ? {
+          heading: "Customer Login",
+          description: "Sign in to create requests, compare chef proposals, manage bookings, and continue conversations.",
+          signupHref: "/register?role=CLIENT",
+        }
+      : requestedRole === "ADMIN"
+        ? {
+            heading: "Admin Login",
+            description: "Sign in with an authorized admin account to review marketplace operations, approvals, and payments.",
+            signupHref: "",
+          }
+      : {
+          heading: "Welcome back",
+          description: "Sign in to access the right workspace for your account.",
+          signupHref: "/register",
+        }
+  const isAdminLogin = requestedRole === "ADMIN"
+  const signupHref =
+    roleCopy.signupHref && safeCallbackUrl
+      ? `${roleCopy.signupHref}${roleCopy.signupHref.includes("?") ? "&" : "?"}callbackUrl=${encodeURIComponent(safeCallbackUrl)}`
+      : roleCopy.signupHref
 
   const validateEmail = (email: string) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -167,9 +198,9 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
             ADMIN: "/dashboard/admin",
           }[role]
 
-          router.push(dashboardPath)
+          router.push(safeCallbackUrl || dashboardPath)
         } else {
-          router.push("/dashboard")
+          router.push(safeCallbackUrl || "/dashboard")
         }
       }
     } catch {
@@ -192,9 +223,9 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
               Secure access
             </div>
             <div className="space-y-2">
-              <h1 className="text-[1.85rem] font-semibold tracking-[-0.07em] text-foreground md:text-[2.35rem] md:leading-[0.96]">Welcome back</h1>
+              <h1 className="text-[1.85rem] font-semibold tracking-[-0.07em] text-foreground md:text-[2.35rem] md:leading-[0.96]">{roleCopy.heading}</h1>
               <p className="max-w-sm text-sm leading-5 text-muted-foreground md:text-[15px]">
-                Sign in to access your workspace with a cleaner, more focused control surface.
+                {roleCopy.description}
               </p>
             </div>
           </div>
@@ -289,15 +320,21 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
           <p className="mb-3 text-xs leading-5 text-muted-foreground">
             By continuing, you agree to keep communication, booking coordination, and payments inside the platform. Read the <Link href="/terms/client" className="font-semibold text-primary hover:underline">Client Terms</Link>, <Link href="/terms/chef" className="font-semibold text-primary hover:underline">Chef Terms</Link>, and <Link href="/privacy" className="font-semibold text-primary hover:underline">Privacy Policy</Link>.
           </p>
-          Don&apos;t have an account?{" "}
-          {onToggleMode ? (
-            <button type="button" onClick={onToggleMode} className="font-semibold text-[#101828] transition-colors hover:text-[#1849be]">
-              Sign up
-            </button>
+          {isAdminLogin ? (
+            <span>Admin access is provisioned by the platform owner.</span>
           ) : (
-            <Link href="/register" className="font-semibold text-[#101828] transition-colors hover:text-[#1849be]">
-              Sign up
-            </Link>
+            <>
+              Don&apos;t have an account?{" "}
+              {onToggleMode ? (
+                <button type="button" onClick={onToggleMode} className="font-semibold text-[#101828] transition-colors hover:text-[#1849be]">
+                  Sign up
+                </button>
+              ) : (
+                <Link href={signupHref} className="font-semibold text-[#101828] transition-colors hover:text-[#1849be]">
+                  Sign up
+                </Link>
+              )}
+            </>
           )}
         </div>
       </div>

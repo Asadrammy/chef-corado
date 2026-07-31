@@ -271,6 +271,10 @@ export function VerificationManagement({ onVerificationUpdate }: VerificationMan
           <p className="font-medium text-foreground">Compliance review</p>
           <p>Right to work in the UK: {chef.rightToWorkUkConfirmed ? "Confirmed" : "Missing"}</p>
           <p>Level 2 Food Hygiene: {chef.foodHygieneLevel2Confirmed ? "Confirmed" : "Missing"}</p>
+          <p>Certificate review status: {chef.foodHygieneCertificateReviewStatus ?? (chef.foodHygieneCertificateUrl ? "PENDING" : "Not submitted")}</p>
+          {chef.foodHygieneCertificateUploadedAt ? (
+            <p>Certificate uploaded: {format(new Date(chef.foodHygieneCertificateUploadedAt), 'MMM d, yyyy')}</p>
+          ) : null}
           {chef.foodHygieneCertificateUrl ? (
             <a href={chef.foodHygieneCertificateUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
               View private certificate document
@@ -449,7 +453,7 @@ export function VerificationManagement({ onVerificationUpdate }: VerificationMan
           <DialogHeader>
             <DialogTitle>Reject Verification</DialogTitle>
             <DialogDescription>
-              Please provide a reason for rejecting {selectedChef?.user.name}'s verification request.
+              Please provide a reason for rejecting the verification request for {selectedChef?.user.name}.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

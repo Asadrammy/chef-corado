@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { isPrismaConnectionError, prisma, withPrismaReconnect } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { experienceSchema } from '@/lib/validation-schemas';
@@ -166,60 +166,66 @@ export async function GET(request: NextRequest) {
         orderBy.createdAt = sortOrder;
     }
 
-    // Optimized query with minimal joins
-    const [experiences, total] = await Promise.all([
-      prisma.experience.findMany({
-        where,
-        select: {
-          id: true,
-          title: true,
-          description: true,
-          price: true,
-          duration: true,
-          eventType: true,
-          cuisineType: true,
-          maxGuests: true,
-          minGuests: true,
-          difficulty: true,
-          experienceImage: true,
-          createdAt: true,
-          chefId: true,
-          chef: {
-            select: {
-              id: true,
-              userId: true,
-              user: {
-                select: {
-                  name: true,
-                  verified: true,
-                  experienceLevel: true,
+    const { experiences, total, filteredExperiences } = await withPrismaReconnect(async () => {
+      // Keep these sequential so a closed DB connection does not produce duplicate parallel errors.
+      const experiences = await prisma.experience.findMany({
+          where,
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            price: true,
+            duration: true,
+            eventType: true,
+            cuisineType: true,
+            maxGuests: true,
+            minGuests: true,
+            difficulty: true,
+            experienceImage: true,
+            createdAt: true,
+            chefId: true,
+            chef: {
+              select: {
+                id: true,
+                userId: true,
+                user: {
+                  select: {
+                    name: true,
+                    verified: true,
+                    experienceLevel: true,
+                  },
                 },
               },
             },
-          },
-          _count: {
-            select: {
-              bookings: true,
+            _count: {
+              select: {
+                bookings: true,
+              },
             },
           },
-        },
-        orderBy,
-        skip: (page - 1) * limit,
-        take: limit,
-      }),
-      prisma.experience.count({ where }),
-    ]);
+          orderBy,
+          skip: (page - 1) * limit,
+          take: limit,
+        });
 
-    // Apply chef filters if needed (post-processing for better performance)
-    let filteredExperiences = experiences;
-    if (Object.keys(chefFilters).length > 0) {
-      const chefIds = await prisma.chefProfile.findMany({
-        where: chefFilters,
-        select: { id: true },
-      });
-      const validChefIds = new Set(chefIds.map(c => c.id));
-      filteredExperiences = experiences.filter(exp => validChefIds.has(exp.chefId));
-    }
+      const total = await prisma.experience.count({ where });
+
+      let filteredExperiences = experiences;
+      if (Object.keys(chefFilters).length > 0) {
+        const chefIds = await prisma.chefProfile.findMany({
+          where: chefFilters,
+          select: { id: true },
+        });
+        const validChefIds = new Set(chefIds.map(c => c.id));
+        filteredExperiences = experiences.filter(exp => validChefIds.has(exp.chefId));
+      }
+
+      return {
+        experiences,
+        total,
+        filteredExperiences,
+      };
+    }, 1);
 
     // Cache the results for future requests
     if (page === 1 && !search) {
@@ -252,6 +258,17 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error fetching experiences:', error);
+    if (isPrismaConnectionError(error)) {
+      return NextResponse.json(
+        {
+          error: 'Database connection temporarily unavailable',
+          experiences: [],
+          pagination: { page: 1, limit: 12, total: 0, pages: 0 },
+        },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json(
       { error: 'Failed to fetch experiences' },
       { status: 500 }

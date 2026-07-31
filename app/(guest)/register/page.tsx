@@ -1,7 +1,5 @@
-"use client"
-
-import { RegisterForm } from "@/components/auth/RegisterForm"
+import { AuthExperience } from "@/components/auth/auth-experience"
 
 export default function RegisterPage() {
-  return <RegisterForm />
+  return <AuthExperience initialMode="register" />
 }

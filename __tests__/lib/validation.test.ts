@@ -1,35 +1,3 @@
-// Mock Jest functions for compilation - install Jest to run tests
-const describe = (name: string, fn: () => void) => fn();
-const it = (name: string, fn: () => void) => fn();
-const expect = (actual: any) => ({
-  toBe: (expected: any) => actual === expected,
-  toEqual: (expected: any) => JSON.stringify(actual) === JSON.stringify(expected),
-  toThrow: (expected?: any) => {
-    try {
-      actual();
-      return false;
-    } catch (error) {
-      if (!expected) return true;
-      return (error as Error).message.includes(expected);
-    }
-  },
-  toBeDefined: () => actual !== undefined,
-  toBeNull: () => actual === null,
-  toBeUndefined: () => actual === undefined,
-  toBeTruthy: () => !!actual,
-  toBeFalsy: () => !actual,
-  toContain: (expected: any) => {
-    if (typeof actual === 'string') return actual.includes(expected);
-    if (Array.isArray(actual)) return actual.some(item => item === expected);
-    return false;
-  },
-  toHaveLength: (expected: number) => {
-    if (Array.isArray(actual)) return actual.length === expected;
-    return false;
-  }
-});
-const beforeAll = (fn: () => void) => fn();
-const afterAll = (fn: () => void) => fn();
 import { validateForm, getFieldError } from '@/lib/form-validation';
 import { bookingSchema, requestSchema, experienceSchema } from '@/lib/validation-schemas';
 

@@ -64,6 +64,11 @@ export default async function ChefRequestsPage() {
     redirect("/dashboard")
   }
 
+  let requests: ChefRequestRow[] = []
+  let serviceRadiusKm = 25
+  let baseLocation: string | undefined
+  let useSmartMatching = false
+
   try {
     const chefProfile = await prisma.chefProfile.findUnique({
       where: { userId },
@@ -80,14 +85,12 @@ export default async function ChefRequestsPage() {
       redirect("/dashboard/chef/profile")
     }
 
-    if (chefProfile.latitude == null || chefProfile.longitude == null || chefProfile.radius <= 0) {
+    if (chefProfile.radius <= 0) {
       redirect("/dashboard/chef/profile")
     }
 
     const allRequests = await prisma.request.findMany({
       where: {
-        latitude: { not: null },
-        longitude: { not: null },
         eventDate: { gte: new Date() },
         proposals: {
           none: {
@@ -99,45 +102,59 @@ export default async function ChefRequestsPage() {
       take: 100,
     })
 
-    const requests = allRequests
-      .map((request) => ({
-        id: request.id,
-        eventDate: request.eventDate.toISOString(),
-        location: request.location,
-        budget: request.budget,
-        currency: request.currency,
-        details: request.details,
-        distanceKm: Math.round(
-          calculateDistance(
-            chefProfile.latitude as number,
-            chefProfile.longitude as number,
-            request.latitude as number,
-            request.longitude as number
-          ) * 10
-        ) / 10,
-      }))
-      .filter((request) => request.distanceKm <= chefProfile.radius)
+    requests = allRequests
+      .map((request) => {
+        const hasExactDistance =
+          chefProfile.latitude != null &&
+          chefProfile.longitude != null &&
+          request.latitude != null &&
+          request.longitude != null
 
-    return (
-      <ChefRequestsMarketplace
-        requests={requests}
-        serviceRadiusKm={chefProfile.radius}
-        baseLocation={chefProfile.location || undefined}
-        useSmartMatching={true}
-      />
-    )
+        const distanceKm = hasExactDistance
+          ? Math.round(
+              calculateDistance(
+                chefProfile.latitude as number,
+                chefProfile.longitude as number,
+                request.latitude as number,
+                request.longitude as number
+              ) * 10
+            ) / 10
+          : undefined
+
+        return {
+          id: request.id,
+          eventDate: request.eventDate.toISOString(),
+          location: request.location,
+          budget: request.budget,
+          currency: request.currency,
+          details: request.details,
+          distanceKm,
+          broaderMatching: distanceKm == null,
+          geocodingStatus: (request as any).geocodingStatus ?? (distanceKm == null ? "UNAVAILABLE" : "VERIFIED"),
+        }
+      })
+      .filter((request) => request.distanceKm == null || request.distanceKm <= chefProfile.radius)
+
+    serviceRadiusKm = chefProfile.radius
+    baseLocation = chefProfile.location || undefined
+    useSmartMatching = chefProfile.latitude != null && chefProfile.longitude != null
   } catch (error) {
     if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
-      return (
-        <ChefRequestsMarketplace
-          requests={localDemoRequests}
-          serviceRadiusKm={25}
-          baseLocation="Local demo kitchen"
-          useSmartMatching={false}
-        />
-      )
+      requests = localDemoRequests
+      serviceRadiusKm = 25
+      baseLocation = "Local demo kitchen"
+      useSmartMatching = false
+    } else {
+      throw error
     }
-
-    throw error
   }
+
+  return (
+    <ChefRequestsMarketplace
+      requests={requests}
+      serviceRadiusKm={serviceRadiusKm}
+      baseLocation={baseLocation}
+      useSmartMatching={useSmartMatching}
+    />
+  )
 }

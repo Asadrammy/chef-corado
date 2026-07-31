@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { use } from "react"
 import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -29,10 +30,15 @@ type Proposal = {
   }
 }
 
-export default function ProposalPaymentPage() {
+export default function ProposalPaymentPage({
+  params,
+}: {
+  params: Promise<{ proposalId?: string }>
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const proposalId = searchParams.get('proposalId')
+  const routeParams = use(params)
+  const proposalId = routeParams.proposalId || searchParams.get('proposalId')
   
   const [proposal, setProposal] = useState<Proposal | null>(null)
   const [loading, setLoading] = useState(true)
@@ -40,6 +46,7 @@ export default function ProposalPaymentPage() {
 
   useEffect(() => {
     if (!proposalId) {
+      toast.error("Missing proposal reference")
       router.push('/dashboard/client/proposals')
       return
     }
@@ -168,7 +175,7 @@ export default function ProposalPaymentPage() {
             <>
               <Separator />
               <div>
-                <p className="text-sm font-medium mb-2">Chef's Message</p>
+                <p className="text-sm font-medium mb-2">Chef Message</p>
                 <p className="text-sm text-muted-foreground">{proposal.message}</p>
               </div>
             </>

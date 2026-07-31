@@ -257,7 +257,11 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
                       <div className="space-y-2">
                         <div className="flex items-center justify-between gap-3">
                           <h3 className="text-base font-semibold text-foreground">{menu.title}</h3>
-                          <Badge className="rounded-full px-2.5 py-1">{formatCurrency(menu.price, menu.currency)}</Badge>
+                          {typeof menu.price === "number" && menu.price > 0 ? (
+                            <Badge className="rounded-full px-2.5 py-1">{formatCurrency(menu.price, menu.currency)}</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="rounded-full px-2.5 py-1">Pricing discussed with your request</Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground">{menu.description || "No description provided."}</p>
                         <div className="flex flex-wrap gap-2">

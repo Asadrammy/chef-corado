@@ -16,6 +16,20 @@ interface EarningsChartProps {
   isLoading?: boolean
 }
 
+function EarningsTooltip({ active, payload, label }: any) {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+        <p className="text-sm font-medium text-gray-900">{label}</p>
+        <p className="text-sm text-green-600 font-semibold">
+          {formatCurrency(payload[0].value, "GBP")}
+        </p>
+      </div>
+    )
+  }
+  return null
+}
+
 export function EarningsChart({ data, isLoading }: EarningsChartProps) {
   if (isLoading) {
     return (
@@ -71,21 +85,6 @@ export function EarningsChart({ data, isLoading }: EarningsChartProps) {
     )
   }
 
-  // Custom tooltip
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-          <p className="text-sm font-medium text-gray-900">{label}</p>
-          <p className="text-sm text-green-600 font-semibold">
-            {formatCurrency(payload[0].value, "GBP")}
-          </p>
-        </div>
-      )
-    }
-    return null
-  }
-
   return (
     <Card className="border-0 shadow-sm">
       <CardHeader className="pb-4">
@@ -108,7 +107,7 @@ export function EarningsChart({ data, isLoading }: EarningsChartProps) {
                 tick={{ fill: 'currentColor' }}
                 tickFormatter={(value) => formatCurrency(value, "GBP")}
               />
-              <Tooltip content={<CustomTooltip />} />
+              <Tooltip content={<EarningsTooltip />} />
               <Line
                 type="monotone"
                 dataKey="earnings"

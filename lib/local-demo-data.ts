@@ -288,6 +288,19 @@ export function localDemoAdminAnalytics() {
   }
 }
 
+export function localDemoAdminDashboardStats() {
+  const adminAnalytics = localDemoAdminAnalytics()
+
+  return {
+    totalChefs: localDemoChefs.filter((chef) => !chef.user.isBanned).length,
+    pendingChefs: localDemoChefs.filter((chef) => !chef.isApproved && !chef.user.isBanned).length,
+    totalBookings: adminAnalytics.totalBookings,
+    activeBookings: adminAnalytics.activeBookings,
+    totalRevenue: adminAnalytics.totalRevenue,
+    pendingPayouts: localDemoPayments.filter((payment) => payment.status === PaymentStatus.PENDING).length,
+  }
+}
+
 export function localDemoClientAnalytics() {
   const clientBookings = localDemoBookings
   const completedBookings = clientBookings.filter((booking) => booking.status === BookingStatus.COMPLETED)

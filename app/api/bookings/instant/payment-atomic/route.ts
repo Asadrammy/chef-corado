@@ -10,6 +10,7 @@ import { logger } from '@/lib/logger';
 import { enforceUserModeration } from '@/lib/security/moderation-guard';
 import { enforceClientCompliance } from '@/lib/security/legal-compliance';
 import { enforceChefModeration } from '@/lib/security/moderation-guard';
+import { validateExperienceBookingCounts } from '@/lib/booking-counts';
 
 // Initialize Stripe
 const getStripeClient = () => {
@@ -115,11 +116,8 @@ export async function POST(request: NextRequest) {
       }
 
       // Step 4: Calculate pricing with cooking class invariant
-      const isCookingClass = experience.serviceType === 'COOKING_CLASS';
-      const unitPrice = isCookingClass
-        ? (experience.pricePerStudent ?? experience.price)
-        : experience.price;
-      const totalPrice = unitPrice * payload.guestCount;
+      const bookingCounts = validateExperienceBookingCounts(experience, payload.guestCount);
+      const totalPrice = bookingCounts.totalPrice;
       const commissionAmount = totalPrice * 0.2;
       const chefAmount = totalPrice * 0.8;
       const currency = normalizeCurrency((experience as any).currency || 'GBP');
@@ -129,7 +127,8 @@ export async function POST(request: NextRequest) {
         experienceId: payload.experienceId,
         eventDate: bookingDate,
         location: payload.location,
-        guestCount: payload.guestCount,
+        guestCount: bookingCounts.guestCount,
+        studentCount: bookingCounts.studentCount,
         totalPrice,
         currency,
         bookingType: 'INSTANT',

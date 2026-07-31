@@ -296,9 +296,9 @@ export function UserActivationFlow({ userRole, className }: UserActivationFlowPr
           {isFullyOnboarded ? (
             <div className="text-center py-6">
               <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">You're All Set!</h3>
+              <h3 className="text-lg font-semibold mb-2">You&apos;re All Set!</h3>
               <p className="text-gray-600 mb-4">
-                You've completed the onboarding process. Start exploring the platform features.
+                You&apos;ve completed the onboarding process. Start exploring the platform features.
               </p>
               <div className="flex justify-center gap-2">
                 <Link href="/experiences">

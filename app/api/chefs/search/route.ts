@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
-import { calculateDistance, filterChefsByRadius } from '@/lib/geo';
+import { isPrismaConnectionError, prisma, withPrismaReconnect } from '@/lib/prisma';
+import { filterChefsByRadius, geocodeAddress } from '@/lib/geo';
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,8 +11,8 @@ export async function GET(request: NextRequest) {
     const maxPrice = searchParams.get('maxPrice');
     const minRating = searchParams.get('minRating');
     const maxRating = searchParams.get('maxRating');
-    const userLat = searchParams.get('latitude');
-    const userLon = searchParams.get('longitude');
+    let userLat = searchParams.get('latitude');
+    let userLon = searchParams.get('longitude');
     const searchRadius = searchParams.get('radius') || '50';
 
     // Build the where clause
@@ -51,12 +51,23 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Location filter (text-based)
+    // Location filter. Prefer radius filtering when we can resolve coordinates;
+    // fall back to text matching when no coordinate source is available.
     if (location) {
-      where.location = {
-        contains: location,
-        mode: 'insensitive',
-      };
+      if (!userLat || !userLon) {
+        const geocodedLocation = await geocodeAddress(location)
+        if (geocodedLocation) {
+          userLat = String(geocodedLocation.latitude)
+          userLon = String(geocodedLocation.longitude)
+        }
+      }
+
+      if (!userLat || !userLon) {
+        where.location = {
+          contains: location,
+          mode: 'insensitive',
+        };
+      }
     }
 
     // Price filter (based on menu prices)
@@ -83,7 +94,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    const chefs = await prisma.chefProfile.findMany({
+    const chefs = await withPrismaReconnect(() => prisma.chefProfile.findMany({
       where,
       include: {
         user: {
@@ -123,7 +134,7 @@ export async function GET(request: NextRequest) {
           },
         },
       ],
-    });
+    }), 1);
 
     // Apply location-based filtering if coordinates are provided
     let filteredChefs = chefs;
@@ -132,29 +143,31 @@ export async function GET(request: NextRequest) {
       const userLongitude = parseFloat(userLon);
       const radius = parseFloat(searchRadius);
 
-      const chefsWithinRadius = filterChefsByRadius(
-        chefs.map((chef: any) => ({
-          id: chef.id,
-          latitude: (chef as any).latitude || 0,
-          longitude: (chef as any).longitude || 0,
-          radius: chef.radius,
-        })),
-        userLatitude,
-        userLongitude,
-        radius
-      );
+      if (Number.isFinite(userLatitude) && Number.isFinite(userLongitude) && Number.isFinite(radius)) {
+        const chefsWithinRadius = filterChefsByRadius(
+          chefs.map((chef: any) => ({
+            id: chef.id,
+            latitude: (chef as any).latitude,
+            longitude: (chef as any).longitude,
+            radius: chef.radius,
+          })),
+          userLatitude,
+          userLongitude,
+          radius
+        );
 
-      const chefIdsWithinRadius = new Set(chefsWithinRadius.map((c: any) => c.id));
-      filteredChefs = chefs.filter((chef: any) => chefIdsWithinRadius.has(chef.id));
+        const chefIdsWithinRadius = new Set(chefsWithinRadius.map((c: any) => c.id));
+        filteredChefs = chefs.filter((chef: any) => chefIdsWithinRadius.has(chef.id));
 
-      // Add distance information
-      filteredChefs = filteredChefs.map((chef: any) => {
-        const chefWithDistance = chefsWithinRadius.find((c: any) => c.id === chef.id);
-        return {
-          ...chef,
-          distance: chefWithDistance?.distance || null,
-        } as any;
-      });
+        // Add distance information
+        filteredChefs = filteredChefs.map((chef: any) => {
+          const chefWithDistance = chefsWithinRadius.find((c: any) => c.id === chef.id);
+          return {
+            ...chef,
+            distance: chefWithDistance?.distance || null,
+          } as any;
+        });
+      }
     }
 
     // Calculate average rating for each chef
@@ -184,6 +197,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(chefsWithRating);
   } catch (error) {
     console.error('Error searching chefs:', error);
+    if (isPrismaConnectionError(error)) {
+      return NextResponse.json(
+        { error: 'Database connection temporarily unavailable' },
+        { status: 503 }
+      );
+    }
+
     return NextResponse.json({ error: 'Failed to search chefs' }, { status: 500 });
   }
 }

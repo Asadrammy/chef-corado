@@ -5,9 +5,16 @@ export type PublicNavItem = {
   href: string;
 };
 
+export type FooterItem = {
+  label: string;
+  href?: string;
+  note?: string;
+  disabled?: boolean;
+};
+
 export type FooterSection = {
   title: string;
-  items: PublicNavItem[];
+  items: FooterItem[];
 };
 
 export const publicNavItems: PublicNavItem[] = [
@@ -16,7 +23,6 @@ export const publicNavItems: PublicNavItem[] = [
   { label: "Reviews", href: "/reviews" },
   { label: "Gift Cards", href: "/gift-cards" },
   { label: "Pricing", href: "/pricing" },
-  { label: "Find Local Chef", href: "/find-local-chef" },
 ];
 
 export const authNavItems = {
@@ -24,15 +30,29 @@ export const authNavItems = {
   customerSignup: { label: "Customer Signup", href: "/register?role=CLIENT" },
   chefLogin: { label: "Chef Login", href: "/login?role=CHEF" },
   chefSignup: { label: "Chef Signup", href: "/register?role=CHEF" },
+  adminLogin: { label: "Admin Login", href: "/login?role=ADMIN" },
 };
+
+export const publicCtaItems = {
+  becomeChef: { label: "Become a Chef", href: "/become-a-chef" },
+  findLocalChef: { label: "Find Local Chef", href: "/find-local-chef" },
+};
+
+function configuredFooterItem(label: string, href?: string | null, note = "Available on request"): FooterItem {
+  const value = href?.trim();
+  return value ? { label, href: value } : { label, note, disabled: true };
+}
+
+const contactPhone = process.env.NEXT_PUBLIC_CONTACT_PHONE?.trim();
+const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim();
 
 export const footerSections: FooterSection[] = [
   {
     title: "Main",
     items: [
       { label: "Our Story", href: "/our-story" },
-      { label: "Find Local Chef", href: "/find-local-chef" },
-      { label: "Browse Chefs", href: "/browse-chefs" },
+      { label: "Private Chefs", href: "/browse-chefs" },
+      { label: "Explore Chefs", href: "/browse-chefs" },
       { label: "Gift Cards", href: "/gift-cards" },
       { label: "FAQ", href: "/faq" },
     ],
@@ -40,7 +60,7 @@ export const footerSections: FooterSection[] = [
   {
     title: "Community",
     items: [
-      { label: "Become a Chef", href: "/become-a-chef" },
+      { label: "Chef Register", href: "/register?role=CHEF" },
       { label: "Careers", href: "/careers" },
       { label: "Property Manager Affiliate", href: "/property-manager-affiliate" },
       { label: "Be a Venue Partner", href: "/be-a-venue-partner" },
@@ -50,18 +70,18 @@ export const footerSections: FooterSection[] = [
   {
     title: "Contact",
     items: [
-      { label: "WhatsApp", href: "https://wa.me/447000000000" },
-      { label: "Telephone", href: "tel:+447000000000" },
-      { label: "Email", href: "mailto:hello@chefmarketplace.com" },
+      configuredFooterItem("WhatsApp", process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_URL),
+      configuredFooterItem("Telephone", contactPhone ? `tel:${contactPhone}` : null),
+      configuredFooterItem("Email", contactEmail ? `mailto:${contactEmail}` : null, "Contact information coming soon"),
     ],
   },
   {
     title: "Social",
     items: [
-      { label: "Facebook", href: "https://facebook.com" },
-      { label: "Instagram", href: "https://instagram.com" },
-      { label: "Twitter/X", href: "https://x.com" },
-      { label: "YouTube", href: "https://youtube.com" },
+      configuredFooterItem("Facebook", process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK_URL, "Coming soon"),
+      configuredFooterItem("Instagram", process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL, "Coming soon"),
+      configuredFooterItem("X/Twitter", process.env.NEXT_PUBLIC_SOCIAL_X_URL, "Coming soon"),
+      configuredFooterItem("YouTube", process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE_URL, "Coming soon"),
     ],
   },
 ];
@@ -162,14 +182,22 @@ export function buildPublicMetadata({
   };
 }
 
-export async function fetchFromApp<T>(path: string): Promise<T> {
-  const response = await fetch(getAbsoluteUrl(path), {
-    cache: "no-store",
-  });
+export async function fetchFromApp<T>(path: string, timeoutMs = 2500): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${path}`);
+  try {
+    const response = await fetch(getAbsoluteUrl(path), {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch ${path}`);
+    }
+
+    return response.json() as Promise<T>;
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return response.json() as Promise<T>;
 }

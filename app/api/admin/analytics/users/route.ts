@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { isLocalDemoSessionUser } from '@/lib/auth';
 import { getRequiredSession } from '@/lib/auth-helpers';
 import { handleApiError } from '@/lib/error-handler';
 import { localDemoTimeSeries } from '@/lib/local-demo-data';
@@ -8,10 +9,14 @@ import { Role } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
-    await getRequiredSession(Role.ADMIN);
+    const session = await getRequiredSession(Role.ADMIN);
 
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get('days') || '30');
+
+    if (isLocalDemoSessionUser(session.user.id, session.user.email)) {
+      return NextResponse.json(localDemoTimeSeries(days, 'users'));
+    }
 
     const result = await adminAnalyticsService.getUsersAnalytics(days)
 

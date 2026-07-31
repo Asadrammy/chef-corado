@@ -3,6 +3,7 @@ import Link from "next/link";
 import { CheckCircle2, MapPin, ShieldCheck, Sparkles, Star, UserRoundSearch } from "lucide-react";
 
 import { HomepageSearchForm } from "@/components/public/homepage-search-form";
+import { PublicShell } from "@/components/public/public-shell";
 import type { PublicChefCardData } from "@/components/public/public-chef-card";
 import { PublicJsonLd } from "@/components/public/structured-data";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -171,7 +172,8 @@ export default async function RootPage() {
     .slice(0, 4);
 
   return (
-    <div className="bg-background">
+    <PublicShell>
+      <div className="bg-background">
         <PublicJsonLd
           data={{
             "@context": "https://schema.org",
@@ -187,7 +189,7 @@ export default async function RootPage() {
         />
         <section className="relative overflow-hidden border-b border-white/10 bg-[#07111f] text-white">
           <div className="absolute inset-0 opacity-35">
-            <Image src="/images/marketplace/private-chef-hero.png" alt="Private chef plating dinner for a candlelit celebration" fill priority className="object-cover" />
+            <Image src="/images/marketplace/private-chef-hero.png" alt="Private chef plating dinner for a candlelit celebration" fill priority sizes="100vw" className="object-cover" />
           </div>
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,17,31,0.96)_0%,rgba(7,17,31,0.86)_44%,rgba(7,17,31,0.42)_100%)]" />
           <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#07111f] to-transparent" />
@@ -197,7 +199,7 @@ export default async function RootPage() {
                 Private chefs for unforgettable evenings
               </Badge>
               <div className="space-y-6">
-                <h1 className="max-w-4xl text-4xl font-semibold tracking-[-0.03em] sm:text-6xl lg:text-7xl">
+                <h1 className="max-w-4xl break-words text-4xl font-semibold tracking-[-0.03em] sm:text-6xl lg:text-7xl">
                   Host the dinner everyone remembers.
                 </h1>
                 <p className="max-w-2xl text-base leading-7 text-white/78 sm:text-lg sm:leading-8">
@@ -221,7 +223,7 @@ export default async function RootPage() {
             </div>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:self-end">
               <div className="relative min-h-[260px] overflow-hidden rounded-[30px] border border-white/10 bg-white/8 shadow-2xl shadow-black/25 backdrop-blur-xl sm:min-h-[320px]">
-                <Image src="/images/marketplace/cuisine-modern-european.png" alt="Chef finishing an elevated plated dinner" fill className="object-cover" />
+                <Image src="/images/marketplace/cuisine-modern-european.png" alt="Chef finishing an elevated plated dinner" fill priority sizes="(min-width: 1024px) 42vw, (min-width: 640px) 50vw, 100vw" className="object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-6">
                   <p className="text-sm uppercase tracking-[0.24em] text-white/75">Curated private dining</p>
@@ -303,7 +305,7 @@ export default async function RootPage() {
               {homepageCuisineHighlights.map((item) => (
                 <Link key={item.title} href={item.href} className="group relative overflow-hidden rounded-[30px] border border-border/40 bg-background shadow-sm shadow-black/5 transition-transform duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-900/10">
                   <div className="relative h-80">
-                    <Image src={item.image} alt={`${item.title} cuisine inspiration`} fill className="object-cover transition-transform duration-500 group-hover:scale-105" />
+                    <Image src={item.image} alt={`${item.title} cuisine inspiration`} fill sizes="(min-width: 1024px) 33vw, 100vw" className="object-cover transition-transform duration-500 group-hover:scale-105" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
                     <div className="absolute inset-x-0 bottom-0 p-6 text-white">
                       <h3 className="text-2xl font-semibold">{item.title}</h3>
@@ -399,5 +401,6 @@ export default async function RootPage() {
           </div>
         </section>
       </div>
+    </PublicShell>
   );
 }
