@@ -10,7 +10,7 @@
 
 ### Example Format:
 ```
-DATABASE_URL=postgresql://render_user:AbCdEf123456@postgres.render.com:5432/chef_marketplace
+DATABASE_URL=<render-postgres-connection-url>
 ```
 
 ### What to do:
@@ -88,9 +88,9 @@ CLOUDINARY_API_SECRET=YOUR_CLOUDINARY_API_SECRET_HERE
 Replace ALL placeholders with your actual values:
 
 ```bash
-DATABASE_URL=postgresql://render_user:AbCdEf123456@postgres.render.com:5432/chef_marketplace
+DATABASE_URL=<render-postgres-connection-url>
 NEXTAUTH_URL=https://chef-marketplace-xyz.onrender.com
-NEXTAUTH_SECRET=4WQYmU86W++f:&A9UN+v@0?1!p+ucSR]
+NEXTAUTH_SECRET=<generate-with-openssl-rand-base64-32>
 NODE_ENV=production
 ENVIRONMENT=production
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_YOUR_PUBLISHABLE_KEY_HERE
