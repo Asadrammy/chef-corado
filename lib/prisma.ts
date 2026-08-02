@@ -31,6 +31,33 @@ const normalizeDatabaseUrl = (url?: string) => {
 
 const isValidDatabaseUrl = (url?: string) => Boolean(normalizeDatabaseUrl(url) && /^(postgresql|postgres):\/\//.test(normalizeDatabaseUrl(url) as string))
 
+const getConfiguredDatabaseUrl = () =>
+  normalizeDatabaseUrl(
+    process.env.DATABASE_PUBLIC_URL ||
+    process.env.DIRECT_DATABASE_URL ||
+    process.env.DATABASE_URL
+  )
+
+const expandRenderPostgresHost = (databaseUrl: string) => {
+  try {
+    const url = new URL(databaseUrl)
+    const region = process.env.RENDER_POSTGRES_REGION || process.env.DATABASE_RENDER_REGION || "singapore"
+
+    if (url.hostname.startsWith("dpg-") && !url.hostname.includes(".")) {
+      url.hostname = `${url.hostname}.${region}-postgres.render.com`
+      if (!url.port) {
+        url.port = "5432"
+      }
+      url.searchParams.set("sslmode", "require")
+      return url.toString()
+    }
+  } catch {
+    return databaseUrl
+  }
+
+  return databaseUrl
+}
+
 const setDatabaseParam = (url: string, key: string, value: string) => {
   if (url.includes(`${key}=`)) {
     return url.replace(new RegExp(`([?&])${key}=[^&]*`), `$1${key}=${value}`)
@@ -50,13 +77,14 @@ const getConnectTimeoutSeconds = () => {
 }
 
 const getDatabaseUrl = () => {
-  let url = normalizeDatabaseUrl(process.env.DATABASE_URL)
+  let url = getConfiguredDatabaseUrl()
   if (!url) return url
 
   if (!isValidDatabaseUrl(url)) {
     return url
   }
 
+  url = expandRenderPostgresHost(url)
   url = setDatabaseParam(url, "sslmode", "require")
   url = setDatabaseParam(url, "connection_limit", process.env.NODE_ENV === "production" ? "10" : "5")
   url = setDatabaseParam(url, "pool_timeout", process.env.NODE_ENV === "production" ? "20" : "5")
@@ -164,10 +192,10 @@ export async function withPrismaReconnect<T>(operation: () => Promise<T>, retrie
 const shouldAttemptInitialConnection =
   process.env.NODE_ENV === "production" &&
   process.env.NEXT_PHASE !== "phase-production-build" &&
-  isValidDatabaseUrl(process.env.DATABASE_URL)
+  isValidDatabaseUrl(getConfiguredDatabaseUrl())
 
-if (process.env.NODE_ENV === "production" && !isValidDatabaseUrl(process.env.DATABASE_URL)) {
-  console.error("Invalid DATABASE_URL. Expected a value starting with postgresql:// or postgres://")
+if (process.env.NODE_ENV === "production" && !isValidDatabaseUrl(getConfiguredDatabaseUrl())) {
+  console.error("Invalid database URL. Expected DATABASE_PUBLIC_URL, DIRECT_DATABASE_URL, or DATABASE_URL to start with postgresql:// or postgres://")
 }
 
 if (shouldAttemptInitialConnection) {
