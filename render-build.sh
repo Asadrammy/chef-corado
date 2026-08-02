@@ -5,6 +5,8 @@
 
 echo "=== Starting Render Build Process ==="
 
+export DATABASE_URL="$(node scripts/normalize-database-url.cjs)"
+
 # Generate Prisma Client
 echo "Generating Prisma Client..."
 npx prisma generate
