@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
+import { authOptions, isLocalDemoSessionUser } from '@/lib/auth';
 import { localDemoOnboardingProgress } from '@/lib/local-demo-data';
 import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 
@@ -15,6 +15,10 @@ export async function GET(request: NextRequest) {
 
     const userId = session.user.id;
     userRole = session.user.role;
+
+    if (isLocalDemoSessionUser(userId, session.user.email)) {
+      return NextResponse.json(localDemoOnboardingProgress(userRole));
+    }
 
     let onboardingData: any = {};
 
@@ -58,50 +62,54 @@ export async function GET(request: NextRequest) {
       };
     } else if (userRole === 'CHEF') {
       // Fetch chef-specific onboarding data
+      const chefProfile = await prisma.chefProfile.findUnique({
+        where: { userId },
+        select: {
+          id: true,
+          profileCompletion: true,
+          isApproved: true,
+          verified: true
+        }
+      });
+
+      const chefProfileId = chefProfile?.id;
+
       const [
-        chefProfile,
         menus,
         experiences,
         proposals,
         bookings,
         payments,
-        reviews
-      ] = await Promise.all([
-        prisma.chefProfile.findUnique({
-          where: { userId },
-          select: { 
-            profileCompletion: true,
-            isApproved: true,
-            verified: true
-          }
-        }),
-        prisma.menu.count({
-          where: { chefId: userId }
-        }),
-        prisma.experience.count({
-          where: { chefId: userId }
-        }),
-        prisma.proposal.count({
-          where: { chefId: userId }
-        }),
-        prisma.booking.count({
-          where: { chefId: userId }
-        }),
-        prisma.payment.count({
-          where: {
-            booking: { chefId: userId },
-            status: 'COMPLETED'
-          }
-        }),
-        prisma.review.count({
-          where: { chefId: userId }
-        })
-      ]);
-
-      // Check if chef has set availability
-      const availabilityCount = await prisma.availability.count({
-        where: { chefId: userId }
-      });
+        reviews,
+        availabilityCount
+      ] = chefProfileId
+        ? await Promise.all([
+            prisma.menu.count({
+              where: { chefId: chefProfileId }
+            }),
+            prisma.experience.count({
+              where: { chefId: chefProfileId }
+            }),
+            prisma.proposal.count({
+              where: { chefId: chefProfileId }
+            }),
+            prisma.booking.count({
+              where: { chefId: chefProfileId }
+            }),
+            prisma.payment.count({
+              where: {
+                booking: { chefId: chefProfileId },
+                status: { in: ['COMPLETED', 'RELEASED'] }
+              }
+            }),
+            prisma.review.count({
+              where: { chefId: chefProfileId }
+            }),
+            prisma.availability.count({
+              where: { chefId: chefProfileId }
+            })
+          ])
+        : [0, 0, 0, 0, 0, 0, 0];
 
       onboardingData = {
         profileCompletion: chefProfile?.profileCompletion || 0,

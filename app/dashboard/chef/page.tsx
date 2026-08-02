@@ -20,11 +20,7 @@ export const metadata: Metadata = generateMeta({
   description: "Manage your chef profile, browse requests, and send proposals to clients.",
 })
 
-type LocalChefDashboardData = ChefDashboardData & {
-  isLocalDemo?: boolean
-}
-
-function getLocalChefDashboardData(): LocalChefDashboardData {
+function getLocalChefDashboardData(): ChefDashboardData {
   const now = new Date()
   const addDays = (days: number) => {
     const date = new Date(now)
@@ -33,7 +29,6 @@ function getLocalChefDashboardData(): LocalChefDashboardData {
   }
 
   return {
-    isLocalDemo: true,
     totalEarnings: 4280,
     activeBookings: 3,
     availableRequests: 4,
@@ -184,7 +179,7 @@ export default async function ChefDashboardPage() {
     redirect("/dashboard")
   }
 
-  let dashboardData: LocalChefDashboardData | null
+  let dashboardData: ChefDashboardData | null
 
   try {
     dashboardData = await getChefDashboardData(session.user.id)
@@ -224,13 +219,6 @@ export default async function ChefDashboardPage() {
 
   return (
     <div className="space-y-6 lg:space-y-7">
-        {dashboardData.isLocalDemo ? (
-          <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-100">
-            Local demo mode is active because the remote Render PostgreSQL connection is unavailable.
-            Production still requires the live database.
-          </div>
-        ) : null}
-
         <ChefHero
           userName={session?.user?.name || ""}
           activeBookings={activeBookings}

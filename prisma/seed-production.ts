@@ -1,7 +1,38 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcrypt';
 
-const prisma = new PrismaClient();
+const normalizeDatabaseUrl = (url?: string) => {
+  if (!url) return url;
+  const trimmedUrl = url.trim();
+  if ((trimmedUrl.startsWith('"') && trimmedUrl.endsWith('"')) || (trimmedUrl.startsWith("'") && trimmedUrl.endsWith("'"))) {
+    return trimmedUrl.slice(1, -1).trim();
+  }
+  return trimmedUrl;
+};
+
+const setDatabaseParam = (url: string, key: string, value: string) => {
+  if (url.includes(`${key}=`)) {
+    return url.replace(new RegExp(`([?&])${key}=[^&]*`), `$1${key}=${value}`);
+  }
+  return `${url}${url.includes('?') ? '&' : '?'}${key}=${value}`;
+};
+
+const getSeedDatabaseUrl = () => {
+  let url = normalizeDatabaseUrl(process.env.DATABASE_URL);
+  if (!url || !/^(postgresql|postgres):\/\//.test(url)) {
+    throw new Error('DATABASE_URL must be a valid postgres:// or postgresql:// URL before running the production seed.');
+  }
+  url = setDatabaseParam(url, 'sslmode', 'require');
+  url = setDatabaseParam(url, 'connection_limit', '5');
+  url = setDatabaseParam(url, 'pool_timeout', '20');
+  url = setDatabaseParam(url, 'connect_timeout', '10');
+  return url;
+};
+
+const prisma = new PrismaClient({
+  adapter: new PrismaPg({ connectionString: getSeedDatabaseUrl() }),
+});
 
 // Clear database in reverse dependency order
 async function clearDatabase() {

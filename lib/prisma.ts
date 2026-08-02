@@ -1,8 +1,15 @@
-import { PrismaClient } from "@prisma/client"
+import { Prisma, PrismaClient } from "@prisma/client"
+import { PrismaPg } from "@prisma/adapter-pg"
+
+type PgPoolConfig = {
+  connectionString: string
+  max: number
+  connectionTimeoutMillis: number
+  idleTimeoutMillis: number
+}
 
 const globalForPrisma = globalThis as typeof globalThis & {
   prisma?: PrismaClient
-  prismaMiddlewareAttached?: boolean
 }
 
 const normalizeDatabaseUrl = (url?: string) => {
@@ -58,16 +65,58 @@ const getDatabaseUrl = () => {
   return url
 }
 
+const getDatabaseIntParam = (url: string, key: string, fallback: number, max: number) => {
+  const value = Number(new URL(url).searchParams.get(key))
+  if (Number.isFinite(value) && value > 0) {
+    return Math.min(value, max)
+  }
+
+  return fallback
+}
+
+const getPgPoolConfig = (databaseUrl: string): PgPoolConfig => {
+  const url = new URL(databaseUrl)
+  const connectionLimit = getDatabaseIntParam(databaseUrl, "connection_limit", 5, 20)
+  const poolTimeoutSeconds = getDatabaseIntParam(databaseUrl, "pool_timeout", 20, 60)
+  const connectTimeoutSeconds = getDatabaseIntParam(databaseUrl, "connect_timeout", Number(getConnectTimeoutSeconds()), 30)
+
+  // node-postgres does not understand Prisma engine-specific pool params.
+  // Translate them into PoolConfig so the app keeps the same connection budget after engineType="client".
+  url.searchParams.delete("connection_limit")
+  url.searchParams.delete("pool_timeout")
+  url.searchParams.delete("connect_timeout")
+  url.searchParams.set("sslmode", "require")
+
+  return {
+    connectionString: url.toString(),
+    max: connectionLimit,
+    connectionTimeoutMillis: connectTimeoutSeconds * 1000,
+    idleTimeoutMillis: poolTimeoutSeconds * 1000,
+  }
+}
+
+const getPrismaLogConfig = (): Prisma.LogLevel[] => (process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"])
+
+const createPrismaClient = () => {
+  const databaseUrl = getDatabaseUrl()
+
+  if (!isValidDatabaseUrl(databaseUrl)) {
+    return new PrismaClient({
+      log: getPrismaLogConfig(),
+    })
+  }
+
+  const validDatabaseUrl = databaseUrl as string
+
+  return new PrismaClient({
+    adapter: new PrismaPg(getPgPoolConfig(validDatabaseUrl)),
+    log: getPrismaLogConfig(),
+  })
+}
+
 export const prisma =
   globalForPrisma.prisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
-    datasources: {
-      db: {
-        url: getDatabaseUrl(),
-      },
-    },
-  })
+  createPrismaClient()
 
 export const isPrismaConnectionError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)
@@ -110,14 +159,6 @@ export async function withPrismaReconnect<T>(operation: () => Promise<T>, retrie
       await resetPrismaConnection(250 * attempt)
     }
   }
-}
-
-if (!globalForPrisma.prismaMiddlewareAttached) {
-  prisma.$use(async (params, next) => {
-    return next(params)
-  })
-
-  globalForPrisma.prismaMiddlewareAttached = true
 }
 
 const shouldAttemptInitialConnection =
