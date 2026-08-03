@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { prisma, withPrismaReconnect } from '@/lib/prisma';
 
 export async function GET() {
   try {
     const startTime = Date.now();
 
     // Check database connection
-    await prisma.$queryRaw`SELECT 1`;
+    await withPrismaReconnect(() => prisma.$queryRaw`SELECT 1`, 2);
 
     const dbTime = Date.now() - startTime;
 

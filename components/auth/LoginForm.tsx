@@ -77,6 +77,29 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
     return password.trim().length >= 6
   }
 
+  const getSignInErrorMessage = (error?: string | null) => {
+    if (!error) {
+      return "Invalid email or password"
+    }
+
+    let decodedError = error
+    try {
+      decodedError = decodeURIComponent(error)
+    } catch {
+      decodedError = error
+    }
+    if (
+      decodedError.includes("Connection terminated") ||
+      decodedError.includes("Can't reach database server") ||
+      decodedError.includes("Timed out") ||
+      decodedError.includes("database")
+    ) {
+      return "Login service is temporarily unavailable. Please try again in a moment."
+    }
+
+    return "Invalid email or password"
+  }
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
 
@@ -182,7 +205,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
       })
 
       if (result?.error) {
-        setError("Invalid email or password")
+        setError(getSignInErrorMessage(result.error))
         return
       }
 

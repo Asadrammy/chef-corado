@@ -6,6 +6,10 @@ type PgPoolConfig = {
   max: number
   connectionTimeoutMillis: number
   idleTimeoutMillis: number
+  keepAlive: boolean
+  ssl: {
+    rejectUnauthorized: boolean
+  }
 }
 
 const globalForPrisma = globalThis as typeof globalThis & {
@@ -38,26 +42,6 @@ const getConfiguredDatabaseUrl = () =>
     process.env.DATABASE_URL
   )
 
-const expandRenderPostgresHost = (databaseUrl: string) => {
-  try {
-    const url = new URL(databaseUrl)
-    const region = process.env.RENDER_POSTGRES_REGION || process.env.DATABASE_RENDER_REGION || "singapore"
-
-    if (url.hostname.startsWith("dpg-") && !url.hostname.includes(".")) {
-      url.hostname = `${url.hostname}.${region}-postgres.render.com`
-      if (!url.port) {
-        url.port = "5432"
-      }
-      url.searchParams.set("sslmode", "require")
-      return url.toString()
-    }
-  } catch {
-    return databaseUrl
-  }
-
-  return databaseUrl
-}
-
 const setDatabaseParam = (url: string, key: string, value: string) => {
   if (url.includes(`${key}=`)) {
     return url.replace(new RegExp(`([?&])${key}=[^&]*`), `$1${key}=${value}`)
@@ -84,7 +68,6 @@ const getDatabaseUrl = () => {
     return url
   }
 
-  url = expandRenderPostgresHost(url)
   url = setDatabaseParam(url, "sslmode", "require")
   url = setDatabaseParam(url, "connection_limit", process.env.NODE_ENV === "production" ? "10" : "5")
   url = setDatabaseParam(url, "pool_timeout", process.env.NODE_ENV === "production" ? "20" : "5")
@@ -120,6 +103,10 @@ const getPgPoolConfig = (databaseUrl: string): PgPoolConfig => {
     max: connectionLimit,
     connectionTimeoutMillis: connectTimeoutSeconds * 1000,
     idleTimeoutMillis: poolTimeoutSeconds * 1000,
+    keepAlive: true,
+    ssl: {
+      rejectUnauthorized: false,
+    },
   }
 }
 

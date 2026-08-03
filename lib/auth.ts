@@ -3,7 +3,7 @@ import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { type AuthOptions, DefaultSession } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 
-import { isPrismaConnectionError, prisma } from "@/lib/prisma"
+import { isPrismaConnectionError, prisma, withPrismaReconnect } from "@/lib/prisma"
 import { TERMS_VERSION } from "@/lib/request-options"
 import { Role } from "@/types"
 
@@ -193,17 +193,20 @@ export const authOptions: AuthOptions = {
 
         let user
         try {
-          user = await prisma.user.findUnique({
-            where: { email: normalizedEmail },
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              password: true,
-              role: true,
-              isBanned: true,
-            },
-          })
+          user = await withPrismaReconnect(() =>
+            prisma.user.findUnique({
+              where: { email: normalizedEmail },
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                password: true,
+                role: true,
+                isBanned: true,
+              },
+            }),
+            2
+          )
         } catch (error) {
           if (isPrismaConnectionError(error)) {
             const localDemoUser = getLocalDemoUser(normalizedEmail, credentials.password)
@@ -267,27 +270,30 @@ export const authOptions: AuthOptions = {
         let dbUser: SessionComplianceRecord | null = getLocalDemoSessionRecord(tokenUserId, token.email, currentRole)
         if (!dbUser) {
           try {
-            dbUser = await prisma.user.findUnique({
-              where: { id: tokenUserId },
-              select: {
-                isBanned: true,
-                termsAcceptedAt: true,
-                termsVersion: true,
-                acceptedVia: true,
-                role: true,
-                chefProfile: {
-                  select: {
-                    rightToWorkUkConfirmed: true,
-                    foodHygieneLevel2Confirmed: true,
-                    foodHygieneCertificateUrl: true,
-                    foodHygieneCertificateReviewStatus: true,
-                    verificationStatus: true,
-                    isApproved: true,
-                    isBanned: true,
+            dbUser = await withPrismaReconnect(() =>
+              prisma.user.findUnique({
+                where: { id: tokenUserId },
+                select: {
+                  isBanned: true,
+                  termsAcceptedAt: true,
+                  termsVersion: true,
+                  acceptedVia: true,
+                  role: true,
+                  chefProfile: {
+                    select: {
+                      rightToWorkUkConfirmed: true,
+                      foodHygieneLevel2Confirmed: true,
+                      foodHygieneCertificateUrl: true,
+                      foodHygieneCertificateReviewStatus: true,
+                      verificationStatus: true,
+                      isApproved: true,
+                      isBanned: true,
+                    },
                   },
                 },
-              },
-            })
+              }),
+              2
+            )
           } catch (error) {
             if (isPrismaConnectionError(error) && currentRole) {
               dbUser = getLocalDemoSessionRecord(tokenUserId, token.email, currentRole)
