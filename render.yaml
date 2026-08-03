@@ -12,6 +12,9 @@ services:
       - key: DATABASE_PUBLIC_URL
         sync: false
         # Optional: set this to Render's external PostgreSQL URL if the private DATABASE_URL host is unreachable.
+      - key: EXTERNAL_DATABASE_URL
+        sync: false
+        # Optional alias supported by the app; use the exact External Database URL from Render.
       - key: NEXTAUTH_URL
         sync: false
       - key: NEXTAUTH_SECRET

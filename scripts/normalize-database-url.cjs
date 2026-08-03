@@ -14,6 +14,7 @@ function normalizeDatabaseUrl(url) {
 
 const databaseUrl = normalizeDatabaseUrl(
   process.env.DATABASE_PUBLIC_URL ||
+  process.env.EXTERNAL_DATABASE_URL ||
   process.env.DIRECT_DATABASE_URL ||
   process.env.DATABASE_URL
 );

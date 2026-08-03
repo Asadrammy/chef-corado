@@ -38,6 +38,7 @@ const isValidDatabaseUrl = (url?: string) => Boolean(normalizeDatabaseUrl(url) &
 const getConfiguredDatabaseUrl = () =>
   normalizeDatabaseUrl(
     process.env.DATABASE_PUBLIC_URL ||
+    process.env.EXTERNAL_DATABASE_URL ||
     process.env.DIRECT_DATABASE_URL ||
     process.env.DATABASE_URL
   )
@@ -68,7 +69,6 @@ const getDatabaseUrl = () => {
     return url
   }
 
-  url = setDatabaseParam(url, "sslmode", "require")
   url = setDatabaseParam(url, "connection_limit", process.env.NODE_ENV === "production" ? "10" : "5")
   url = setDatabaseParam(url, "pool_timeout", process.env.NODE_ENV === "production" ? "20" : "5")
   url = setDatabaseParam(url, "connect_timeout", getConnectTimeoutSeconds())
@@ -96,7 +96,12 @@ const getPgPoolConfig = (databaseUrl: string): PgPoolConfig => {
   url.searchParams.delete("connection_limit")
   url.searchParams.delete("pool_timeout")
   url.searchParams.delete("connect_timeout")
-  url.searchParams.set("sslmode", "require")
+  url.searchParams.delete("sslmode")
+  url.searchParams.delete("ssl")
+  url.searchParams.delete("sslcert")
+  url.searchParams.delete("sslkey")
+  url.searchParams.delete("sslrootcert")
+  url.searchParams.delete("uselibpqcompat")
 
   return {
     connectionString: url.toString(),
