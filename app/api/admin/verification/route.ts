@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequiredSession } from '@/lib/auth-helpers';
+import { requireAdminPermission } from '@/lib/admin-rbac';
 import { handleApiError } from '@/lib/error-handler';
 import { adminVerificationService } from '@/lib/services/admin-verification-service';
-import { Role } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
-    await getRequiredSession(Role.ADMIN);
+    await requireAdminPermission('certificates.view');
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status'); // PENDING, APPROVED, REJECTED
@@ -25,7 +24,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await getRequiredSession(Role.ADMIN);
+    const actor = await requireAdminPermission('certificates.review');
 
     const body = await request.json();
     const { chefId, action, reason } = body;
@@ -36,7 +35,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    const result = await adminVerificationService.updateVerificationStatus(chefId, action, reason)
+    const result = await adminVerificationService.updateVerificationStatus(chefId, action, reason, actor.userId)
 
     return NextResponse.json({
       chef: result.chef,

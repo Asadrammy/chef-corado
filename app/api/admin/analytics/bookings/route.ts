@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { isLocalDemoSessionUser } from '@/lib/auth';
-import { getRequiredSession } from '@/lib/auth-helpers';
+import { requireAdminPermission } from '@/lib/admin-rbac';
 import { handleApiError } from '@/lib/error-handler';
 import { localDemoTimeSeries } from '@/lib/local-demo-data';
 import { isPrismaConnectionError } from '@/lib/prisma';
 import { adminAnalyticsService } from '@/lib/services/admin-analytics-service';
-import { Role } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getRequiredSession(Role.ADMIN);
+    const session = await requireAdminPermission('analytics.view');
 
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get('days') || '30');
 
-    if (isLocalDemoSessionUser(session.user.id, session.user.email)) {
+    if (isLocalDemoSessionUser(session.userId, session.email)) {
       return NextResponse.json(localDemoTimeSeries(days, 'bookings'));
     }
 

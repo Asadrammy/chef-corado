@@ -1,178 +1,108 @@
-import { Metadata } from "next"
-import { cookies } from "next/headers"
-import { getServerSession } from "next-auth"
-import { redirect } from "next/navigation"
-import { format } from "date-fns"
-import { Wallet, CheckCircle, Clock, User } from "lucide-react"
-
-import { authOptions } from "@/lib/auth"
+import { AdminActionForm } from "@/components/admin/admin-action-form"
+import { AdminDataTable, AdminInfoGrid, AdminMetricGrid, AdminPageHeader, AdminStatusBadge, AdminToolbar, AdminWarning } from "@/components/admin/admin-workspace"
+import { AdminDrawerSection, AdminReviewDrawer } from "@/components/admin/admin-review-drawer"
+import { formatAdminDate, maskEmailForAdmin } from "@/lib/admin-format"
+import { requireAdminPagePermission } from "@/lib/admin-rbac"
 import { formatCurrency } from "@/lib/currency"
-import { generateMeta } from "@/lib/utils"
 import { prisma } from "@/lib/prisma"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-export const metadata: Metadata = generateMeta({
-  title: "Payout Management",
-  description: "Manage chef payouts",
-})
-
-export default async function AdminPayoutsPage() {
-  const session = await getServerSession(authOptions)
-  if (!session || session.user?.role !== "ADMIN") {
-    redirect("/dashboard")
-  }
-
-  cookies()
-
+export default async function AdminPayoutsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; q?: string }>
+}) {
+  const actor = await requireAdminPagePermission("payouts.process")
+  const params = await searchParams
   const payouts = await prisma.payout.findMany({
-    include: {
-      chef: {
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-        },
-      },
+    where: {
+      status: params.status && params.status !== "all" ? params.status : undefined,
+      OR: params.q
+        ? [
+            { chef: { user: { name: { contains: params.q, mode: "insensitive" } } } },
+            { chef: { user: { email: { contains: params.q, mode: "insensitive" } } } },
+            { externalReference: { contains: params.q, mode: "insensitive" } },
+          ]
+        : undefined,
     },
-    orderBy: { createdAt: "desc" },
+    include: { chef: { include: { user: { select: { name: true, email: true } } } }, ledgerEntries: { orderBy: { createdAt: "desc" }, take: 3 } },
+    orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    take: 100,
   })
 
-  const pendingPayouts = payouts.filter((p) => p.status === "PENDING")
-  const completedPayouts = payouts.filter((p) => p.status === "PAID" || p.status === "COMPLETED")
-  const totalPendingAmount = pendingPayouts.reduce((sum, p) => sum + p.amount, 0)
-  const totalCompletedAmount = completedPayouts.reduce((sum, p) => sum + p.amount, 0)
+  const totals = new Map<string, number>()
+  payouts.forEach((payout) => totals.set("GBP", (totals.get("GBP") ?? 0) + payout.amount))
 
   return (
-    <div className="space-y-6">
-      <div className="brand-surface rounded-[30px] px-6 py-6 shadow-xl shadow-slate-900/5 backdrop-blur-xl">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Payout Management</h1>
-            <p className="text-sm text-muted-foreground">Track and manage chef payouts</p>
-          </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="secondary" className="rounded-full">
-              {pendingPayouts.length} pending
-            </Badge>
-            <Badge variant="default" className="rounded-full">
-              {completedPayouts.length} paid
-            </Badge>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur dark:border-white/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Pending Payouts</p>
-              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalPendingAmount)}</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400">
-              <Clock className="h-6 w-6" />
-            </div>
-          </div>
-        </Card>
-        <Card className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur dark:border-white/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Paid Payouts</p>
-              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalCompletedAmount)}</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-              <CheckCircle className="h-6 w-6" />
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {payouts.length === 0 ? (
-        <div className="rounded-[30px] border border-white/60 bg-white/72 py-12 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
-          <div className="mx-auto flex max-w-xl flex-col items-center text-center">
-            <div className="from-primary/15 to-background text-primary mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br shadow-sm">
-              <Wallet className="h-9 w-9" />
-            </div>
-            <h2 className="text-2xl font-semibold tracking-tight text-foreground">No payouts found</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Payouts will appear here when chefs receive payments.</p>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {payouts.map((payout) => (
-            <Card
-              key={payout.id}
-              className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur dark:border-white/10"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted/40 text-muted-foreground">
-                        <Wallet className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-foreground">
-                          {formatCurrency(payout.amount)}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          Chef: {payout.chef.user.name}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge
-                      variant={payout.status === "PAID" || payout.status === "COMPLETED" ? "default" : "secondary"}
-                      className="rounded-full"
-                    >
-                      {payout.status}
-                    </Badge>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-muted-foreground">Email</p>
-                      <p className="text-foreground">{payout.chef.user.email}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Created</p>
-                      <p className="text-foreground">
-                        {format(new Date(payout.createdAt), "MMM d, yyyy")}
-                      </p>
-                    </div>
-                    {payout.processedAt && (
-                      <div>
-                        <p className="text-muted-foreground">Processed</p>
-                        <p className="text-foreground">
-                          {format(new Date(payout.processedAt), "MMM d, yyyy")}
-                        </p>
-                      </div>
-                    )}
-                    {(payout as any).externalReference && (
-                      <div>
-                        <p className="text-muted-foreground">External reference</p>
-                        <p className="text-foreground font-mono text-xs">
-                          {(payout as any).externalReference}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {payout.status === "PENDING" && (
-                    <Button size="sm" className="rounded-xl">
-                      Review Manual Payout
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
+    <div className="space-y-5">
+      <AdminPageHeader
+        eyebrow="Finance"
+        title="Payouts"
+        description="Manual payout review queue with explicit non-Stripe references. Actions are permission-protected and audit logged."
+      />
+      <AdminMetricGrid
+        metrics={[
+          { label: "Pending", value: payouts.filter((payout) => payout.status === "PENDING").length },
+          { label: "Processing", value: payouts.filter((payout) => payout.status === "PROCESSING").length },
+          { label: "Paid", value: payouts.filter((payout) => ["PAID", "COMPLETED"].includes(payout.status)).length },
+          { label: "Displayed total", value: formatCurrency(totals.get("GBP") ?? 0, "GBP"), helper: "Payout schema has no currency field; existing records are treated as platform default." },
+        ]}
+      />
+      <AdminToolbar>
+        <form className="flex flex-wrap items-end gap-2">
+          <input name="q" defaultValue={params.q ?? ""} placeholder="Search payouts" className="h-9 rounded-md border border-input bg-background px-3 text-sm" />
+          <select name="status" defaultValue={params.status ?? "all"} className="h-9 rounded-md border border-input bg-background px-3 text-sm">
+            <option value="all">All statuses</option>
+            {["PENDING", "APPROVED", "PROCESSING", "PAID", "COMPLETED", "FAILED", "CANCELLED"].map((status) => <option key={status} value={status}>{status}</option>)}
+          </select>
+          <button className="h-9 rounded-md border border-border px-3 text-sm font-medium">Apply</button>
+        </form>
+      </AdminToolbar>
+      <AdminDataTable
+        rows={payouts}
+        emptyTitle="No payouts found."
+        columns={[
+          { key: "chef", label: "Chef", render: (payout) => <div><p className="font-medium">{payout.chef.user.name}</p><p className="text-xs text-muted-foreground">{maskEmailForAdmin(payout.chef.user.email, actor)}</p></div> },
+          { key: "amount", label: "Amount", render: (payout) => formatCurrency(payout.amount, "GBP") },
+          { key: "status", label: "Status", render: (payout) => <AdminStatusBadge status={payout.status} /> },
+          { key: "reference", label: "Reference", render: (payout) => payout.externalReference ?? payout.stripeTransferId ?? "Not recorded" },
+          { key: "timestamps", label: "Lifecycle", render: (payout) => <div><p>Created: {formatAdminDate(payout.createdAt)}</p><p className="text-xs text-muted-foreground">Approved: {formatAdminDate(payout.approvedAt)}</p><p className="text-xs text-muted-foreground">Processed: {formatAdminDate(payout.processedAt)}</p></div> },
+          { key: "failure", label: "Failure", render: (payout) => payout.failureReason ?? "None" },
+          {
+            key: "actions",
+            label: "Review",
+            render: (payout) => (
+              <AdminReviewDrawer title={`Payout ${payout.id}`} description="Review chef payout state, manual reference, and lifecycle before applying a finance action.">
+                <AdminWarning>Manual payout updates should reflect the real external banking state. Do not mark paid without a reliable reference.</AdminWarning>
+                <AdminDrawerSection title="Payout Summary">
+                  <AdminInfoGrid
+                    items={[
+                      { label: "Chef", value: `${payout.chef.user.name} / ${maskEmailForAdmin(payout.chef.user.email, actor)}` },
+                      { label: "Amount", value: formatCurrency(payout.amount, "GBP") },
+                      { label: "Status", value: <AdminStatusBadge status={payout.status} /> },
+                      { label: "Reference", value: payout.externalReference ?? payout.stripeTransferId ?? "Not recorded" },
+                      { label: "Approved", value: formatAdminDate(payout.approvedAt) },
+                      { label: "Processed", value: formatAdminDate(payout.processedAt) },
+                    ]}
+                  />
+                </AdminDrawerSection>
+                <AdminDrawerSection title="Finance Action" description="Actions are audit logged and should match the payout lifecycle.">
+                  <AdminActionForm
+                    endpoint={`/api/admin/payouts/${payout.id}`}
+                    compact
+                    submitLabel="Apply payout action"
+                    fields={[
+                      { name: "action", label: "Action", type: "select", defaultValue: payout.status === "PENDING" ? "approve" : "pay", options: ["approve", "process", "pay", "complete", "fail", "cancel", "retry"].map((action) => ({ label: action, value: action })) },
+                      { name: "externalReference", label: "Reference", defaultValue: payout.externalReference, nullable: true },
+                      { name: "failureReason", label: "Failure", defaultValue: payout.failureReason, nullable: true },
+                      { name: "adminNotes", label: "Notes", defaultValue: payout.adminNotes, nullable: true },
+                    ]}
+                  />
+                </AdminDrawerSection>
+              </AdminReviewDrawer>
+            ),
+          },
+        ]}
+      />
     </div>
   )
 }

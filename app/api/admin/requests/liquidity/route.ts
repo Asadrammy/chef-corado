@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequiredSession } from '@/lib/auth-helpers';
+import { requireAdminPermission } from '@/lib/admin-rbac';
 import { handleApiError } from '@/lib/error-handler';
 import { adminRequestService } from '@/lib/services/admin-request-service';
-import { Role } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
-    await getRequiredSession(Role.ADMIN);
+    await requireAdminPermission('requests.view');
 
     const result = await adminRequestService.getLiquidityData()
 

@@ -247,6 +247,18 @@ export const payoutService = {
         )
       }
 
+      await tx.auditLog.create({
+        data: {
+          action: "PAYOUT_STATUS_CHANGED",
+          entityType: "Payout",
+          entityId: id,
+          oldValue: JSON.stringify({ status: currentPayout.status }),
+          newValue: JSON.stringify({ status: newStatus, externalReference: input.externalReference ?? null }),
+          performedBy: input.processedBy || "SYSTEM",
+          reason: input.adminNotes || input.failureReason || `Payout ${input.action}`,
+        },
+      })
+
       return updatedPayout
     })
 

@@ -47,6 +47,26 @@ export const adminUserService = {
       })
     }
 
+    await prisma.auditLog.create({
+      data: {
+        action: isBanned ? "USER_SUSPENDED" : "USER_RESTORED",
+        entityType: "User",
+        entityId: user.id,
+        oldValue: JSON.stringify({
+          isBanned: user.isBanned,
+          banReason: user.banReason,
+          chefProfileIsBanned: user.chefProfile?.isBanned ?? null,
+        }),
+        newValue: JSON.stringify({
+          isBanned,
+          banReason: reason,
+          chefProfileIsBanned: user.chefProfile ? isBanned : null,
+        }),
+        performedBy: input?.bannedBy ?? "SYSTEM",
+        reason: isBanned ? reason ?? "User suspended by admin" : "User restored by admin",
+      },
+    })
+
     const updatedUser = await prisma.user.findUnique({
       where: { id: userId },
       include: {

@@ -2,8 +2,9 @@
 
 import * as React from "react"
 import { type Icon } from "@tabler/icons-react"
-import { signOut } from "next-auth/react"
+import { useSession } from "next-auth/react"
 import { cn } from "@/lib/utils"
+import { signOutForRole } from "@/lib/auth-navigation"
 
 import {
   SidebarGroup,
@@ -26,10 +27,10 @@ export function NavSecondary({
     action?: "signOut"
   }[]
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
+  const { data: session } = useSession()
+
   const handleSignOut = () => {
-    document.cookie = `__Secure-next-auth.callback-url=; Path=/; Max-Age=0; SameSite=Lax; Secure`
-    document.cookie = `next-auth.callback-url=; Path=/; Max-Age=0; SameSite=Lax`
-    signOut({ callbackUrl: `${window.location.origin}/login` })
+    signOutForRole(session?.user?.role)
   }
 
   return (

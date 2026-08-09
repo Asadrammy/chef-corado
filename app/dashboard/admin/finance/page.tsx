@@ -1,11 +1,9 @@
 import { Metadata } from "next"
 import { cookies } from "next/headers"
-import { getServerSession } from "next-auth"
-import { redirect } from "next/navigation"
 import { format } from "date-fns"
 import { ArrowUpRight, ArrowDownRight, Wallet, CreditCard, RefreshCw } from "lucide-react"
 
-import { authOptions } from "@/lib/auth"
+import { requireAdminPagePermission } from "@/lib/admin-rbac"
 import { formatCurrency } from "@/lib/currency"
 import { generateMeta } from "@/lib/utils"
 import { prisma } from "@/lib/prisma"
@@ -19,10 +17,7 @@ export const metadata: Metadata = generateMeta({
 })
 
 export default async function AdminFinancePage() {
-  const session = await getServerSession(authOptions)
-  if (!session || session.user?.role !== "ADMIN") {
-    redirect("/dashboard")
-  }
+  await requireAdminPagePermission("finance.view")
 
   cookies()
 

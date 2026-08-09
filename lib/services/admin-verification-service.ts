@@ -162,6 +162,26 @@ export const adminVerificationService = {
         : `Your chef approval request was rejected. ${reason ? `Reason: ${reason}` : "Please review your compliance details and try again."}`
     )
 
+    await prisma.auditLog.create({
+      data: {
+        action: action === "APPROVE" ? "COMPLIANCE_APPROVED" : "COMPLIANCE_REJECTED",
+        entityType: "ChefProfile",
+        entityId: chefId,
+        oldValue: JSON.stringify({
+          verificationStatus: chef.verificationStatus,
+          foodHygieneCertificateReviewStatus: chef.foodHygieneCertificateReviewStatus,
+          isApproved: chef.isApproved,
+        }),
+        newValue: JSON.stringify({
+          verificationStatus: updatedChef.verificationStatus,
+          foodHygieneCertificateReviewStatus: updatedChef.foodHygieneCertificateReviewStatus,
+          isApproved: updatedChef.isApproved,
+        }),
+        performedBy: adminUserId ?? "SYSTEM",
+        reason: reason ?? `Chef compliance ${action.toLowerCase()}`,
+      },
+    })
+
     return {
       chef: updatedChef,
       message: `Chef ${action === "APPROVE" ? "approved" : "rejected"} successfully`,

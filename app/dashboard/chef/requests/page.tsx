@@ -17,6 +17,10 @@ export const metadata: Metadata = generateMeta({
 const localDemoRequests: ChefRequestRow[] = [
   {
     id: "local-request-anniversary",
+    title: "Anniversary dinner for 10 guests",
+    eventType: "Anniversary",
+    serviceType: "THREE_COURSE_MEAL",
+    serviceTypeLabel: "3-Course Meal",
     eventDate: new Date(Date.now() + 9 * 24 * 60 * 60 * 1000).toISOString(),
     location: "Downtown",
     budget: 1450,
@@ -26,6 +30,10 @@ const localDemoRequests: ChefRequestRow[] = [
   },
   {
     id: "local-request-tasting",
+    title: "Modern Italian tasting menu",
+    eventType: "Dinner Party",
+    serviceType: "SIX_NINE_COURSE_MEAL",
+    serviceTypeLabel: "6-9-Course Meal",
     eventDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
     location: "West End",
     budget: 2200,
@@ -35,6 +43,10 @@ const localDemoRequests: ChefRequestRow[] = [
   },
   {
     id: "local-request-brunch",
+    title: "Private family brunch",
+    eventType: "Family Event",
+    serviceType: "BRUNCH",
+    serviceTypeLabel: "Brunch",
     eventDate: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
     location: "Riverside",
     budget: 980,
@@ -44,6 +56,10 @@ const localDemoRequests: ChefRequestRow[] = [
   },
   {
     id: "local-request-corporate",
+    title: "Executive chef's table",
+    eventType: "Work Event",
+    serviceType: "FOUR_FIVE_COURSE_MEAL",
+    serviceTypeLabel: "4-5-Course Meal",
     eventDate: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString(),
     location: "Financial District",
     budget: 3100,
@@ -123,6 +139,10 @@ export default async function ChefRequestsPage() {
 
         return {
           id: request.id,
+          title: request.title,
+          eventType: request.eventType,
+          serviceType: request.serviceType,
+          serviceTypeLabel: request.serviceTypeLabel,
           eventDate: request.eventDate.toISOString(),
           location: request.location,
           budget: request.budget,

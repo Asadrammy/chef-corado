@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server"
 
-import { getRequiredSession } from "@/lib/auth-helpers"
+import { requireAdminPermission } from "@/lib/admin-rbac"
 import { handleApiError } from "@/lib/error-handler"
 import { adminChefService } from "@/lib/services/admin-chef-service"
-import { Role } from "@/types"
 
 // POST reject a chef (delete their profile)
 export async function POST(
@@ -11,9 +10,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await getRequiredSession(Role.ADMIN)
+    const actor = await requireAdminPermission("chefs.review")
     const { id } = await params
-    const result = await adminChefService.rejectChef(id)
+    const result = await adminChefService.rejectChef(id, actor.userId)
 
     return NextResponse.json(result)
   } catch (error) {

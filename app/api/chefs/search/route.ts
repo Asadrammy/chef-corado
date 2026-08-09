@@ -6,6 +6,16 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('query') || '';
+    const cuisines = (searchParams.get('cuisines') || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const serviceType = searchParams.get('serviceType') || '';
+    const eventType = searchParams.get('eventType') || '';
+    const dietary = (searchParams.get('dietary') || '')
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean);
     const location = searchParams.get('location') || '';
     const minPrice = searchParams.get('minPrice');
     const maxPrice = searchParams.get('maxPrice');
@@ -25,7 +35,7 @@ export async function GET(request: NextRequest) {
       },
     };
 
-    // Search query (name, bio, location)
+    // Search query (name, bio, location, specialties, and cuisine metadata)
     if (query) {
       where.OR = [
         {
@@ -47,6 +57,80 @@ export async function GET(request: NextRequest) {
             contains: query,
             mode: 'insensitive',
           },
+        },
+        {
+          specialties: {
+            contains: query,
+            mode: 'insensitive',
+          },
+        },
+        {
+          cuisineType: {
+            contains: query,
+            mode: 'insensitive',
+          },
+        },
+        {
+          cuisineTypes: {
+            contains: query,
+            mode: 'insensitive',
+          },
+        },
+      ];
+    }
+
+    if (cuisines.length) {
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: cuisines.flatMap((cuisine) => [
+            { cuisineType: { contains: cuisine, mode: 'insensitive' } },
+            { cuisineTypes: { contains: cuisine, mode: 'insensitive' } },
+            { specialties: { contains: cuisine, mode: 'insensitive' } },
+            { bio: { contains: cuisine, mode: 'insensitive' } },
+            { menus: { some: { cuisineType: { contains: cuisine, mode: 'insensitive' } } } },
+            { experiences: { some: { cuisineType: { contains: cuisine, mode: 'insensitive' } } } },
+          ]),
+        },
+      ];
+    }
+
+    if (serviceType) {
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            { experiences: { some: { serviceType } } },
+            { specialties: { contains: serviceType.replaceAll('_', ' '), mode: 'insensitive' } },
+            { bio: { contains: serviceType.replaceAll('_', ' '), mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+
+    if (eventType) {
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            { menus: { some: { eventType: { contains: eventType, mode: 'insensitive' } } } },
+            { experiences: { some: { eventType: { contains: eventType, mode: 'insensitive' } } } },
+            { bio: { contains: eventType, mode: 'insensitive' } },
+          ],
+        },
+      ];
+    }
+
+    if (dietary.length) {
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: dietary.flatMap((item) => [
+            { specialties: { contains: item, mode: 'insensitive' } },
+            { bio: { contains: item, mode: 'insensitive' } },
+            { menus: { some: { description: { contains: item, mode: 'insensitive' } } } },
+            { experiences: { some: { description: { contains: item, mode: 'insensitive' } } } },
+          ]),
         },
       ];
     }
@@ -70,16 +154,35 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Price filter (based on menu prices)
+    // Price filter (based on menu and experience prices)
     if (minPrice || maxPrice) {
-      where.menus = {
-        some: {
-          price: {
-            ...(minPrice && { gte: parseFloat(minPrice) }),
-            ...(maxPrice && { lte: parseFloat(maxPrice) }),
-          },
+      where.AND = [
+        ...(where.AND || []),
+        {
+          OR: [
+            {
+              menus: {
+                some: {
+                  price: {
+                    ...(minPrice && { gte: parseFloat(minPrice) }),
+                    ...(maxPrice && { lte: parseFloat(maxPrice) }),
+                  },
+                },
+              },
+            },
+            {
+              experiences: {
+                some: {
+                  price: {
+                    ...(minPrice && { gte: parseFloat(minPrice) }),
+                    ...(maxPrice && { lte: parseFloat(maxPrice) }),
+                  },
+                },
+              },
+            },
+          ],
         },
-      };
+      ];
     }
 
     // Rating filter
@@ -109,6 +212,17 @@ export async function GET(request: NextRequest) {
             title: true,
             price: true,
             description: true,
+          },
+        },
+        experiences: {
+          select: {
+            id: true,
+            title: true,
+            price: true,
+            description: true,
+            cuisineType: true,
+            eventType: true,
+            serviceType: true,
           },
         },
         reviews: {

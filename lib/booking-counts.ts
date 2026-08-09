@@ -1,7 +1,15 @@
 type RequestBookingCountSource = {
   guestCount?: number | null
+  adultCount?: number | null
+  childrenUnder10?: number | null
+  actualAttendeeCount?: number | null
+  billableGuestCount?: number | null
+  pricingGuestCount?: number | null
   studentCount?: number | null
   eventType?: string | null
+  serviceType?: string | null
+  serviceTypeLabel?: string | null
+  pricingRuleVersion?: string | null
 }
 
 type ExperienceBookingCountSource = {
@@ -32,6 +40,14 @@ export function getProposalBookingCounts(request: RequestBookingCountSource) {
 
   return {
     guestCount,
+    adultCount: Number.isInteger(Number(request.adultCount)) ? Number(request.adultCount) : null,
+    childrenUnder10: Number.isInteger(Number(request.childrenUnder10)) ? Number(request.childrenUnder10) : null,
+    actualAttendeeCount: Number.isInteger(Number(request.actualAttendeeCount)) ? Number(request.actualAttendeeCount) : guestCount,
+    billableGuestCount: Number.isFinite(Number(request.billableGuestCount)) ? Number(request.billableGuestCount) : null,
+    pricingGuestCount: Number.isFinite(Number(request.pricingGuestCount)) ? Number(request.pricingGuestCount) : null,
+    serviceType: request.serviceType ?? null,
+    serviceTypeLabel: request.serviceTypeLabel ?? null,
+    pricingRuleVersion: request.pricingRuleVersion ?? null,
     studentCount: isCookingClass
       ? Number(rawStudentCount)
       : Number.isInteger(rawStudentCount) && Number(rawStudentCount) > 0

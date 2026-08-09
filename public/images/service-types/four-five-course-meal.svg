@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Placeholder illustration for a four to five course meal">
+  <rect width="1200" height="800" fill="#fefce8"/>
+  <rect x="72" y="72" width="1056" height="656" rx="48" fill="#1c1917"/>
+  <g fill="#fb923c">
+    <circle cx="420" cy="360" r="92"/>
+    <circle cx="600" cy="310" r="92"/>
+    <circle cx="780" cy="360" r="92"/>
+    <circle cx="510" cy="492" r="92"/>
+    <circle cx="690" cy="492" r="92"/>
+  </g>
+  <g fill="#fff7ed">
+    <circle cx="420" cy="360" r="54"/>
+    <circle cx="600" cy="310" r="54"/>
+    <circle cx="780" cy="360" r="54"/>
+    <circle cx="510" cy="492" r="54"/>
+    <circle cx="690" cy="492" r="54"/>
+  </g>
+  <text x="600" y="652" fill="#fff7ed" font-family="Arial, sans-serif" font-size="54" font-weight="700" text-anchor="middle">4-5-Course Meal</text>
+</svg>

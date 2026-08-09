@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Placeholder illustration for a grazing table">
+  <rect width="1200" height="800" fill="#fefce8"/>
+  <rect x="72" y="72" width="1056" height="656" rx="48" fill="#1c1917"/>
+  <rect x="250" y="300" width="700" height="250" rx="44" fill="#7c2d12"/>
+  <g fill="#f97316">
+    <circle cx="360" cy="390" r="38"/><circle cx="450" cy="465" r="34"/><circle cx="560" cy="378" r="42"/><circle cx="670" cy="470" r="38"/><circle cx="790" cy="382" r="42"/><circle cx="865" cy="470" r="32"/>
+  </g>
+  <path d="M325 520c160-48 354-48 550 0" fill="none" stroke="#fff7ed" stroke-width="22" stroke-linecap="round"/>
+  <text x="600" y="652" fill="#fff7ed" font-family="Arial, sans-serif" font-size="56" font-weight="700" text-anchor="middle">Grazing Table</text>
+</svg>

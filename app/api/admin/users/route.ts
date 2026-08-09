@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getRequiredSession } from '@/lib/auth-helpers';
+import { requireAdminPermission } from '@/lib/admin-rbac';
 import { handleApiError } from '@/lib/error-handler';
 import { adminUserService } from '@/lib/services/admin-user-service';
-import { Role } from '@/types';
 
 const banUserSchema = z.object({
   userId: z.string(),
@@ -14,13 +13,13 @@ const banUserSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getRequiredSession(Role.ADMIN);
     const body = await request.json();
     const { userId, action, reason, adminNotes } = banUserSchema.parse(body);
+    const session = await requireAdminPermission(action === 'ban' ? 'users.ban' : 'users.suspend');
     const result = await adminUserService.updateUserBanStatus(userId, action, {
       reason,
       adminNotes,
-      bannedBy: session.user.id ?? undefined,
+      bannedBy: session.userId,
     });
 
     return NextResponse.json({
@@ -42,7 +41,7 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    await getRequiredSession(Role.ADMIN);
+    await requireAdminPermission('users.view');
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status'); // 'banned', 'active', 'flagged'
     const role = searchParams.get('role'); // 'CLIENT', 'CHEF', 'ADMIN'

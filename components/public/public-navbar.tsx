@@ -51,6 +51,10 @@ const chefAuthItems = [
   { label: "Apply as a chef", href: publicCtaItems.becomeChef.href },
 ];
 
+const adminAuthItems = [
+  { label: "Admin login", href: authNavItems.adminLogin.href },
+];
+
 function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
@@ -114,6 +118,15 @@ function AccountDropdown() {
             <Link href={item.href}>{item.label}</Link>
           </DropdownMenuItem>
         ))}
+        <DropdownMenuSeparator className="my-2" />
+        <DropdownMenuLabel className="px-3 pt-1 pb-1 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground/80">
+          Admin
+        </DropdownMenuLabel>
+        {adminAuthItems.map((item) => (
+          <DropdownMenuItem key={item.href} asChild className="cursor-pointer rounded-xl px-3 py-2 text-sm text-muted-foreground">
+            <Link href={item.href}>{item.label}</Link>
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -136,13 +149,13 @@ function MobileNavLink({ href, children, active = false }: { href: string; child
   );
 }
 
-function MobileAuthGroup({ title, items }: { title: string; items: typeof customerAuthItems }) {
+function MobileAuthGroup({ title, items, quiet = false }: { title: string; items: typeof customerAuthItems; quiet?: boolean }) {
   return (
-    <div className="grid gap-2 rounded-3xl border border-border/60 bg-background/70 p-3">
+    <div className={cn("grid gap-2 rounded-3xl border border-border/60 bg-background/70 p-3", quiet && "bg-muted/20")}>
       <p className="px-1 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{title}</p>
       {items.map((item) => (
         <SheetClose key={item.href} asChild>
-          <Button variant="ghost" asChild className="h-11 justify-start rounded-2xl text-foreground/80">
+          <Button variant="ghost" asChild className={cn("h-11 justify-start rounded-2xl", quiet ? "text-muted-foreground" : "text-foreground/80")}>
             <Link href={item.href}>{item.label}</Link>
           </Button>
         </SheetClose>
@@ -277,6 +290,7 @@ export function PublicNavbar() {
                 <div className="grid gap-3">
                   <MobileAuthGroup title="Customers" items={customerAuthItems} />
                   <MobileAuthGroup title="Chefs" items={chefAuthItems} />
+                  <MobileAuthGroup title="Admin" items={adminAuthItems} quiet />
                 </div>
               </div>
             </SheetContent>

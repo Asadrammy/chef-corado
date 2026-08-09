@@ -56,9 +56,21 @@ describe('Form Validation', () => {
     it('should validate correct request data', () => {
       const validData = {
         title: 'Birthday Dinner',
+        eventType: 'Birthday',
+        serviceType: 'FOUR_FIVE_COURSE_MEAL',
+        cuisinePreferences: ['Italian'],
+        dietaryRequirements: [],
         description: 'Intimate birthday celebration',
         eventDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        eventTime: '19:00',
         location: 'New York, NY',
+        country: 'US',
+        guestCount: 5,
+        adultCount: 5,
+        childrenUnder10: 0,
+        actualAttendeeCount: 5,
+        billableGuestCount: 5,
+        pricingGuestCount: 5,
         budget: 1000,
         details: 'We are looking for a chef to prepare a special birthday dinner',
       };
@@ -99,10 +111,11 @@ describe('Form Validation', () => {
         description: 'Learn to make authentic Italian pasta and sauces',
         price: 150,
         duration: 180,
-        eventType: 'CLASS',
-        cuisineType: 'ITALIAN',
+        eventType: 'Dinner Party',
+        cuisineType: 'Italian',
         maxGuests: 8,
         minGuests: 2,
+        serviceType: 'DINING',
         difficulty: 'MEDIUM',
       };
 

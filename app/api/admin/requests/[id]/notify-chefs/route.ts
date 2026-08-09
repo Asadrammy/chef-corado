@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getRequiredSession } from '@/lib/auth-helpers';
+import { requireAdminPermission } from '@/lib/admin-rbac';
 import { handleApiError } from '@/lib/error-handler';
 import { adminRequestService } from '@/lib/services/admin-request-service';
-import { Role } from '@/types';
 
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    await getRequiredSession(Role.ADMIN);
+    await requireAdminPermission('requests.modify');
 
     const { id: requestId } = await context.params;
 

@@ -15,6 +15,7 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { generateIdempotencyKey } from '@/lib/utils/idempotency'
 import { getProposalBookingCounts } from '@/lib/booking-counts'
+import { assertProposalMeetsActivePricingRule } from '@/lib/services/pricing-rule-service'
 import { BookingStatus, PaymentStatus, ProposalStatus } from '@/types'
 
 export interface PaymentGuaranteeResult {
@@ -121,6 +122,7 @@ export class PaymentGuarantee {
       const commissionAmount = amount * 0.2
       const chefAmount = amount * 0.8
       const bookingCounts = getProposalBookingCounts(proposal.request)
+      const currency = proposal.request.currency || 'GBP'
 
       // ATOMIC: Create booking AND payment together
       const booking = await tx.booking.create({
@@ -129,14 +131,23 @@ export class PaymentGuarantee {
           chefId: proposal.chefId,
           proposalId: proposal.id,
           totalPrice: amount,
+          currency,
           status: BookingStatus.CONFIRMED,
           eventDate: proposal.request.eventDate,
           location: proposal.request.location,
           latitude: proposal.request.latitude,
           longitude: proposal.request.longitude,
           guestCount: bookingCounts.guestCount,
+          adultCount: bookingCounts.adultCount,
+          childrenUnder10: bookingCounts.childrenUnder10,
+          actualAttendeeCount: bookingCounts.actualAttendeeCount,
+          billableGuestCount: bookingCounts.billableGuestCount,
+          pricingGuestCount: bookingCounts.pricingGuestCount,
           studentCount: bookingCounts.studentCount,
           bookingType: 'PROPOSAL',
+          serviceType: bookingCounts.serviceType,
+          serviceTypeLabel: bookingCounts.serviceTypeLabel,
+          pricingRuleVersion: bookingCounts.pricingRuleVersion,
           idempotencyKey,
         },
       })
@@ -147,6 +158,7 @@ export class PaymentGuarantee {
           totalAmount: amount,
           commissionAmount,
           chefAmount,
+          currency,
           status: PaymentStatus.PAID,
           stripePaymentIntentId: paymentIntentId,
           stripeChargeId: stripeSessionId,
@@ -316,6 +328,18 @@ export class PaymentGuarantee {
       // Check if proposal is expired
       if (proposal.expiresAt && new Date() > proposal.expiresAt) {
         return { valid: false, error: 'Proposal expired' }
+      }
+
+      try {
+        await assertProposalMeetsActivePricingRule({
+          request: proposal.request,
+          proposalPrice: proposal.price,
+        })
+      } catch (error) {
+        return {
+          valid: false,
+          error: error instanceof Error ? error.message : 'Pricing rule validation failed',
+        }
       }
 
       // Check if already booked

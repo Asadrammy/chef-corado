@@ -70,6 +70,9 @@ describe("Phase 1 manual payout workflow", () => {
           findUnique: jest.fn().mockResolvedValue({ id: "payout-1", status: "PROCESSING", amount: 100, chefId: "chef-1" }),
           update: jest.fn().mockResolvedValue({ id: "payout-1", status: "PAID", amount: 100, chefId: "chef-1" }),
         },
+        auditLog: {
+          create: jest.fn().mockResolvedValue({ id: "audit-1" }),
+        },
       })
     )
 

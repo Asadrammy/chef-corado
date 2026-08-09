@@ -206,7 +206,9 @@ export const localDemoClientRequests = [
   {
     id: "local-request-anniversary",
     title: "Anniversary tasting dinner",
-    eventType: "Private Dinner",
+    eventType: "Anniversary",
+    serviceType: "FOUR_FIVE_COURSE_MEAL",
+    serviceTypeLabel: "4-5-Course Meal",
     cuisineTypes: JSON.stringify(["Mediterranean", "Modern European"]),
     dietaryRequirements: JSON.stringify(["Vegetarian options"]),
     description: "A warm, restaurant-style dinner at home.",
@@ -241,7 +243,9 @@ export const localDemoClientRequests = [
   {
     id: "local-request-cooking-class",
     title: "Team pasta workshop",
-    eventType: "Cooking Class",
+    eventType: "Work Event",
+    serviceType: "COOKING_CLASS",
+    serviceTypeLabel: "Cooking Class",
     cuisineTypes: JSON.stringify(["Italian"]),
     dietaryRequirements: JSON.stringify(["No shellfish"]),
     description: "Hands-on team activity with dinner afterwards.",

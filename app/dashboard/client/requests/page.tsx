@@ -1,4 +1,3 @@
-import { cookies } from "next/headers"
 import { Metadata } from "next"
 import { generateMeta } from "@/lib/utils"
 import { getServerSession } from "next-auth"
@@ -14,9 +13,11 @@ import {
 } from "lucide-react"
 
 import { authOptions } from "@/lib/auth"
+import { isLocalDemoSessionUser } from "@/lib/auth"
 import { formatCurrency } from "@/lib/currency"
 import { localDemoClientRequests } from "@/lib/local-demo-data"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
+import { getServiceTypeLabel } from "@/lib/request-options"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 
@@ -24,6 +25,8 @@ type RequestRow = {
   id: string
   title: string | null
   eventType: string
+  serviceType?: string | null
+  serviceTypeLabel?: string | null
   cuisineTypes: string | null
   dietaryRequirements: string | null
   eventDate: Date
@@ -65,37 +68,41 @@ export default async function ClientRequestsPage() {
     redirect("/dashboard")
   }
 
-  cookies()
-
   let requests: RequestRow[]
 
-  try {
-    requests = await prisma.request.findMany({
-      where: { clientId: session.user.id as string },
-      orderBy: { eventDate: "desc" },
-      select: {
-        id: true,
-        title: true,
-        eventType: true,
-        cuisineTypes: true,
-        dietaryRequirements: true,
-        eventDate: true,
-        location: true,
-        budget: true,
-        currency: true,
-        guestCount: true,
-        _count: {
-          select: {
-            proposals: true,
+  if (isLocalDemoSessionUser(session.user.id, session.user.email)) {
+    requests = localDemoClientRequests
+  } else {
+    try {
+      requests = await prisma.request.findMany({
+        where: { clientId: session.user.id as string },
+        orderBy: { eventDate: "desc" },
+        select: {
+          id: true,
+          title: true,
+          eventType: true,
+          serviceType: true,
+          serviceTypeLabel: true,
+          cuisineTypes: true,
+          dietaryRequirements: true,
+          eventDate: true,
+          location: true,
+          budget: true,
+          currency: true,
+          guestCount: true,
+          _count: {
+            select: {
+              proposals: true,
+            },
           },
         },
-      },
-    })
-  } catch (error) {
-    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
-      requests = localDemoClientRequests
-    } else {
-      throw error
+      })
+    } catch (error) {
+      if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+        requests = localDemoClientRequests
+      } else {
+        throw error
+      }
     }
   }
 
@@ -144,6 +151,9 @@ export default async function ClientRequestsPage() {
                     <Badge variant="secondary" className="text-xs">
                       {request.eventType || "Event"}
                     </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      {getServiceTypeLabel(request.serviceType, request.serviceTypeLabel)}
+                    </Badge>
                     <Badge variant="outline" className="rounded-full px-2 py-0.5 text-xs">
                       {request.status ?? "Pending"}
                     </Badge>
@@ -167,7 +177,7 @@ export default async function ClientRequestsPage() {
                 {request.guestCount > 0 && (
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Users className="h-4 w-4 shrink-0" />
-                    <span>{request.guestCount} {request.eventType === "Cooking Class" ? "students" : "guests"}</span>
+                    <span>{request.guestCount} {request.serviceType === "COOKING_CLASS" ? "students" : "guests"}</span>
                   </div>
                 )}
                 <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-foreground">

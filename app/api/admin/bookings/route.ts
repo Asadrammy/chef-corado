@@ -1,16 +1,15 @@
 import { NextResponse } from "next/server"
 
-import { getRequiredSession } from "@/lib/auth-helpers"
+import { requireAdminPermission } from "@/lib/admin-rbac"
 import { handleApiError } from "@/lib/error-handler"
 import { localDemoBookings } from "@/lib/local-demo-data"
 import { isPrismaConnectionError } from "@/lib/prisma"
 import { adminService } from "@/lib/services/admin-service"
-import { Role } from "@/types"
 
 // GET all bookings for admin
 export async function GET() {
   try {
-    await getRequiredSession(Role.ADMIN)
+    await requireAdminPermission("bookings.view")
     const bookings = await adminService.listBookings()
 
     return NextResponse.json(bookings)

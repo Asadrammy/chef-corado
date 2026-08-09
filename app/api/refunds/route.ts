@@ -5,6 +5,7 @@ import { refundService } from '@/lib/services/refund-service';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { Role } from '@/types';
 import { applyRateLimit } from '@/lib/redis-rate-limiter';
+import { requireAdminPermission } from '@/lib/admin-rbac';
 
 const createRefundSchema = z.object({
   paymentId: z.string().cuid(),
@@ -89,6 +90,7 @@ export async function GET(request: NextRequest) {
       });
     } else if (session.user.role === Role.ADMIN) {
       // Admins can see all refunds
+      await requireAdminPermission("refunds.request");
       refunds = await refundService.listRefunds(filters);
     } else {
       return apiError("FORBIDDEN", "Insufficient permissions", 403);

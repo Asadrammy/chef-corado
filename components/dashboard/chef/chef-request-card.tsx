@@ -11,24 +11,12 @@ import { ChefRequestRow } from "@/components/chef-request-table"
 import { MatchBadge, MatchScoreRing, MatchReasonsList } from "@/components/matching/match-badge"
 import { MatchResult } from "@/lib/services/smart-matching-service"
 import { formatCurrency } from "@/lib/currency"
+import { getServiceTypeLabel } from "@/lib/request-options"
 
 interface ChefRequestCardProps {
   request: ChefRequestRow & {
     matchData?: MatchResult
   }
-}
-
-function getEventType(details?: string | null) {
-  if (!details) return "General"
-
-  const normalized = details.toLowerCase()
-
-  if (normalized.includes("corporate")) return "Corporate"
-  if (normalized.includes("wedding")) return "Wedding"
-  if (normalized.includes("birthday")) return "Birthday"
-  if (normalized.includes("anniversary")) return "Anniversary"
-
-  return "Event"
 }
 
 function getPriorityBadge(requestId: string, matchScore?: number) {
@@ -73,7 +61,8 @@ function getPriorityBadge(requestId: string, matchScore?: number) {
 export function ChefRequestCard({ request }: ChefRequestCardProps) {
   const [isHovered, setIsHovered] = React.useState(false)
   const [showDetails, setShowDetails] = React.useState(false)
-  const eventType = getEventType(request.details)
+  const eventType = request.eventType ?? "Event"
+  const serviceTypeLabel = getServiceTypeLabel(request.serviceType, request.serviceTypeLabel)
   
   // Use smart match data if available, otherwise fallback to basic calculation
   const matchData = request.matchData
@@ -112,7 +101,7 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
               <div className="min-w-0 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-foreground text-xl font-semibold tracking-tight line-clamp-1">
-                    {eventType} Event
+                    {request.title || eventType}
                   </h3>
                   {priorityBadge ? (
                     <Badge className={priorityBadge.className}>{priorityBadge.label}</Badge>
@@ -175,6 +164,9 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
           </span>
           <Badge variant="outline" className="rounded-full border-border/60 bg-background/60 px-2.5 py-1">
             {eventType}
+          </Badge>
+          <Badge variant="outline" className="rounded-full border-border/60 bg-background/60 px-2.5 py-1">
+            {serviceTypeLabel}
           </Badge>
         </div>
         

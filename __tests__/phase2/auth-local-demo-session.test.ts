@@ -20,6 +20,7 @@ jest.mock("@/lib/prisma", () => ({
     const message = error instanceof Error ? error.message : String(error)
     return message.includes("Can't reach database server")
   },
+  withPrismaReconnect: async (operation: () => Promise<unknown>) => operation(),
 }))
 
 describe("local demo auth session fallback", () => {
@@ -60,5 +61,11 @@ describe("local demo auth session fallback", () => {
     ).resolves.toMatchObject({
       role: Role.CHEF,
     })
+  })
+
+  it("does not treat an arbitrary missing database user as a local demo session", async () => {
+    const { getLocalDemoSessionRecord } = await import("@/lib/auth")
+
+    expect(getLocalDemoSessionRecord("missing-db-user", "unknown@example.com", Role.CLIENT)).toBeNull()
   })
 })

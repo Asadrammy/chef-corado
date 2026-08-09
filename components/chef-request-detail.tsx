@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatCurrency } from "@/lib/currency"
+import { getServiceTypeLabel } from "@/lib/request-options"
 
 type ProposalErrorPayload = {
   error?: string
@@ -69,6 +70,7 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
 
   const hasProposal = request.proposals && request.proposals.length > 0
   const quoteLimitReached = (request.totalProposalCount ?? 0) >= 10
+  const serviceTypeLabel = getServiceTypeLabel(request.serviceType, request.serviceTypeLabel)
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -141,6 +143,7 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
 
           <div className="flex flex-wrap gap-3 border-t pt-6">
             <Badge variant="secondary">{request.eventType ?? "Event"}</Badge>
+            <Badge variant="outline">{serviceTypeLabel}</Badge>
             <Badge variant="outline">{request.totalProposalCount ?? 0}/10 quotes received</Badge>
             {quoteLimitReached ? (
               <Badge variant="destructive">Quote limit reached</Badge>

@@ -4,11 +4,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
+import { requireAdminPermission } from '@/lib/admin-rbac'
 import { paymentReconciliation } from '@/lib/services/payment-reconciliation'
 import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
+    await requireAdminPermission('payments.view')
+
     const body = await request.json()
     const { proposalId } = body
 

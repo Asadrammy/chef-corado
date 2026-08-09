@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Placeholder illustration for delivery platters">
+  <rect width="1200" height="800" fill="#f5f5f4"/>
+  <rect x="72" y="72" width="1056" height="656" rx="48" fill="#1c1917"/>
+  <rect x="290" y="330" width="620" height="190" rx="42" fill="#f97316"/>
+  <g fill="#fff7ed">
+    <circle cx="410" cy="424" r="38"/><circle cx="530" cy="424" r="38"/><circle cx="650" cy="424" r="38"/><circle cx="770" cy="424" r="38"/>
+  </g>
+  <path d="M330 560h540" stroke="#fff7ed" stroke-width="22" stroke-linecap="round"/>
+  <text x="600" y="652" fill="#fff7ed" font-family="Arial, sans-serif" font-size="56" font-weight="700" text-anchor="middle">Delivery Platter</text>
+</svg>

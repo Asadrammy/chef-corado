@@ -1,4 +1,3 @@
-import { cookies } from "next/headers"
 import { Metadata } from "next"
 import { generateMeta } from "@/lib/utils"
 import { getServerSession } from "next-auth"
@@ -16,9 +15,11 @@ import {
 } from "lucide-react"
 
 import { authOptions } from "@/lib/auth"
+import { isLocalDemoSessionUser } from "@/lib/auth"
 import { formatCurrency } from "@/lib/currency"
 import { localDemoClientRequestDetail } from "@/lib/local-demo-data"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
+import { getServiceTypeLabel } from "@/lib/request-options"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,47 +39,49 @@ export default async function RequestDetailsPage({
     redirect("/dashboard")
   }
 
-  cookies()
-
   const { requestId } = await params
   const userId = session.user.id as string
 
   let request
 
-  try {
-    request = await prisma.request.findUnique({
-      where: {
-        id: requestId,
-        clientId: userId,
-      },
-      include: {
-        _count: {
-          select: {
-            proposals: true,
-          },
+  if (isLocalDemoSessionUser(session.user.id, session.user.email)) {
+    request = localDemoClientRequestDetail(requestId)
+  } else {
+    try {
+      request = await prisma.request.findUnique({
+        where: {
+          id: requestId,
+          clientId: userId,
         },
-        proposals: {
-          include: {
-            chef: {
-              include: {
-                user: {
-                  select: {
-                    name: true,
-                    email: true,
+        include: {
+          _count: {
+            select: {
+              proposals: true,
+            },
+          },
+          proposals: {
+            include: {
+              chef: {
+                include: {
+                  user: {
+                    select: {
+                      name: true,
+                      email: true,
+                    },
                   },
                 },
               },
             },
+            orderBy: { createdAt: "desc" },
           },
-          orderBy: { createdAt: "desc" },
         },
-      },
-    })
-  } catch (error) {
-    if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
-      request = localDemoClientRequestDetail(requestId)
-    } else {
-      throw error
+      })
+    } catch (error) {
+      if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
+        request = localDemoClientRequestDetail(requestId)
+      } else {
+        throw error
+      }
     }
   }
 
@@ -88,7 +91,10 @@ export default async function RequestDetailsPage({
 
   const cuisineTypes = request.cuisineTypes ? JSON.parse(request.cuisineTypes as string) : []
   const dietaryRequirements = request.dietaryRequirements ? JSON.parse(request.dietaryRequirements as string) : []
-  const attendeeLabel = request.eventType === "Cooking Class" ? "students" : "guests"
+  const requestServiceType = "serviceType" in request ? request.serviceType : null
+  const requestServiceTypeLabel = "serviceTypeLabel" in request ? request.serviceTypeLabel : null
+  const serviceTypeLabel = getServiceTypeLabel(requestServiceType, requestServiceTypeLabel)
+  const attendeeLabel = requestServiceType === "COOKING_CLASS" ? "students" : "guests"
 
   return (
     <div className="space-y-6 lg:space-y-7">
@@ -166,6 +172,10 @@ export default async function RequestDetailsPage({
           </CardHeader>
           <CardContent className="space-y-6">
             <div>
+              <div className="mb-4 flex flex-wrap gap-2">
+                <Badge variant="secondary" className="rounded-xl">{request.eventType}</Badge>
+                <Badge variant="outline" className="rounded-xl">{serviceTypeLabel}</Badge>
+              </div>
               <div className="flex items-center gap-2 mb-3">
                 <Utensils className="h-5 w-5 text-primary" />
                 <p className="text-sm font-medium text-muted-foreground">Cuisine Types</p>

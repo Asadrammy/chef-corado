@@ -9,6 +9,7 @@ import { logger } from '@/lib/logger'
 import { paymentService } from '@/lib/services/payment-service'
 import { redisLocks } from '@/lib/redis'
 import { getProposalBookingCounts } from '@/lib/booking-counts'
+import { assertProposalMeetsActivePricingRule } from '@/lib/services/pricing-rule-service'
 import { PaymentStatus, BookingStatus, ProposalStatus } from '@/types'
 
 export class StripeWebhookHandler {
@@ -153,9 +154,19 @@ export class StripeWebhookHandler {
       // Create booking and payment atomically
       const result = await prisma.$transaction(async (tx) => {
         const amount = paymentIntent.amount / 100
+        if (Math.round(amount * 100) !== Math.round(proposal.price * 100)) {
+          throw new Error('Payment amount does not match proposal price')
+        }
+
+        await assertProposalMeetsActivePricingRule({
+          request: proposal.request,
+          proposalPrice: proposal.price,
+        })
+
         const commissionAmount = amount * 0.2
         const chefAmount = amount * 0.8
         const bookingCounts = getProposalBookingCounts(proposal.request)
+        const currency = proposal.request.currency || 'GBP'
 
         // Create booking
         const booking = await tx.booking.create({
@@ -164,14 +175,23 @@ export class StripeWebhookHandler {
             chefId: proposal.chefId,
             proposalId: proposal.id,
             totalPrice: amount,
+            currency,
             status: BookingStatus.CONFIRMED,
             eventDate: proposal.request.eventDate,
             location: proposal.request.location,
             latitude: proposal.request.latitude,
             longitude: proposal.request.longitude,
             guestCount: bookingCounts.guestCount,
+            adultCount: bookingCounts.adultCount,
+            childrenUnder10: bookingCounts.childrenUnder10,
+            actualAttendeeCount: bookingCounts.actualAttendeeCount,
+            billableGuestCount: bookingCounts.billableGuestCount,
+            pricingGuestCount: bookingCounts.pricingGuestCount,
             studentCount: bookingCounts.studentCount,
             bookingType: 'PROPOSAL',
+            serviceType: bookingCounts.serviceType,
+            serviceTypeLabel: bookingCounts.serviceTypeLabel,
+            pricingRuleVersion: bookingCounts.pricingRuleVersion,
           },
         })
 
@@ -182,6 +202,7 @@ export class StripeWebhookHandler {
             totalAmount: amount,
             commissionAmount,
             chefAmount,
+            currency,
             status: PaymentStatus.PAID,
             stripePaymentIntentId: paymentIntent.id,
             stripeChargeId: paymentIntent.latest_charge as string,

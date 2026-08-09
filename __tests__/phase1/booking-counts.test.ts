@@ -4,24 +4,51 @@ import { getProposalBookingCounts, validateExperienceBookingCounts } from "@/lib
 
 describe("Phase 1 booking count rules", () => {
   it("preserves a 10-guest proposal booking count", () => {
-    expect(getProposalBookingCounts({ guestCount: 10, eventType: "Birthday" })).toEqual({
+    expect(getProposalBookingCounts({ guestCount: 10, eventType: "Birthday" })).toEqual(expect.objectContaining({
       guestCount: 10,
       studentCount: null,
-    })
+      actualAttendeeCount: 10,
+    }))
   })
 
   it("preserves a 1-guest proposal booking count", () => {
-    expect(getProposalBookingCounts({ guestCount: 1, eventType: "Private Dinner" })).toEqual({
+    expect(getProposalBookingCounts({ guestCount: 1, eventType: "Private Dinner" })).toEqual(expect.objectContaining({
       guestCount: 1,
       studentCount: null,
-    })
+      actualAttendeeCount: 1,
+    }))
   })
 
   it("uses student count for cooking-class proposal requests", () => {
-    expect(getProposalBookingCounts({ guestCount: 8, studentCount: 6, eventType: "Cooking Class" })).toEqual({
+    expect(getProposalBookingCounts({ guestCount: 8, studentCount: 6, eventType: "Cooking Class" })).toEqual(expect.objectContaining({
       guestCount: 8,
       studentCount: 6,
-    })
+      actualAttendeeCount: 8,
+    }))
+  })
+
+  it("preserves Phase 2 children and pricing counts for proposals", () => {
+    expect(getProposalBookingCounts({
+      guestCount: 5,
+      adultCount: 2,
+      childrenUnder10: 3,
+      actualAttendeeCount: 5,
+      billableGuestCount: 3.5,
+      pricingGuestCount: 3.5,
+      serviceType: "SHARING_BUFFET",
+      serviceTypeLabel: "Sharing Buffet",
+      pricingRuleVersion: "2026-08-phase-2-uk-pricing-v1",
+    })).toEqual(expect.objectContaining({
+      guestCount: 5,
+      adultCount: 2,
+      childrenUnder10: 3,
+      actualAttendeeCount: 5,
+      billableGuestCount: 3.5,
+      pricingGuestCount: 3.5,
+      serviceType: "SHARING_BUFFET",
+      serviceTypeLabel: "Sharing Buffet",
+      pricingRuleVersion: "2026-08-phase-2-uk-pricing-v1",
+    }))
   })
 
   it("prices cooking classes with pricePerStudent times selected students", () => {

@@ -5,6 +5,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 
 import { isPrismaConnectionError, prisma, withPrismaReconnect } from "@/lib/prisma"
 import { TERMS_VERSION } from "@/lib/request-options"
+import { roleDashboardPath } from "@/lib/role-routes"
 import { Role } from "@/types"
 
 // Extend NextAuth types to include isBanned
@@ -17,6 +18,8 @@ declare module "next-auth" {
       needsTermsAcceptance?: boolean
       complianceStatus?: string | null
       needsChefCompliance?: boolean
+      adminRole?: string | null
+      adminPermissions?: string | null
       // Backward-compatible legacy aliases
       insuranceStatus?: string | null
       needsInsuranceVerification?: boolean
@@ -28,6 +31,8 @@ declare module "next-auth" {
     needsTermsAcceptance?: boolean
     complianceStatus?: string | null
     needsChefCompliance?: boolean
+    adminRole?: string | null
+    adminPermissions?: string | null
     insuranceStatus?: string | null
     needsInsuranceVerification?: boolean
   }
@@ -39,6 +44,8 @@ declare module "next-auth/jwt" {
     needsTermsAcceptance?: boolean
     complianceStatus?: string | null
     needsChefCompliance?: boolean
+    adminRole?: string | null
+    adminPermissions?: string | null
     insuranceStatus?: string | null
     needsInsuranceVerification?: boolean
   }
@@ -57,6 +64,8 @@ export type SessionComplianceRecord = {
   termsVersion: string | null
   acceptedVia: string | null
   role: Role | string
+  adminRole?: string | null
+  adminPermissions?: string | null
   chefProfile: {
     rightToWorkUkConfirmed: boolean
     foodHygieneLevel2Confirmed: boolean
@@ -132,9 +141,10 @@ export function getLocalDemoSessionRecord(userId?: string | null, email?: string
   }
 
   const demoUser = (email ? localDemoUsers[email.toLowerCase()] : null) || (userId ? localDemoUserById[userId] : null)
+  const isSyntheticDemoUser = Boolean(userId?.startsWith("local-demo-"))
   const resolvedRole = (demoUser?.role || role) as Role | undefined
 
-  if (!resolvedRole || (!demoUser && !userId?.startsWith("local-demo-") && !role)) {
+  if (!resolvedRole || (!demoUser && !isSyntheticDemoUser)) {
     return null
   }
 
@@ -144,6 +154,8 @@ export function getLocalDemoSessionRecord(userId?: string | null, email?: string
     termsVersion: TERMS_VERSION,
     acceptedVia: "local-demo",
     role: resolvedRole,
+    adminRole: resolvedRole === Role.ADMIN ? "SUPER_ADMIN" : null,
+    adminPermissions: null,
     chefProfile: resolvedRole === Role.CHEF
       ? {
           rightToWorkUkConfirmed: true,
@@ -160,11 +172,7 @@ export function getLocalDemoSessionRecord(userId?: string | null, email?: string
 
 const nextAuthSecret = process.env.NEXTAUTH_SECRET ?? (process.env.NODE_ENV === "production" ? undefined : "chef-development-nextauth-secret")
 
-export const roleDashboardPath: Record<Role, string> = {
-  [Role.CLIENT]: "/dashboard/client",
-  [Role.CHEF]: "/dashboard/chef",
-  [Role.ADMIN]: "/dashboard/admin",
-}
+export { roleDashboardPath }
 
 export const authOptions: AuthOptions = {
   adapter: process.env.NODE_ENV === "development" ? undefined : PrismaAdapter(prisma),
@@ -279,6 +287,8 @@ export const authOptions: AuthOptions = {
                   termsVersion: true,
                   acceptedVia: true,
                   role: true,
+                  adminRole: true,
+                  adminPermissions: true,
                   chefProfile: {
                     select: {
                       rightToWorkUkConfirmed: true,
@@ -307,6 +317,8 @@ export const authOptions: AuthOptions = {
           token.isBanned = dbUser.isBanned
           token.needsTermsAcceptance = !dbUser.termsAcceptedAt || dbUser.termsVersion !== TERMS_VERSION || !dbUser.acceptedVia
           token.complianceStatus = null
+          token.adminRole = dbUser.adminRole ?? (dbUser.role === Role.ADMIN ? "SUPER_ADMIN" : null)
+          token.adminPermissions = dbUser.adminPermissions ?? null
           token.needsChefCompliance = dbUser.role === Role.CHEF
             ? !dbUser.chefProfile ||
               dbUser.chefProfile.isBanned ||
@@ -338,6 +350,12 @@ export const authOptions: AuthOptions = {
       }
       if (token.complianceStatus !== undefined) {
         session.user.complianceStatus = token.complianceStatus
+      }
+      if (token.adminRole !== undefined) {
+        session.user.adminRole = token.adminRole
+      }
+      if (token.adminPermissions !== undefined) {
+        session.user.adminPermissions = token.adminPermissions
       }
       if (token.needsChefCompliance !== undefined) {
         session.user.needsChefCompliance = token.needsChefCompliance

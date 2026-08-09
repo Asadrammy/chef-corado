@@ -1,12 +1,14 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Calendar, User, ChefHat, Eye, CheckCircle2, Clock3, Sparkles, ArrowUpRight, Wallet } from "lucide-react"
+import { getServiceTypeLabel } from "@/lib/request-options"
 
 // Prevent static generation
 export const dynamic = 'force-dynamic'
@@ -30,6 +32,11 @@ interface Booking {
   proposal?: {
     price: number
     message?: string
+    request?: {
+      eventType?: string | null
+      serviceType?: string | null
+      serviceTypeLabel?: string | null
+    } | null
     menu?: {
       title: string
       price: number
@@ -450,7 +457,9 @@ export default function AdminBookingsPage() {
                                         {booking.proposal ? "Custom menu" : "Instant booking"}
                                       </div>
                                       <div className="mt-1 text-xs text-muted-foreground">
-                                        {booking.proposal?.message ? "Custom proposal attached" : "Direct booking flow"}
+                                        {booking.proposal?.request
+                                          ? `${booking.proposal.request.eventType ?? "Event"} · ${getServiceTypeLabel(booking.proposal.request.serviceType, booking.proposal.request.serviceTypeLabel)}`
+                                          : booking.proposal?.message ? "Custom proposal attached" : "Direct booking flow"}
                                       </div>
                                     </>
                                   )}
@@ -492,12 +501,14 @@ export default function AdminBookingsPage() {
 
                                 <div className="flex justify-end">
                                   <Button
+                                    asChild
                                     size="sm"
                                     variant="outline"
                                     className="h-9 rounded-xl border-border/60 bg-background/80 px-3 text-muted-foreground shadow-sm shadow-black/5 transition-all duration-200 hover:-translate-y-0.5 hover:border-border hover:bg-muted/70 hover:text-foreground hover:shadow-md"
-                                    onClick={() => window.open(`/dashboard/admin/bookings/${booking.id}`, '_blank')}
                                   >
-                                    <Eye className="h-4 w-4" />
+                                    <Link href={`/dashboard/admin/bookings/${booking.id}`} aria-label={`Open booking ${booking.id}`}>
+                                      <Eye className="h-4 w-4" />
+                                    </Link>
                                   </Button>
                                 </div>
                               </div>

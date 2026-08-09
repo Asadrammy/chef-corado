@@ -39,25 +39,32 @@ export const ledgerService = {
    */
   async recordTransaction(input: LedgerEntryInput) {
     try {
-      // Since ledger model doesn't exist, just log the transaction for now
-      // In production, you would create an actual ledger entry
-      const mockLedgerEntry = {
-        id: `mock_${Date.now()}`,
-        ...input,
-        currency: input.currency || "USD",
-        metadata: input.metadata ? JSON.stringify(input.metadata) : null,
-        createdAt: new Date()
-      }
+      const ledgerEntry = await prisma.ledger.create({
+        data: {
+          transactionType: input.transactionType,
+          amount: input.amount,
+          currency: input.currency || "GBP",
+          bookingId: input.bookingId,
+          paymentId: input.paymentId,
+          refundId: input.refundId,
+          payoutId: input.payoutId,
+          fromAccount: input.fromAccount,
+          toAccount: input.toAccount,
+          description: input.description,
+          metadata: input.metadata ? JSON.stringify(input.metadata) : null,
+          createdBy: input.createdBy,
+        },
+      })
 
       logger.info(`[LEDGER] Recorded ${input.transactionType}: $${input.amount} - ${input.description}`, {
-        ledgerId: mockLedgerEntry.id,
+        ledgerId: ledgerEntry.id,
         transactionType: input.transactionType,
         amount: input.amount,
         bookingId: input.bookingId,
         paymentId: input.paymentId,
       })
 
-      return mockLedgerEntry as any
+      return ledgerEntry
     } catch (error) {
       logger.error("[LEDGER] CRITICAL: Failed to record transaction - BLOCKING OPERATION", { 
         error, 
@@ -152,15 +159,17 @@ export const ledgerService = {
     createdBy: string,
     stripeTransferId?: string
   ) {
+    const existingPayout = await prisma.payout.findUnique({ where: { id: payoutId }, select: { id: true } }).catch(() => null)
+
     await this.recordTransaction({
       transactionType: "PAYOUT",
       amount: -amount, // Negative for money leaving platform
-      payoutId,
+      payoutId: existingPayout ? payoutId : undefined,
       fromAccount: "PLATFORM_HOLDING",
       toAccount: "CHEF_PAYOUT",
       description: `Payout to chef ${chefId}: $${amount}${stripeTransferId ? ` (Transfer: ${stripeTransferId})` : ""}`,
       createdBy,
-      metadata: { chefId, stripeTransferId },
+      metadata: { chefId, stripeTransferId, payoutReference: payoutId },
     })
   },
 
@@ -168,17 +177,17 @@ export const ledgerService = {
    * Get ledger entries for a specific booking
    */
   async getBookingLedger(bookingId: string) {
-    // Since ledger model doesn't exist, return empty array for now
-    // In production, you would query the actual ledger table
-    logger.info(`[LEDGER] Getting ledger entries for booking: ${bookingId}`)
-    return []
+    return prisma.ledger.findMany({
+      where: { bookingId },
+      orderBy: { createdAt: "desc" },
+    })
   },
 
   async getPaymentLedger(paymentId: string) {
-    // Since ledger model doesn't exist, return empty array for now
-    // In production, you would query the actual ledger table
-    logger.info(`[LEDGER] Getting ledger entries for payment: ${paymentId}`)
-    return []
+    return prisma.ledger.findMany({
+      where: { paymentId },
+      orderBy: { createdAt: "desc" },
+    })
   },
 
   /**
@@ -186,10 +195,18 @@ export const ledgerService = {
    * Used for financial reconciliation
    */
   async getTotalsByType(startDate: Date, endDate: Date) {
-    // Since ledger model doesn't exist, return empty result for now
-    // In production, you would query the actual ledger table
-    logger.info(`[LEDGER] Getting totals by type from ${startDate.toISOString()} to ${endDate.toISOString()}`)
-    return []
+    return prisma.ledger.groupBy({
+      by: ["transactionType", "currency"],
+      where: {
+        createdAt: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+      orderBy: [{ transactionType: "asc" }, { currency: "asc" }],
+    })
   },
 
   /**

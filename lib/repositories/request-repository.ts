@@ -5,8 +5,22 @@ export const requestRepository = {
     clientId: string
     title: string
     eventType: string
+    requestMode?: string
+    serviceType?: string
+    serviceTypeLabel?: string
+    serviceTypeVersion?: string
+    serviceTier?: string
     cuisineTypes?: string
     dietaryRequirements?: string
+    serviceSpecificAnswers?: string
+    pricingRuleVersion?: string
+    pricingRuleId?: string
+    adultCount?: number
+    childrenUnder10?: number
+    billableGuestCount?: number
+    actualAttendeeCount?: number
+    pricingGuestCount?: number
+    eventDates?: string
     description?: string
     eventDate: Date
     eventTime?: string
@@ -28,8 +42,22 @@ export const requestRepository = {
       clientId: input.clientId,
       title: input.title,
       eventType: input.eventType,
+      requestMode: input.requestMode || "STANDARD",
+      serviceType: input.serviceType || null,
+      serviceTypeLabel: input.serviceTypeLabel || null,
+      serviceTypeVersion: input.serviceTypeVersion || null,
+      serviceTier: input.serviceTier || null,
       cuisineTypes: input.cuisineTypes || null,
       dietaryRequirements: input.dietaryRequirements || null,
+      serviceSpecificAnswers: input.serviceSpecificAnswers || null,
+      pricingRuleVersion: input.pricingRuleVersion || null,
+      pricingRuleId: input.pricingRuleId || null,
+      adultCount: input.adultCount ?? null,
+      childrenUnder10: input.childrenUnder10 ?? null,
+      billableGuestCount: input.billableGuestCount ?? null,
+      actualAttendeeCount: input.actualAttendeeCount ?? null,
+      pricingGuestCount: input.pricingGuestCount ?? null,
+      eventDates: input.eventDates || null,
       description: input.description || null,
       eventDate: input.eventDate,
       eventTime: input.eventTime || null,

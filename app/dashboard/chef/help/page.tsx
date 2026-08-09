@@ -18,6 +18,7 @@ type FAQ = {
   question: string
   answer: string
   keywords: string[]
+  links?: { label: string; href: string }[]
 }
 
 const faqData: FAQ[] = [
@@ -26,101 +27,127 @@ const faqData: FAQ[] = [
     id: "gs-1",
     category: "getting-started",
     question: "How do I get started as a chef on the platform?",
-    answer: "Complete your profile with bio, cuisine type, events per month, and saved service radius. Add your menus using one clear free-form menu description for each menu. Set your availability calendar. Once approved by our team, you'll appear in marketplace searches and can start receiving booking requests.",
+    answer: "Complete your profile with bio, cuisine type, events per month, saved service radius, legal confirmations, and certificate details where requested. Add menus and set availability. Chef approval is reviewed by the platform team; it is not automatic.",
     keywords: ["start", "begin", "setup", "new", "onboard"],
+    links: [
+      { label: "Profile", href: "/dashboard/chef/profile" },
+      { label: "Menus", href: "/dashboard/chef/menus" },
+      { label: "Availability", href: "/dashboard/chef/availability" },
+    ],
   },
   {
     id: "gs-2",
     category: "getting-started",
     question: "What makes a complete chef profile?",
-    answer: "A complete profile includes: profile photo, bio describing your culinary background, cuisine specialties, additional professional certifications, saved service radius, events per month, legal confirmations, at least one menu, and connected Stripe account for payouts. Complete profiles rank higher in search results.",
+    answer: "A complete profile includes a profile photo, bio, cuisine specialties, professional certifications where available, saved service radius, events per month, legal confirmations, at least one menu, and Stripe connection for payouts. Search and ranking use profile quality signals, but the platform does not guarantee a fixed placement from profile completion alone.",
     keywords: ["profile", "complete", "photo", "bio", "required"],
+    links: [{ label: "Profile", href: "/dashboard/chef/profile" }],
   },
   {
     id: "gs-3",
     category: "getting-started",
     question: "How long does profile approval take?",
-    answer: "Profile reviews typically take 1-3 business days. You'll receive an email notification once approved. While waiting, you can preview your profile using the 'Preview public profile' button in your profile settings.",
+    answer: "Profile review is handled by the platform team. Timing can vary depending on the information and documents supplied. You can keep editing your profile while approval is pending.",
     keywords: ["approval", "approved", "pending", "review", "wait"],
+    links: [{ label: "Profile", href: "/dashboard/chef/profile" }],
   },
   // Bookings
   {
     id: "bk-1",
     category: "bookings",
     question: "How do client requests work?",
-    answer: "Clients submit requests with event details, budget, and location. Open customer requests within your saved service radius appear in your Requests tab. You can send quotes with custom pricing and menus. Each client request can receive up to 10 quotes total across the platform, but your own quote activity is not capped per day.",
+    answer: "Clients submit requests with event details, service type, budget, and location. Open customer requests within your saved service radius appear in Requests. You can send one proposal per request with custom pricing and an optional menu. Each request can receive up to 10 quotes total across the platform.",
     keywords: ["request", "quote", "client", "send", "proposal"],
+    links: [{ label: "Requests", href: "/dashboard/chef/requests" }],
   },
   {
     id: "bk-2",
     category: "bookings",
     question: "Can I modify a quote after sending it?",
-    answer: "Yes! Open the conversation with the client from your Messages tab. Use the quote update action in the chat thread to send a revised quote. The client will see the updated pricing and can accept the new quote.",
+    answer: "Not as a self-service quote edit. The current proposal flow lets you send one proposal per request. If pricing or scope needs to change after sending, message the client in-platform and contact support if an accepted or payment-related proposal needs admin handling.",
     keywords: ["quote", "modify", "update", "change", "price"],
+    links: [
+      { label: "Messages", href: "/dashboard/chef/messages" },
+      { label: "Email support", href: "mailto:info@chefachef.co.uk" },
+    ],
   },
   {
     id: "bk-3",
     category: "bookings",
     question: "How do blocked dates work?",
-    answer: "Open the availability calendar, choose a day, and mark it unavailable when you need to block travel, prep, or personal time. Unavailable dates prevent new bookings but do not affect existing confirmed bookings.",
+    answer: "Open the availability calendar, choose a day, and mark it unavailable when you need to block travel, prep, or personal time. Availability is checked for instant-booked experiences. Marketplace requests are still shown by request date and service radius, so keep availability accurate and discuss conflicts before proposing.",
     keywords: ["availability", "block", "calendar", "date", "unavailable"],
+    links: [{ label: "Availability", href: "/dashboard/chef/availability" }],
   },
   {
     id: "bk-4",
     category: "bookings",
     question: "What happens when a booking is confirmed?",
-    answer: "You'll receive a notification and the booking moves to your Active tab. The client's payment is held securely until the event is completed. After the event, mark it as complete to trigger payout processing.",
+    answer: "Confirmed bookings appear in your bookings area. Client payments are held through the platform payment flow where Stripe checkout is used. Completion and payout release involve the platform payment status and may require admin processing depending on the booking/payment state.",
     keywords: ["confirmed", "booking", "status", "active", "payment"],
+    links: [{ label: "Bookings", href: "/dashboard/chef/bookings" }],
   },
   // Payments
   {
     id: "pm-1",
     category: "payments",
     question: "How do I set up payouts?",
-    answer: "Go to Settings > Stripe Connection and click 'Connect Stripe'. Complete the Stripe onboarding to link your bank account. Once connected, payouts are processed automatically 2-3 business days after completed events.",
+    answer: "Go to Settings and use the Stripe connection action if it is available for your account. Complete Stripe onboarding to connect a payout account. Connecting Stripe does not by itself guarantee automatic release timing; payout release depends on completed booking/payment status and platform processing.",
     keywords: ["payout", "stripe", "bank", "payment", "connect", "money"],
+    links: [{ label: "Settings", href: "/dashboard/chef/settings" }],
   },
   {
     id: "pm-2",
     category: "payments",
     question: "When do I receive payment for a booking?",
-    answer: "Payments are released 24-48 hours after you mark a booking as completed. The funds transfer to your connected bank account via Stripe. Check your Stripe dashboard for real-time payment status.",
+    answer: "Payment release is tied to the booking and payment record. The admin payment tools can release held funds when the booking/payment state allows it. Check your Payouts page and Stripe account for status; contact support if a completed event has not moved forward.",
     keywords: ["payment", "receive", "when", "transfer", "payout"],
+    links: [
+      { label: "Payouts", href: "/dashboard/chef/payouts" },
+      { label: "Email support", href: "mailto:info@chefachef.co.uk" },
+    ],
   },
   {
     id: "pm-3",
     category: "payments",
     question: "What fees does the platform charge?",
-    answer: "The platform fee is deducted from each booking total before payout. The exact percentage varies by plan. View your earnings breakdown in the dashboard, which shows gross amount, platform fee, and net payout.",
+    answer: "The system stores platform commission and payout amounts on payment records, but this help page does not publish a fixed fee percentage. Use your payment/payout breakdown for a specific booking, and contact support for commercial fee questions.",
     keywords: ["fee", "commission", "percentage", "charge", "deduct"],
+    links: [{ label: "Payouts", href: "/dashboard/chef/payouts" }],
   },
   {
     id: "pm-4",
     category: "payments",
     question: "Why is my Stripe showing as not configured?",
-    answer: "This means Stripe API keys aren't set up in the system. Contact support or check with your administrator. You can still accept bookings, but payouts will be held until Stripe is properly configured.",
+    answer: "This can mean your Stripe onboarding is incomplete or the platform payment configuration needs attention. Contact support before relying on new paid bookings if Stripe is not configured.",
     keywords: ["stripe", "configured", "api", "key", "error"],
+    links: [{ label: "Email support", href: "mailto:info@chefachef.co.uk" }],
   },
   // Visibility
   {
     id: "vis-1",
     category: "visibility",
     question: "How do I improve my marketplace visibility?",
-    answer: "Complete your profile 100%, keep menus updated with photos, respond quickly to messages, maintain accurate availability, and collect positive reviews. Response rate and rating significantly impact your search ranking.",
+    answer: "Keep your profile, menus, availability, response habits, and reviews strong. The platform uses profile and activity signals in several places, but this page should not promise a specific automatic ranking outcome.",
     keywords: ["visibility", "rank", "search", "appear", "find"],
+    links: [
+      { label: "Profile", href: "/dashboard/chef/profile" },
+      { label: "Menus", href: "/dashboard/chef/menus" },
+    ],
   },
   {
     id: "vis-2",
     category: "visibility",
     question: "How is my response rate calculated?",
-    answer: "Response rate measures what percentage of client messages receive your reply. Faster responses (within a few hours) improve your rate. This metric directly affects your ranking in client searches.",
+    answer: "Response activity is tracked in chef dashboard metrics where data is available. It is useful operationally, but the current help text should not claim a guaranteed direct ranking formula.",
     keywords: ["response", "rate", "reply", "time", "ranking"],
+    links: [{ label: "Messages", href: "/dashboard/chef/messages" }],
   },
   {
     id: "vis-3",
     category: "visibility",
     question: "Do reviews affect my visibility?",
-    answer: "Yes! Chefs with higher average ratings and more reviews rank better in searches. Encourage satisfied clients to leave reviews after events. Respond professionally to all reviews to show engagement.",
+    answer: "Reviews are stored after completed bookings and are visible on chef-facing/customer-facing surfaces where implemented. Strong reviews can improve trust, but the exact ranking effect is not published as a fixed rule.",
     keywords: ["review", "rating", "stars", "feedback", "ranking"],
   },
   // Account
@@ -128,8 +155,9 @@ const faqData: FAQ[] = [
     id: "ac-1",
     category: "account",
     question: "How do I update my profile photo?",
-    answer: "Go to Profile Settings, hover over your current photo, and click the edit icon. Upload a new image (JPG, PNG, or WebP, max 5MB). High-quality, professional photos perform best with clients.",
+    answer: "Go to Profile and update your profile image if the upload control is available on your account. Use a clear professional image and keep file size within the uploader's limit.",
     keywords: ["photo", "image", "profile", "upload", "picture"],
+    links: [{ label: "Profile", href: "/dashboard/chef/profile" }],
   },
   {
     id: "ac-2",
@@ -137,66 +165,83 @@ const faqData: FAQ[] = [
     question: "Can I change my service radius?",
     answer: "Yes! In Profile Settings, adjust your saved service radius to expand or contract your service area. A larger radius means more potential requests but may include locations with longer travel times. The Requests page slider only narrows the current view temporarily.",
     keywords: ["radius", "service", "area", "distance", "location"],
+    links: [{ label: "Profile", href: "/dashboard/chef/profile" }],
   },
   {
     id: "ac-3",
     category: "account",
     question: "How do notification preferences work?",
-    answer: "In Settings, you can toggle email and in-app notifications for messages, bookings, and new requests. Email notifications are sent immediately for important events, while in-app notifications appear in your notification center.",
+    answer: "In Settings, you can manage available notification preferences. In-app notifications appear in the notification center. Email delivery depends on the configured notification service and your saved preferences.",
     keywords: ["notification", "email", "alert", "preference", "settings"],
+    links: [{ label: "Settings", href: "/dashboard/chef/settings" }],
   },
   {
     id: "ac-4",
     category: "account",
     question: "Can I preview my public profile?",
-    answer: "Yes! Go to Profile Settings and click 'Preview public profile'. This shows exactly what clients see, even if your profile isn't approved yet. Use this to verify your information before submission.",
+    answer: "Use the public profile preview link from Profile when available. If your profile is not approved, treat preview as a review aid rather than a guarantee that clients can find or book you publicly.",
     keywords: ["preview", "public", "view", "see", "profile"],
+    links: [{ label: "Profile", href: "/dashboard/chef/profile" }],
   },
   {
     id: "ac-5",
     category: "account",
     question: "How do I change my email or password?",
-    answer: "Currently, email changes require support assistance for security. Contact support@chefmarketplace.com with your request. For password changes, use the 'Forgot Password' link on the login page or contact support.",
+    answer: "Email changes require support assistance for security. Contact info@chefachef.co.uk with your request. For password changes, use the Forgot Password link on the login page or contact support if you cannot complete the reset.",
     keywords: ["email", "password", "change", "update", "security"],
+    links: [
+      { label: "Forgot Password", href: "/forgot-password" },
+      { label: "Email support", href: "mailto:info@chefachef.co.uk" },
+    ],
   },
   // Additional Bookings
   {
     id: "bk-5",
     category: "bookings",
     question: "What if a client cancels a confirmed booking?",
-    answer: "If a client cancels, you'll be notified immediately. Cancellation policies vary - check your booking details for specific terms. For disputes about cancellations, contact support with the booking ID for assistance.",
+    answer: "If a booking is cancelled, check the booking status and any payment/refund state. Cancellation and refund handling may require admin support, especially once payment has been captured or held.",
     keywords: ["cancel", "cancellation", "client", "refund", "policy"],
+    links: [
+      { label: "Bookings", href: "/dashboard/chef/bookings" },
+      { label: "Email support", href: "mailto:info@chefachef.co.uk" },
+    ],
   },
   {
     id: "bk-6",
     category: "bookings",
     question: "Can I decline a booking request?",
-    answer: "Yes, you can decline requests through your Messages tab. Simply send a polite message explaining why you can't accommodate the request. Declining doesn't negatively affect your rating if done professionally and promptly.",
+    answer: "You can choose not to send a proposal for a request. If you are already in conversation with a client, reply in Messages so the client has a clear answer. There is no separate automated decline button for every marketplace request.",
     keywords: ["decline", "reject", "cancel", "request", "refuse"],
+    links: [
+      { label: "Requests", href: "/dashboard/chef/requests" },
+      { label: "Messages", href: "/dashboard/chef/messages" },
+    ],
   },
   // Additional Payments
   {
     id: "pm-5",
     category: "payments",
     question: "How do I handle tips from clients?",
-    answer: "Clients can add tips during the payment process. Tips are processed through Stripe and included in your payout. All tips are subject to the same processing timeline as regular payments (24-48 hours after event completion).",
+    answer: "The current checkout flow charges the accepted proposal amount. Do not rely on an automatic tip field unless it is visible during checkout for that booking. If a client wants to add extra payment, keep the discussion on-platform and contact support.",
     keywords: ["tip", "gratuity", "extra", "bonus", "payment"],
+    links: [{ label: "Email support", href: "mailto:info@chefachef.co.uk" }],
   },
   // Additional Visibility
   {
     id: "vis-4",
     category: "visibility",
     question: "What is the daily checklist and how does it help?",
-    answer: "The daily checklist helps you stay on track with platform best practices: reviewing open requests, keeping quote activity moving, responding to messages, and maintaining your response rate. Completing these actions improves your marketplace visibility and client engagement.",
+    answer: "The daily checklist is an operational reminder for reviewing requests, responding to messages, and keeping your profile active. It is helpful, but it should not be read as an automatic ranking guarantee.",
     keywords: ["checklist", "daily", "goals", "tasks", "improve"],
+    links: [{ label: "Chef Dashboard", href: "/dashboard/chef" }],
   },
 ]
 
 const categoryConfig: Record<FAQCategory, { label: string; icon: typeof BookOpen; color: string }> = {
-  "getting-started": { label: "Getting Started", icon: BookOpen, color: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-400 dark:border-blue-800" },
-  "bookings": { label: "Bookings", icon: Calendar, color: "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800" },
-  "payments": { label: "Payments", icon: Wallet, color: "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800" },
-  "visibility": { label: "Visibility & Ranking", icon: Users, color: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800" },
+  "getting-started": { label: "Getting Started", icon: BookOpen, color: "border-primary/20 bg-primary/10 text-primary" },
+  "bookings": { label: "Bookings", icon: Calendar, color: "border-primary/20 bg-primary/10 text-primary" },
+  "payments": { label: "Payments", icon: Wallet, color: "border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
+  "visibility": { label: "Visibility & Ranking", icon: Users, color: "border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300" },
   "account": { label: "Account Settings", icon: Settings, color: "bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-950/30 dark:text-slate-400 dark:border-slate-800" },
 }
 
@@ -369,6 +414,15 @@ export default function ChefHelpPage() {
                       {isExpanded && (
                         <div className="border-t border-white/60 px-4 py-4 dark:border-white/10">
                           <p className="text-sm leading-7 text-muted-foreground">{faq.answer}</p>
+                          {faq.links?.length ? (
+                            <div className="mt-4 flex flex-wrap gap-2">
+                              {faq.links.map((link) => (
+                                <Button key={`${faq.id}-${link.href}-${link.label}`} asChild variant="outline" size="sm" className="rounded-xl">
+                                  <Link href={link.href}>{link.label}</Link>
+                                </Button>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
                       )}
                     </div>
@@ -390,13 +444,13 @@ export default function ChefHelpPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <Button asChild variant="outline" className="w-full justify-start rounded-2xl border-white/70 bg-white/80 shadow-sm dark:border-white/10 dark:bg-white/5">
-                <Link href="mailto:support@chefmarketplace.com">
+                <Link href="mailto:info@chefachef.co.uk">
                   <Mail className="size-4" />
                   <span>Email support</span>
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start rounded-2xl border-white/70 bg-white/80 shadow-sm dark:border-white/10 dark:bg-white/5">
-                <Link href="mailto:support@chefmarketplace.com?subject=Chef%20Marketplace%20Help%20Request" target="_blank" rel="noreferrer">
+                <Link href="mailto:info@chefachef.co.uk?subject=Chefachef%20Help%20Request" target="_blank" rel="noreferrer">
                   <MessageSquareText className="size-4" />
                   <span>Open support request</span>
                 </Link>
@@ -414,7 +468,7 @@ export default function ChefHelpPage() {
                 <p className="font-medium text-foreground">Monday - Friday</p>
                 <p className="text-muted-foreground">9:00 AM - 6:00 PM EST</p>
                 <p className="mt-3 text-muted-foreground">
-                  For urgent issues outside these hours, please email support@chefmarketplace.com and we will respond as soon as possible.
+                  For urgent issues outside these hours, please email info@chefachef.co.uk and we will respond as soon as possible.
                 </p>
               </div>
             </CardContent>

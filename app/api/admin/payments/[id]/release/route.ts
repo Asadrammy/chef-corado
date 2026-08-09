@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server"
-import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
+import { requireAdminPermission } from "@/lib/admin-rbac"
 import { handleApiError } from "@/lib/error-handler"
 import { adminPaymentService } from "@/lib/services/admin-payment-service"
-import { Role } from "@/types"
 
 // POST release payment to chef
 export async function POST(
@@ -10,9 +9,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const session = await getRequiredSession(Role.ADMIN)
+    const session = await requireAdminPermission("payouts.process")
     const { id } = await params
-    const updatedPayment = await adminPaymentService.releasePayment(id, getSessionUserId(session))
+    const updatedPayment = await adminPaymentService.releasePayment(id, session.userId)
 
     return NextResponse.json({ 
       message: "Payment released successfully",

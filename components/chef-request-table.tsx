@@ -4,9 +4,14 @@ import { format } from "date-fns"
 import { FileText, ArrowRight } from "lucide-react"
 import Link from "next/link"
 import { formatCurrency } from "@/lib/currency"
+import { getServiceTypeLabel } from "@/lib/request-options"
 
 export type ChefRequestRow = {
   id: string
+  title?: string | null
+  eventType?: string | null
+  serviceType?: string | null
+  serviceTypeLabel?: string | null
   eventDate: string
   location: string
   budget: number
@@ -51,6 +56,8 @@ export function ChefRequestTable({
       <TableHeader>
         <TableRow>
           <TableHead>Event Date</TableHead>
+          <TableHead>Event</TableHead>
+          <TableHead>Service</TableHead>
           <TableHead>Location</TableHead>
           <TableHead>Budget</TableHead>
           <TableHead>Details</TableHead>
@@ -63,6 +70,8 @@ export function ChefRequestTable({
             <TableCell className="font-medium">
               {format(new Date(request.eventDate), "MMM d, yyyy")}
             </TableCell>
+            <TableCell>{request.eventType ?? "Event"}</TableCell>
+            <TableCell>{getServiceTypeLabel(request.serviceType, request.serviceTypeLabel)}</TableCell>
             <TableCell>{request.location}</TableCell>
             <TableCell>{formatCurrency(request.budget, request.currency)}</TableCell>
             <TableCell>{request.details ?? "No additional info"}</TableCell>

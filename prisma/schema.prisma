@@ -15,6 +15,10 @@ model User {
   password               String
   phone                  String?
   role                   String                  @default("CLIENT")
+  adminRole              String?
+  adminPermissions       String?
+  adminDisabledAt        DateTime?
+  adminLastPermissionChangeAt DateTime?
   isBanned               Boolean                 @default(false)
   banReason              String?
   banAdminNotes          String?
@@ -37,9 +41,12 @@ model User {
   notifications          Notification[]
   notificationPreference NotificationPreference?
   requests               Request[]               @relation("ClientRequests")
+  fullTimeChefEnquiries  FullTimeChefEnquiry[]
   reviews                Review[]                @relation("ClientReviews")
   accounts               Account[]
   sessions               Session[]
+
+  @@index([adminRole])
 }
 
 model Account {
@@ -141,6 +148,7 @@ model ChefProfile {
   proposals                Proposal[]
   requestInvitations       RequestInvitation[]
   reviews                  Review[]
+  backgroundChecks         BackgroundCheck[]
 
   @@index([latitude, longitude])
   @@index([isApproved])
@@ -230,16 +238,30 @@ model Request {
   clientId            String
   title               String?
   eventType           String
+  requestMode         String              @default("STANDARD")
+  serviceType         String?
+  serviceTypeLabel    String?
+  serviceTypeVersion  String?
+  serviceTier         String?
   cuisineTypes        String?
   dietaryRequirements String?
+  serviceSpecificAnswers String?
+  pricingRuleVersion  String?
+  pricingRuleId       String?
   description         String?
   eventDate           DateTime
+  eventDates          String?
   eventTime           String?
   location            String
   countryCode         String              @default("GB")
   currency            String              @default("GBP")
   guestCount          Int
+  adultCount          Int?
   studentCount        Int?
+  childrenUnder10     Int?
+  actualAttendeeCount Int?
+  billableGuestCount  Float?
+  pricingGuestCount   Float?
   latitude            Float?
   longitude           Float?
   locationCity        String?
@@ -250,9 +272,91 @@ model Request {
   budget              Float
   details             String?
   createdAt           DateTime            @default(now())
+  pricingRule         ServicePricingRule? @relation(fields: [pricingRuleId], references: [id])
   proposals           Proposal[]
   client              User                @relation("ClientRequests", fields: [clientId], references: [id])
   invitations         RequestInvitation[]
+  multiDayDates       MultiDayRequestDate[]
+
+  @@index([serviceType])
+  @@index([requestMode])
+  @@index([pricingRuleId])
+}
+
+model ServicePricingRule {
+  id               String    @id @default(cuid())
+  serviceType      String
+  countryCode      String
+  currency         String
+  tier             String?
+  minGuests        Int?
+  maxGuests        Int?
+  minimumSpend     Float?
+  pricePerPersonMin Float?
+  pricePerPersonMax Float?
+  customerGuidance String?
+  warningCopy      String?
+  evidenceSource   String?
+  evidenceNotes    String?
+  status           String    @default("DRAFT")
+  version          String
+  effectiveFrom    DateTime  @default(now())
+  effectiveTo      DateTime?
+  reviewedBy       String?
+  reviewedAt       DateTime?
+  activatedBy      String?
+  activatedAt      DateTime?
+  retiredBy        String?
+  retiredAt        DateTime?
+  lifecycleReason  String?
+  childrenRuleSummary String?
+  createdBy        String?
+  updatedBy        String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  requests         Request[]
+
+  @@index([serviceType, countryCode, currency, status])
+  @@index([status, effectiveFrom])
+  @@index([version])
+}
+
+model ServiceAsset {
+  id               String   @id @default(cuid())
+  serviceType      String
+  imageUrl         String
+  altText          String
+  source           String?
+  photographer     String?
+  licence          String?
+  licenceUrl       String?
+  suppliedByClient Boolean  @default(false)
+  clientApproved   Boolean  @default(false)
+  usageLocations   String?
+  status           String   @default("ACTIVE")
+  internalNotes    String?
+  createdBy        String?
+  updatedBy        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([serviceType])
+  @@index([status])
+  @@index([clientApproved])
+}
+
+model MultiDayRequestDate {
+  id          String   @id @default(cuid())
+  requestId   String
+  date        DateTime
+  startTime   String?
+  endTime     String?
+  serviceNeeds String?
+  createdAt   DateTime @default(now())
+  request     Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, date])
+  @@index([date])
 }
 
 model RequestInvitation {
@@ -299,10 +403,18 @@ model Booking {
   latitude        Float?
   longitude       Float?
   guestCount      Int
+  adultCount      Int?
+  childrenUnder10 Int?
+  actualAttendeeCount Int?
+  billableGuestCount Float?
+  pricingGuestCount Float?
   studentCount    Int?
   totalPrice      Float
   currency        String      @default("GBP")
   bookingType     String      @default("PROPOSAL")
+  serviceType     String?
+  serviceTypeLabel String?
+  pricingRuleVersion String?
   status          String      @default("PENDING")
   specialRequests String?
   idempotencyKey  String?     @unique
@@ -323,6 +435,141 @@ model Booking {
   @@index([chefId, status])
   @@index([eventDate])
   @@index([idempotencyKey])
+}
+
+model FullTimeChefEnquiry {
+  id                 String   @id @default(cuid())
+  clientId           String
+  location           String
+  countryCode        String   @default("GB")
+  currency           String   @default("GBP")
+  desiredStartDate   DateTime
+  expectedDuration   String
+  placementType      String
+  liveInPreference   String
+  workingDays        String
+  workingHours       String
+  householdSize      Int?
+  adultCount         Int?
+  childrenUnder10    Int?
+  responsibilities   String?
+  cuisineTypes       String?
+  dietaryRequirements String?
+  budgetAmount       Float?
+  budgetPeriod       String?
+  travelRequirements String?
+  legalWorkRequirements String?
+  notes              String?
+  assignedTo         String?
+  internalNotes      String?
+  qualifiedAt        DateTime?
+  closedAt           DateTime?
+  closedReason       String?
+  status             String   @default("NEW")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  client             User     @relation(fields: [clientId], references: [id])
+
+  @@index([clientId])
+  @@index([status])
+  @@index([countryCode])
+  @@index([assignedTo])
+}
+
+model BackgroundCheck {
+  id              String      @id @default(cuid())
+  chefId          String
+  checkType       String
+  provider        String?
+  reference       String?
+  status          String      @default("NOT_STARTED")
+  submittedAt     DateTime?
+  reviewerId      String?
+  reviewedAt      DateTime?
+  expiresAt       DateTime?
+  recheckAt       DateTime?
+  internalNotes   String?
+  requestedUpdateAt DateTime?
+  createdBy       String?
+  updatedBy       String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  chef            ChefProfile @relation(fields: [chefId], references: [id], onDelete: Cascade)
+
+  @@index([chefId])
+  @@index([status])
+  @@index([checkType])
+  @@index([expiresAt])
+}
+
+model SupportTicket {
+  id               String   @id @default(cuid())
+  requesterId      String?
+  requesterRole    String?
+  requesterEmail   String?
+  category         String
+  priority         String   @default("NORMAL")
+  status           String   @default("OPEN")
+  assignedTo       String?
+  relatedRequestId String?
+  relatedBookingId String?
+  relatedPaymentId String?
+  subject          String
+  description      String
+  resolution       String?
+  satisfactionScore Int?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  resolvedAt       DateTime?
+  messages         SupportTicketMessage[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([assignedTo])
+  @@index([requesterId])
+  @@index([createdAt])
+}
+
+model SupportTicketMessage {
+  id        String   @id @default(cuid())
+  ticketId  String
+  senderId  String?
+  senderRole String?
+  message   String
+  internal  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([createdAt])
+}
+
+model Invoice {
+  id              String   @id @default(cuid())
+  bookingId       String?
+  paymentId       String?
+  invoiceNumber   String   @unique
+  currency        String   @default("GBP")
+  subtotalAmount  Float    @default(0)
+  taxAmount       Float    @default(0)
+  totalAmount     Float    @default(0)
+  status          String   @default("DRAFT")
+  recipientName   String?
+  recipientEmail  String?
+  issuedAt        DateTime?
+  dueAt           DateTime?
+  paidAt          DateTime?
+  internalNotes   String?
+  createdBy       String?
+  updatedBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([bookingId])
+  @@index([paymentId])
+  @@index([status])
+  @@index([currency])
+  @@index([createdAt])
 }
 
 model Payment {
@@ -491,6 +738,9 @@ model Dispute {
   reason      String
   description String
   status      String    @default("OPEN")
+  assignedTo  String?
+  investigationState String?
+  internalNotes String?
   evidence    String?
   initiatedBy String
   resolvedBy  String?
@@ -501,6 +751,7 @@ model Dispute {
 
   @@index([bookingId])
   @@index([status])
+  @@index([assignedTo])
   @@index([initiatedBy])
   @@index([createdAt])
 }

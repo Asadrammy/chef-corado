@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getRequiredSession } from '@/lib/auth-helpers'
+import { requireAdminPermission } from '@/lib/admin-rbac'
 import { handleApiError } from '@/lib/error-handler'
 import { stripeReconciliationEngine } from '@/lib/services/stripe-reconciliation'
-import { Role } from '@/types'
 import { logger } from '@/lib/logger'
 import { applyRateLimit } from '@/lib/redis-rate-limiter'
 
@@ -15,7 +14,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const session = await getRequiredSession(Role.ADMIN)
+    const session = await requireAdminPermission('finance.view')
     
     const { searchParams } = new URL(request.url)
     const startDate = searchParams.get('startDate') 
@@ -28,7 +27,7 @@ export async function GET(request: NextRequest) {
     logger.info('[RECONCILIATION] Starting Stripe vs DB reconciliation', {
       startDate,
       endDate,
-      triggeredBy: session.user.id
+      triggeredBy: session.userId
     })
 
     const result = await stripeReconciliationEngine.reconcileAllPayments(startDate, endDate)
@@ -37,14 +36,14 @@ export async function GET(request: NextRequest) {
       checked: result.checked,
       fixed: result.fixed,
       errors: result.errors.length,
-      triggeredBy: session.user.id
+      triggeredBy: session.userId
     })
 
     // If there are critical issues, alert
     if (result.errors.length > 0) {
       logger.error('[RECONCILIATION] Critical reconciliation errors detected', {
         errors: result.errors,
-        triggeredBy: session.user.id
+        triggeredBy: session.userId
       })
     }
 
@@ -74,7 +73,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const session = await getRequiredSession(Role.ADMIN)
+    const session = await requireAdminPermission('payments.view')
     
     const body = await request.json()
     const { paymentId } = body
@@ -87,7 +86,7 @@ export async function POST(request: NextRequest) {
 
     logger.info('[RECONCILIATION] Starting specific payment reconciliation', {
       paymentId,
-      triggeredBy: session.user.id
+      triggeredBy: session.userId
     })
 
     const result = await stripeReconciliationEngine.reconcilePayment(paymentId)
@@ -97,7 +96,7 @@ export async function POST(request: NextRequest) {
       checked: result.checked,
       fixed: result.fixed,
       errors: result.errors.length,
-      triggeredBy: session.user.id
+      triggeredBy: session.userId
     })
 
     return NextResponse.json({

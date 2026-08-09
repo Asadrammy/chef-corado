@@ -22,6 +22,8 @@ export async function getRequiredSession(requiredRole?: Role | Role[]): Promise<
         select: {
           isBanned: true,
           role: true,
+          adminRole: true,
+          adminPermissions: true,
           termsAcceptedAt: true,
           termsVersion: true,
           acceptedVia: true,

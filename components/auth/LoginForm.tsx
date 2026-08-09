@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { getSafePostLoginRedirect, isKnownRole } from "@/lib/role-routes"
 
 type LoginFormProps = {
   onToggleMode?: () => void
@@ -213,15 +214,8 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
         const response = await fetch("/api/auth/session")
         const session = await response.json()
 
-        if (session?.user?.role) {
-          const role = session.user.role as "CLIENT" | "CHEF" | "ADMIN"
-          const dashboardPath = {
-            CLIENT: "/dashboard/client",
-            CHEF: "/dashboard/chef",
-            ADMIN: "/dashboard/admin",
-          }[role]
-
-          router.push(safeCallbackUrl || dashboardPath)
+        if (isKnownRole(session?.user?.role)) {
+          router.push(getSafePostLoginRedirect(session.user.role, safeCallbackUrl))
         } else {
           router.push(safeCallbackUrl || "/dashboard")
         }

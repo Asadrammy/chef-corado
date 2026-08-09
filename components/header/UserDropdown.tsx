@@ -1,9 +1,11 @@
 "use client";
- import { useState } from "react";
- import { useSession, signOut } from "next-auth/react";
-import { UserCircleIcon, ArrowRightOnRectangleIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
- import Link from "next/link";
-import { cn } from "@/lib/utils";
+
+import { useState } from "react";
+import { useSession } from "next-auth/react";
+import { ArrowRightOnRectangleIcon, Cog6ToothIcon } from "@heroicons/react/24/outline";
+import Link from "next/link";
+
+import { signOutForRole } from "@/lib/auth-navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,9 +21,7 @@ export default function UserDropdown() {
   const { data: session } = useSession();
 
   const handleSignOut = () => {
-    document.cookie = `__Secure-next-auth.callback-url=; Path=/; Max-Age=0; SameSite=Lax; Secure`;
-    document.cookie = `next-auth.callback-url=; Path=/; Max-Age=0; SameSite=Lax`;
-    signOut({ callbackUrl: `${window.location.origin}/login` });
+    signOutForRole(session?.user?.role);
   };
 
   const userInitial = session?.user?.name?.slice(0, 1).toUpperCase() || "U";

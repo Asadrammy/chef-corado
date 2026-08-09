@@ -7,6 +7,7 @@ import {
   triggerProposalRejectedNotification,
 } from "@/lib/notifications"
 import { prisma } from "@/lib/prisma"
+import { assertProposalMeetsActivePricingRule } from "@/lib/services/pricing-rule-service"
 import { enforceUserModeration, enforceChefModeration } from "@/lib/security/moderation-guard"
 import { enforceChefCompliance } from "@/lib/security/legal-compliance"
 import { validateMessageContent } from "@/lib/security/communication-policy"
@@ -64,6 +65,11 @@ export const proposalService = {
     if (!targetRequest) {
       throw new Error("REQUEST_NOT_FOUND")
     }
+
+    await assertProposalMeetsActivePricingRule({
+      request: targetRequest,
+      proposalPrice: input.price,
+    })
 
     const expiresAt = new Date()
     expiresAt.setHours(expiresAt.getHours() + PROPOSAL_EXPIRY_HOURS)

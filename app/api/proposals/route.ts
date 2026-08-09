@@ -115,6 +115,53 @@ export async function POST(request: Request) {
       return response
     }
 
+    if (error instanceof Error && error.message.startsWith("PROPOSAL_BELOW_MINIMUM_SPEND:")) {
+      const minimumSpend = error.message.split(":")[1]
+      const response = NextResponse.json(
+        { error: `Proposal price is below the active minimum spend (${minimumSpend}).` },
+        { status: 422 }
+      )
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
+    if (error instanceof Error && error.message.startsWith("PRICING_GUEST_COUNT_BELOW_MIN:")) {
+      const minimumGuests = error.message.split(":")[1]
+      const response = NextResponse.json(
+        { error: `This request is below the active pricing guest minimum (${minimumGuests}).` },
+        { status: 422 }
+      )
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
+    if (error instanceof Error && error.message.startsWith("PRICING_GUEST_COUNT_ABOVE_MAX:")) {
+      const maximumGuests = error.message.split(":")[1]
+      const response = NextResponse.json(
+        { error: `This request exceeds the active pricing guest maximum (${maximumGuests}).` },
+        { status: 422 }
+      )
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
+    if (error instanceof Error && ["PRICING_RULE_NOT_ACTIVE", "PRICING_RULE_CURRENCY_MISMATCH"].includes(error.message)) {
+      const response = NextResponse.json(
+        { error: "The active pricing rule for this request is no longer valid. Please contact support before quoting." },
+        { status: 409 }
+      )
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
     if (error instanceof Error && error.message === "MENU_NOT_FOUND_OR_FORBIDDEN") {
       const response = NextResponse.json(
         { error: "Selected menu was not found for your chef profile." },

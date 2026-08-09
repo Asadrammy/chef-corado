@@ -1,9 +1,8 @@
 import { Metadata } from "next"
 import { generateMeta } from "@/lib/utils"
-import { getServerSession } from "next-auth"
-import { redirect } from "next/navigation"
 
-import { authOptions } from "@/lib/auth"
+import { requireAdminPagePermission } from "@/lib/admin-rbac"
+import { getVisibleAdminModules } from "@/lib/admin-permissions"
 import { isLocalDemoSessionUser } from "@/lib/auth"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { localDemoAdminDashboardStats } from "@/lib/local-demo-data"
@@ -108,14 +107,15 @@ async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
 }
 
 export default async function AdminDashboardPage() {
-  const session = await getServerSession(authOptions)
-  if (!session || session.user?.role !== "ADMIN") {
-    redirect("/dashboard")
-  }
+  const adminAccess = await requireAdminPagePermission("analytics.view")
 
-  const { totalChefs, pendingChefs, activeBookings, totalRevenue, pendingPayouts } = isLocalDemoSessionUser(session.user.id, session.user.email)
+  const { totalChefs, pendingChefs, activeBookings, totalRevenue, pendingPayouts } = isLocalDemoSessionUser(adminAccess.userId, adminAccess.email)
     ? localDemoAdminDashboardStats()
     : await getAdminDashboardStats()
+  const visibleModules = getVisibleAdminModules(adminAccess.adminRole)
+  const canViewBookings = adminAccess.permissions.includes("bookings.view")
+  const canViewFinance = adminAccess.permissions.includes("finance.view")
+  const canReviewChefs = adminAccess.permissions.includes("chefs.review")
 
   return (
     <div className="space-y-8">
@@ -133,12 +133,11 @@ export default async function AdminDashboardPage() {
           Manage your marketplace with powerful tools. Monitor performance, approve chefs, and ensure platform health.
         </p>
         <div className="flex items-center gap-4">
-          <Button className="shadow-sm hover:shadow-md">
-            <ArrowRight className="mr-2 h-4 w-4" />
-            View Analytics
-          </Button>
-          <Button variant="outline" className="border-gray-200 dark:border-gray-700">
-            Quick Tour
+          <Button asChild className="shadow-sm hover:shadow-md">
+            <Link href="/dashboard/admin/analytics">
+              <ArrowRight className="mr-2 h-4 w-4" />
+              View Analytics
+            </Link>
           </Button>
         </div>
       </header>
@@ -221,7 +220,7 @@ export default async function AdminDashboardPage() {
             Admin Actions
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Link href="/dashboard/admin/chefs">
+            {canReviewChefs ? <Link href="/dashboard/admin/chefs">
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-150 cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-50 dark:bg-blue-900/20">
@@ -234,9 +233,9 @@ export default async function AdminDashboardPage() {
                 </div>
                 <Badge variant="secondary" className="shrink-0">{pendingChefs} pending</Badge>
               </div>
-            </Link>
+            </Link> : null}
 
-            <Link href="/dashboard/admin/bookings">
+            {canViewBookings ? <Link href="/dashboard/admin/bookings">
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-150 cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-50 dark:bg-purple-900/20">
@@ -249,9 +248,9 @@ export default async function AdminDashboardPage() {
                 </div>
                 <Badge variant="secondary" className="shrink-0">{activeBookings} active</Badge>
               </div>
-            </Link>
+            </Link> : null}
 
-            <Link href="/dashboard/admin/payments">
+            {canViewFinance ? <Link href="/dashboard/admin/payments">
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-150 cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-50 dark:bg-green-900/20">
@@ -264,9 +263,9 @@ export default async function AdminDashboardPage() {
                 </div>
                 <Badge variant="secondary" className="shrink-0">{pendingPayouts} pending</Badge>
               </div>
-            </Link>
+            </Link> : null}
 
-            <Link href="/dashboard/admin/chefs">
+            {canViewFinance ? <Link href="/dashboard/admin/finance">
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-150 cursor-pointer group">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-orange-50 dark:bg-orange-900/20">
@@ -279,15 +278,30 @@ export default async function AdminDashboardPage() {
                 </div>
                 <Badge variant="secondary" className="shrink-0">{formatCurrency(totalRevenue, 'GBP')}</Badge>
               </div>
-            </Link>
+            </Link> : null}
+            {visibleModules.filter((module) => !["/dashboard/admin", "/dashboard/admin/chefs", "/dashboard/admin/bookings", "/dashboard/admin/payments", "/dashboard/admin/finance"].includes(module.url)).slice(0, 4).map((module) => (
+              <Link key={module.url} href={module.url}>
+                <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-150 cursor-pointer group">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-orange-50 dark:bg-orange-900/20">
+                      <ArrowRight className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">{module.title}</span>
+                      <p className="text-xs text-gray-600 dark:text-gray-300">Open module</p>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Recent Bookings Table - Full Width */}
-      <section className="w-full">
+      {canViewBookings ? <section className="w-full">
         <RecentBookings />
-      </section>
+      </section> : null}
     </div>
   )
 }

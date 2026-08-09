@@ -4,8 +4,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { AlertCircle, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { RoleAwareSignOutButton } from "@/components/auth/role-aware-sign-out-button"
 import Link from "next/link"
-import { signOut } from "next-auth/react"
 
 export const metadata: Metadata = generateMeta({
   title: "Account Banned",
@@ -53,19 +53,7 @@ export default async function AccountBannedPage() {
 
           {/* Actions */}
           <div className="space-y-3">
-            <form
-              action={async () => {
-                "use server"
-                // Sign out the user
-                await fetch(`${process.env.NEXTAUTH_URL}/api/auth/signout`, {
-                  method: "POST",
-                })
-              }}
-            >
-              <Button className="w-full" type="submit">
-                Sign Out
-              </Button>
-            </form>
+            <RoleAwareSignOutButton role={session?.user?.role} />
             
             <Link href="/" className="block">
               <Button variant="outline" className="w-full">

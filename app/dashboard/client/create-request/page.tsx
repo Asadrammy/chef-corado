@@ -14,7 +14,7 @@ export const metadata: Metadata = generateMeta({
 export default async function CreateRequestPage({
   searchParams,
 }: {
-  searchParams: Promise<{ chefId?: string }>
+  searchParams: Promise<{ chefId?: string; draft?: string }>
 }) {
   const session = await getServerSession(authOptions)
   if (!session || session.user?.role !== "CLIENT") {
@@ -36,7 +36,7 @@ export default async function CreateRequestPage({
         </div>
       </div>
 
-      <RequestWizardForm chefId={resolvedSearchParams.chefId} />
+      <RequestWizardForm chefId={resolvedSearchParams.chefId} initialDraftId={resolvedSearchParams.draft} />
     </div>
   )
 }

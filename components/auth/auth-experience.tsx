@@ -48,7 +48,7 @@ export function AuthExperience({ initialMode = "login" }: AuthExperienceProps) {
             <section className="hidden min-h-0 items-center lg:flex">
               <div className="max-w-md text-left text-white">
                 <div className="inline-flex w-fit items-center gap-3 rounded-full border border-white/18 bg-white/8 px-4 py-2 backdrop-blur-md">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,#3b82f6_0%,#7c3aed_100%)] text-white shadow-[0_12px_28px_rgba(59,130,246,0.35)]">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_28px_rgba(255,117,24,0.35)]">
                     <Sparkles className="h-4 w-4" />
                   </div>
                   <span className="text-sm font-medium tracking-[0.18em] text-white uppercase">Chef Marketplace</span>
@@ -61,6 +61,16 @@ export function AuthExperience({ initialMode = "login" }: AuthExperienceProps) {
                   <p className="max-w-[28rem] text-base leading-7 text-white/78">
                     {heroDescription}
                   </p>
+                </div>
+
+                <div className="mt-8 w-full max-w-xs overflow-hidden rounded-3xl border border-white/16 bg-white/10 p-4 shadow-[0_18px_45px_rgba(0,0,0,0.18)] backdrop-blur-md">
+                  <Image
+                    src="/images/brand/orange-chef-illustration.jpg"
+                    alt="Chefachef orange chef illustration"
+                    width={600}
+                    height={428}
+                    className="h-auto w-full object-contain"
+                  />
                 </div>
 
                 <div className="mt-8 flex flex-col items-start gap-3">

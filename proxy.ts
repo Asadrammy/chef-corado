@@ -49,6 +49,10 @@ export default async function proxy(request: NextRequest) {
   }
 
   if (!token && !isPublicPath) {
+    if (isApiRoute) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const loginUrl = new URL('/login', appBaseUrl)
     loginUrl.searchParams.set('callbackUrl', `${pathname}${request.nextUrl.search}`)
 

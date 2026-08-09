@@ -6,6 +6,7 @@ import { MapPin, Calendar } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/currency"
+import { getServiceTypeLabel } from "@/lib/request-options"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -40,7 +41,10 @@ import {
 export type ProposalModalProps = {
   request: {
     id: string
-    title?: string
+    title?: string | null
+    eventType?: string | null
+    serviceType?: string | null
+    serviceTypeLabel?: string | null
     location: string
     budget: number
     currency?: string
@@ -206,7 +210,11 @@ export function ProposalModal({ request, onSuccess, children }: ProposalModalPro
               </div>
               <div>
                 <span className="text-gray-600 block text-xs font-medium mb-1">Type:</span>
-                <p className="font-medium">{request.title || 'Event'}</p>
+                <p className="font-medium">{request.eventType || request.title || 'Event'}</p>
+              </div>
+              <div>
+                <span className="text-gray-600 block text-xs font-medium mb-1">Service:</span>
+                <p className="font-medium">{getServiceTypeLabel(request.serviceType, request.serviceTypeLabel)}</p>
               </div>
             </div>
             {request.details && (

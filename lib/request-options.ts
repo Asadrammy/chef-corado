@@ -8,26 +8,43 @@ export const COMMUNICATION_POLICY_EXTENDED = "All communication, booking coordin
 export const CHEF_LEGAL_ACKNOWLEDGEMENT = "Chefs must confirm their legal right to work in the UK, confirm Level 2 Food Hygiene & Safety, and keep their legal acknowledgements current before offering services. Platform insurance is handled after approval by the website owner and is not uploaded by chefs in the dashboard.";
 export const FUTURE_CALLING_PROVIDER = "Twilio Voice";
 
-export const COUNTRY_OPTIONS = [
-  { value: "GB", label: "United Kingdom", currency: "GBP", locale: "en-GB" },
-  { value: "US", label: "United States", currency: "USD", locale: "en-US" },
-] as const;
+export {
+  COUNTRY_OPTIONS,
+  EVENT_TYPE_OPTIONS,
+  SERVICE_ENGINE_VERSION as SERVICE_TYPE_REGISTRY_VERSION,
+  SERVICE_TYPE_CONFIG as SERVICE_TYPE_OPTIONS,
+  calculateGuestComposition,
+  getBudgetWarning,
+  getCountryOption,
+  getCurrencyForCountry,
+  getLocaleForCountry,
+  getPricingRule,
+  getServiceTypeConfig as getServiceTypeOption,
+  getServiceTypeLabel,
+} from "@/lib/service-engine";
 
-export const EVENT_TYPES = [
-  "Birthday",
-  "Get Together",
-  "Anniversary",
-  "Corporate Event",
-  "Family Dinner",
-  "Wedding",
-  "Cooking Class",
-  "Other",
-] as const;
+import {
+  COUNTRY_OPTIONS,
+  EVENT_TYPE_OPTIONS,
+  SERVICE_TYPE_CONFIG,
+} from "@/lib/service-engine";
 
-export const SERVICE_TYPES = [
+export const EVENT_TYPES = EVENT_TYPE_OPTIONS.map((option) => option.label) as [
+  typeof EVENT_TYPE_OPTIONS[number]["label"],
+  ...typeof EVENT_TYPE_OPTIONS[number]["label"][],
+];
+
+export const LEGACY_EXPERIENCE_SERVICE_TYPES = [
   "DINING",
   "COOKING_CLASS",
 ] as const;
+
+export const REQUEST_SERVICE_TYPES = SERVICE_TYPE_CONFIG.map((option) => option.id) as [
+  typeof SERVICE_TYPE_CONFIG[number]["id"],
+  ...typeof SERVICE_TYPE_CONFIG[number]["id"][],
+];
+
+export const SERVICE_TYPES = LEGACY_EXPERIENCE_SERVICE_TYPES;
 
 export const COOKING_CLASS_TYPES = [
   "Hands-On",
@@ -39,22 +56,66 @@ export const COOKING_CLASS_TYPES = [
 ] as const;
 
 export const CUISINE_TYPES = [
-  "British",
   "Italian",
-  "French",
-  "Mediterranean",
   "Indian",
+  "BBQ",
+  "British",
+  "Pan Asian",
+  "Fine Dining",
   "Japanese",
-  "Chinese",
-  "Thai",
   "Mexican",
   "Middle Eastern",
-  "African",
+  "Chinese",
+  "Mediterranean",
+  "Thai",
+  "Spanish",
+  "Greek",
   "Caribbean",
+  "Modern European",
+  "Meal Prep-Lunch and Dinner",
+  "French",
+  "Canapè Party",
+  "Fusion",
+  "Turkish",
+  "Korean",
+  "Meal Prep",
+  "Malaysian",
+  "Brunch",
+  "Christmas",
+  "Afternoon Tea",
+  "Vietnamese",
+  "Sri Lankan",
+  "Brazilian",
+  "Portuguese",
+  "Cooking Class",
+  "Peruvian",
   "American",
+  "Lebanese",
   "Vegetarian",
   "Vegan",
-  "Fusion",
+  "Latin America",
+  "Scottish",
+  "Polish",
+  "Micro Biotic",
+  "Macro Biotic",
+  "Nigerian",
+  "Creole",
+  "Russian",
+  "Iraqi",
+  "Morocco",
+  "Moroccan",
+  "Scandinavian",
+  "Iranian",
+  "German",
+  "African",
+  "Tapas",
+  "Kids",
+  "Group Experiences",
+  "Filipino",
+  "Argentinian",
+  "Afghan",
+  "Pakistani",
+  "Georgian",
   "Other",
 ] as const;
 
@@ -75,7 +136,7 @@ export const DIETARY_REQUIREMENTS = [
 
 export type CountryCode = typeof COUNTRY_OPTIONS[number]["value"];
 export type EventType = typeof EVENT_TYPES[number];
-export type ServiceType = typeof SERVICE_TYPES[number];
+export type ServiceType = typeof REQUEST_SERVICE_TYPES[number];
 export type CookingClassType = typeof COOKING_CLASS_TYPES[number];
 export type CuisineType = typeof CUISINE_TYPES[number];
 export type DietaryRequirement = typeof DIETARY_REQUIREMENTS[number];
@@ -97,14 +158,6 @@ export function formatAcceptanceStatus(date?: string | Date | null, version?: st
   };
 }
 
-export function getCountryOption(countryCode?: string) {
-  return COUNTRY_OPTIONS.find((option) => option.value === countryCode) ?? COUNTRY_OPTIONS[0];
-}
-
-export function getCurrencyForCountry(countryCode?: string) {
-  return getCountryOption(countryCode).currency;
-}
-
-export function getLocaleForCountry(countryCode?: string) {
-  return getCountryOption(countryCode).locale;
+export function getEventTypeOptionByLabel(label?: string | null) {
+  return EVENT_TYPE_OPTIONS.find((option) => option.label === label) ?? null;
 }

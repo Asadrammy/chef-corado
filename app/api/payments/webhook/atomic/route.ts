@@ -192,11 +192,13 @@ export async function POST(request: Request) {
       })
 
       // Step 9: Create ledger entry
+      const transactionCurrency = booking.payments.currency || booking.currency || 'GBP'
+
       await tx.ledger.create({
         data: {
           transactionType: 'PAYMENT',
           amount: booking.payments.totalAmount,
-          currency: 'USD',
+          currency: transactionCurrency,
           bookingId: booking.id,
           paymentId: paymentId,
           fromAccount: 'CLIENT',
@@ -210,7 +212,7 @@ export async function POST(request: Request) {
         data: {
           transactionType: 'COMMISSION',
           amount: booking.payments.commissionAmount,
-          currency: 'USD',
+          currency: transactionCurrency,
           bookingId: booking.id,
           paymentId: paymentId,
           fromAccount: 'PLATFORM',

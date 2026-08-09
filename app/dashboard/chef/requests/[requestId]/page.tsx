@@ -14,6 +14,8 @@ function getLocalDemoRequest(requestId: string) {
     "local-request-anniversary": {
       title: "Anniversary dinner for 10 guests",
       eventType: "Anniversary",
+      serviceType: "THREE_COURSE_MEAL",
+      serviceTypeLabel: "3-Course Meal",
       description: "A polished private dinner with seasonal courses, graceful pacing, and a celebratory finish.",
       location: "Downtown",
       budget: 1450,
@@ -24,6 +26,8 @@ function getLocalDemoRequest(requestId: string) {
     "local-request-tasting": {
       title: "Modern Italian tasting menu",
       eventType: "Private Dining",
+      serviceType: "SIX_NINE_COURSE_MEAL",
+      serviceTypeLabel: "6-9-Course Meal",
       description: "A wine-friendly Italian tasting menu for an intimate celebration.",
       location: "West End",
       budget: 2200,
@@ -34,6 +38,8 @@ function getLocalDemoRequest(requestId: string) {
     "local-request-brunch": {
       title: "Private family brunch",
       eventType: "Brunch",
+      serviceType: "BRUNCH",
+      serviceTypeLabel: "Brunch",
       description: "Relaxed family brunch with plated mains, pastries, and warm hospitality.",
       location: "Riverside",
       budget: 980,
@@ -44,6 +50,8 @@ function getLocalDemoRequest(requestId: string) {
     "local-request-corporate": {
       title: "Executive chef's table",
       eventType: "Corporate",
+      serviceType: "FOUR_FIVE_COURSE_MEAL",
+      serviceTypeLabel: "4-5-Course Meal",
       description: "A discreet chef's table for a small executive hospitality evening.",
       location: "Financial District",
       budget: 3100,
@@ -129,6 +137,8 @@ export default async function ChefRequestDetailPage({ params }: ChefRequestDetai
       id: request.id,
       title: request.title,
       eventType: request.eventType,
+      serviceType: request.serviceType,
+      serviceTypeLabel: request.serviceTypeLabel,
       description: request.description ?? request.details ?? "",
       status: request.proposals[0]?.status ?? "OPEN",
       eventDate: request.eventDate.toISOString(),

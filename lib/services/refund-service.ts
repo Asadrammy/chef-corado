@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma"
-import { ledgerService } from "@/lib/services/ledger-service"
 import { PaymentStateMachine, logStateTransition } from "@/lib/utils/state-machine"
 import { generateIdempotencyKey } from "@/lib/utils/idempotency"
 import { logger } from "@/lib/logger"
@@ -162,22 +161,18 @@ export const refundService = {
       throw new Error("NO_STRIPE_PAYMENT_INTENT")
     }
 
-    const baseRefund = refund
-
-    const processedRefund: any = await prisma.$transaction(async (tx) => {
+    const processedRefund = await prisma.$transaction(async (tx) => {
       try {
-        // Process Stripe refund
         const stripeRefund = await stripeClient.refunds.create({
-          payment_intent: baseRefund.payment.stripePaymentIntentId || undefined,
-          amount: Math.round(baseRefund.amount * 100), // Convert to cents
+          payment_intent: refund.payment.stripePaymentIntentId || undefined,
+          amount: Math.round(refund.amount * 100),
           reason: 'requested_by_customer',
           metadata: {
-            refundId: baseRefund.id,
-            bookingId: baseRefund.payment.booking.id
+            refundId: refund.id,
+            bookingId: refund.payment.booking.id
           }
         })
 
-        // Update refund record
         const updatedRefund = await tx.refund.update({
           where: { id: refundId },
           data: {
@@ -188,52 +183,75 @@ export const refundService = {
           }
         })
 
-        // Log state transition for refund
         await logStateTransition(tx, "REFUND", refundId, "PENDING", "PROCESSED", approvedBy)
 
-        // Update payment status if fully refunded
         const totalRefunded = await tx.refund.aggregate({
           where: {
-            paymentId: baseRefund.paymentId,
+            paymentId: refund.paymentId,
             status: REFUND_STATUS.PROCESSED
           },
           _sum: { amount: true }
         })
 
-        const isFullyRefunded = (totalRefunded._sum.amount || 0) >= baseRefund.payment.totalAmount
+        const isFullyRefunded = (totalRefunded._sum.amount || 0) >= refund.payment.totalAmount
 
         if (isFullyRefunded) {
-          // Validate payment state transition to REFUNDED
           const paymentTransition = PaymentStateMachine.validateTransition(
-            baseRefund.payment.status,
+            refund.payment.status,
             "REFUNDED"
           )
 
           if (!paymentTransition) {
-            throw new Error(`INVALID_PAYMENT_TRANSITION:${baseRefund.payment.status}->REFUNDED`)
+            throw new Error(`INVALID_PAYMENT_TRANSITION:${refund.payment.status}->REFUNDED`)
           }
 
           await tx.payment.update({
-            where: { id: baseRefund.paymentId },
+            where: { id: refund.paymentId },
             data: { status: 'REFUNDED' }
           })
 
-          // Log payment state transition
-          await logStateTransition(tx, "PAYMENT", baseRefund.paymentId, baseRefund.payment.status, "REFUNDED", approvedBy)
+          await logStateTransition(tx, "PAYMENT", refund.paymentId, refund.payment.status, "REFUNDED", approvedBy)
         }
 
-        // Create notifications
+        await tx.ledger.create({
+          data: {
+            transactionType: "REFUND",
+            amount: -refund.amount,
+            currency: refund.payment.currency,
+            bookingId: refund.payment.bookingId,
+            paymentId: refund.paymentId,
+            refundId: refund.id,
+            fromAccount: "PLATFORM_HOLDING",
+            toAccount: "STRIPE_REFUND",
+            description: `Refund processed: ${refund.amount} ${refund.payment.currency} - ${refund.description}`,
+            metadata: JSON.stringify({ reason: refund.reason, stripeRefundId: stripeRefund.id }),
+            createdBy: approvedBy,
+          },
+        })
+
+        await tx.auditLog.create({
+          data: {
+            action: "REFUND_APPROVED",
+            entityType: "Refund",
+            entityId: refund.id,
+            oldValue: JSON.stringify({ status: refund.status }),
+            newValue: JSON.stringify({ status: updatedRefund.status, stripeRefundId: stripeRefund.id }),
+            performedBy: approvedBy,
+            reason: refund.description,
+          },
+        })
+
         await tx.notification.createMany({
           data: [
             {
-              userId: baseRefund.payment.booking.clientId,
+              userId: refund.payment.booking.clientId,
               type: 'REFUND_APPROVED',
-              message: `Your refund of $${baseRefund.amount} has been processed`,
+              message: `Your refund of ${refund.amount} ${refund.payment.currency} has been processed`,
             },
             {
-              userId: baseRefund.payment.booking.chefId,
+              userId: refund.payment.booking.chefId,
               type: 'REFUND_APPROVED',
-              message: `A refund of $${baseRefund.amount} has been processed for booking ${baseRefund.payment.booking.id}`,
+              message: `A refund of ${refund.amount} ${refund.payment.currency} has been processed for booking ${refund.payment.booking.id}`,
             }
           ]
         })
@@ -253,20 +271,9 @@ export const refundService = {
         })
         throw stripeError
       }
-
-      // CRITICAL: Record in ledger INSIDE transaction for atomicity
-      // Ledger failures now block the entire refund operation
-      await ledgerService.recordRefund(
-        refundId,
-        baseRefund.paymentId,
-        baseRefund.payment.bookingId,
-        baseRefund.amount,
-        approvedBy,
-        baseRefund.description
-      )
-
-      return processedRefund
     })
+
+    return processedRefund
   },
 
   async rejectRefund(refundId: string, rejectedBy: string, reason: string) {
@@ -318,6 +325,18 @@ export const refundService = {
           type: 'REFUND_REJECTED',
           message: `Your refund request was rejected: ${reason}`,
         }
+      })
+
+      await tx.auditLog.create({
+        data: {
+          action: "REFUND_REJECTED",
+          entityType: "Refund",
+          entityId: refundId,
+          oldValue: JSON.stringify({ status: refund.status }),
+          newValue: JSON.stringify({ status: updatedRefund.status, failureReason: reason }),
+          performedBy: rejectedBy,
+          reason: reason || "Refund rejected",
+        },
       })
 
       return updatedRefund

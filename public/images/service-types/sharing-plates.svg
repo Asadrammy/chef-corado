@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Placeholder illustration for sharing plates">
+  <rect width="1200" height="800" fill="#fff7ed"/>
+  <rect x="72" y="72" width="1056" height="656" rx="48" fill="#1c1917"/>
+  <ellipse cx="600" cy="390" rx="360" ry="190" fill="#f97316"/>
+  <g fill="#fff7ed">
+    <circle cx="455" cy="352" r="58"/><circle cx="600" cy="430" r="72"/><circle cx="746" cy="352" r="58"/>
+  </g>
+  <path d="M365 512c145 82 327 82 470 0" fill="none" stroke="#fff7ed" stroke-width="22" stroke-linecap="round"/>
+  <text x="600" y="652" fill="#fff7ed" font-family="Arial, sans-serif" font-size="56" font-weight="700" text-anchor="middle">Sharing Plates</text>
+</svg>

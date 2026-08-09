@@ -4,6 +4,7 @@ import * as React from "react"
 import { useSession } from "next-auth/react"
 import { usePathname } from "next/navigation"
 import { Role } from "@/types"
+import { getVisibleAdminModuleGroups } from "@/lib/admin-permissions"
 import { NavMain } from "@/components/nav-main"
 import { NavSecondary } from "@/components/nav-secondary"
 import { NavUser } from "@/components/nav-user"
@@ -26,6 +27,7 @@ import {
   IconSettings, 
   IconHome,
   IconMenu2,
+  IconShieldLock,
   type Icon 
 } from "@tabler/icons-react"
 
@@ -101,20 +103,24 @@ const getChefNavGroups = (pathname: string): NavGroup[] => [
   },
 ]
 
-const getAdminNavGroups = (pathname: string): NavGroup[] => [
-  {
-    label: "Overview",
-    items: [createNavItem("Dashboard", "/dashboard/admin", IconHome, pathname, true)],
-  },
-  {
-    label: "Operations",
-    items: [
-      createNavItem("Chefs", "/dashboard/admin/chefs", IconChefHat, pathname),
-      createNavItem("Bookings", "/dashboard/admin/bookings", IconCalendar, pathname),
-      createNavItem("Payments", "/dashboard/admin/payments", IconCurrencyDollar, pathname),
-    ],
-  },
-]
+const adminIconFor = (title: string): Icon => {
+  if (title.includes("Chef")) return IconChefHat
+  if (title.includes("Booking") || title === "Calendar") return IconCalendar
+  if (title.includes("Finance") || title.includes("Payment") || title.includes("Payout") || title.includes("Invoice") || title.includes("Commission") || title.includes("Refund")) return IconCurrencyDollar
+  if (title.includes("Staff") || title.includes("Audit") || title.includes("Compliance") || title.includes("Background")) return IconShieldLock
+  if (title.includes("Support")) return IconMessageCircle
+  if (title.includes("User")) return IconUsers
+  if (title.includes("Request") || title.includes("Pricing") || title.includes("Asset")) return IconFileText
+  if (title.includes("Settings")) return IconSettings
+  return IconHome
+}
+
+const getAdminNavGroups = (pathname: string, adminRole?: string | null, adminPermissions?: string | null): NavGroup[] => {
+  return getVisibleAdminModuleGroups(adminRole ?? "SUPER_ADMIN", adminPermissions).map((group) => ({
+    label: group.label,
+    items: group.modules.map((module) => createNavItem(module.title, module.url, adminIconFor(module.title), pathname, module.url === "/dashboard/admin")),
+  }))
+}
 
 export function MarketplaceSidebar() {
   const { data: session } = useSession()
@@ -128,7 +134,7 @@ export function MarketplaceSidebar() {
       case Role.CHEF:
         return getChefNavGroups(pathname)
       case Role.ADMIN:
-        return getAdminNavGroups(pathname)
+        return getAdminNavGroups(pathname, session?.user?.adminRole, session?.user?.adminPermissions)
       default:
         return []
     }

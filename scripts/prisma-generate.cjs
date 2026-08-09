@@ -5,6 +5,8 @@ const path = require("node:path")
 const root = path.resolve(__dirname, "..")
 const prismaClientDir = path.join(root, "node_modules", ".prisma", "client")
 const generatedClientEntry = path.join(prismaClientDir, "index.js")
+const projectSchema = path.join(root, "prisma", "schema.prisma")
+const generatedSchema = path.join(prismaClientDir, "schema.prisma")
 const queryEngine = path.join(prismaClientDir, "query_engine-windows.dll.node")
 const prismaCli = path.join(root, "node_modules", "prisma", "build", "index.js")
 
@@ -23,6 +25,39 @@ const removeTempEngines = () => {
 }
 
 const hasExistingClient = () => fs.existsSync(generatedClientEntry) && fs.existsSync(queryEngine)
+
+const readNormalized = (filePath) => fs.readFileSync(filePath, "utf8").replace(/\r\n/g, "\n")
+
+const getModelFieldSignatures = (schema, modelName) => {
+  const match = schema.match(new RegExp(`model\\s+${modelName}\\s+\\{([\\s\\S]*?)\\n\\}`))
+  if (!match) return null
+
+  return new Set(
+    match[1]
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line && !line.startsWith("//") && !line.startsWith("@@"))
+      .map((line) => {
+        const [fieldName, fieldType] = line.split(/\s+/)
+        return `${fieldName}:${fieldType}`
+      }),
+  )
+}
+
+const hasCurrentGeneratedRequestModel = () => {
+  if (!fs.existsSync(projectSchema) || !fs.existsSync(generatedSchema)) return false
+
+  const projectRequestFields = getModelFieldSignatures(readNormalized(projectSchema), "Request")
+  const generatedRequestFields = getModelFieldSignatures(readNormalized(generatedSchema), "Request")
+
+  if (!projectRequestFields || !generatedRequestFields) return false
+
+  for (const field of projectRequestFields) {
+    if (!generatedRequestFields.has(field)) return false
+  }
+
+  return true
+}
 
 const isWindowsPrismaEngineRenameLock = (output) =>
   process.platform === "win32" &&
@@ -67,7 +102,11 @@ for (let attempt = 1; attempt <= 3; attempt += 1) {
   wait(500 * attempt)
 }
 
-if ((isWindowsPrismaEngineRenameLock(lastOutput) || isSpawnPermissionLock(lastOutput)) && hasExistingClient()) {
+if (
+  (isWindowsPrismaEngineRenameLock(lastOutput) || isSpawnPermissionLock(lastOutput)) &&
+  hasExistingClient() &&
+  hasCurrentGeneratedRequestModel()
+) {
   console.warn(
     "Prisma generate hit a Windows process/file lock. " +
       "An existing generated Prisma Client is present, so npm install can continue. " +
@@ -75,6 +114,15 @@ if ((isWindowsPrismaEngineRenameLock(lastOutput) || isSpawnPermissionLock(lastOu
   )
   removeTempEngines()
   process.exit(0)
+}
+
+if ((isWindowsPrismaEngineRenameLock(lastOutput) || isSpawnPermissionLock(lastOutput)) && hasExistingClient()) {
+  console.error(
+    "Prisma generate hit a Windows process/file lock, but the generated Prisma Client schema is stale. " +
+      "Stop running Node/Next/Prisma processes and run npm run prisma:generate before starting the app.",
+  )
+  process.stdout.write(lastOutput)
+  process.exit(1)
 }
 
 process.stdout.write(lastOutput)

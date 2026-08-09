@@ -7,7 +7,9 @@ import {
   IconNotification,
   IconUserCircle,
 } from "@tabler/icons-react"
+import { useSession } from "next-auth/react"
 
+import { signOutForRole } from "@/lib/auth-navigation"
 import {
   Avatar,
   AvatarFallback,
@@ -39,6 +41,7 @@ export function NavUser({
   }
 }) {
   const { isMobile } = useSidebar()
+  const { data: session } = useSession()
 
   return (
     <SidebarMenu>
@@ -102,7 +105,7 @@ export function NavUser({
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => signOutForRole(session?.user?.role)}>
               <IconLogout />
               Log out
             </DropdownMenuItem>

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { getRequiredSession } from "@/lib/auth-helpers"
-import { Role } from "@/types"
+import { requireAdminPermission } from "@/lib/admin-rbac"
 
 /**
  * Manual cron trigger for development/admin use
@@ -9,7 +8,7 @@ import { Role } from "@/types"
 
 export async function POST(request: Request) {
   try {
-    await getRequiredSession(Role.ADMIN)
+    await requireAdminPermission("platformSettings.manage")
 
     const { searchParams } = new URL(request.url)
     const job = searchParams.get("job")

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Placeholder illustration for canapes and drinks">
+  <rect width="1200" height="800" fill="#fef2f2"/>
+  <rect x="72" y="72" width="1056" height="656" rx="48" fill="#1c1917"/>
+  <g fill="#fb923c">
+    <circle cx="410" cy="430" r="58"/><circle cx="540" cy="430" r="58"/><circle cx="670" cy="430" r="58"/>
+  </g>
+  <path d="M780 250h120l-36 178h-48z" fill="#fff7ed"/>
+  <path d="M840 428v100m-56 0h112" stroke="#fff7ed" stroke-width="22" stroke-linecap="round"/>
+  <text x="600" y="652" fill="#fff7ed" font-family="Arial, sans-serif" font-size="52" font-weight="700" text-anchor="middle">Canapes and Drinks</text>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800" role="img" aria-label="Placeholder illustration for a kids party food service">
+  <rect width="1200" height="800" fill="#eff6ff"/>
+  <rect x="72" y="72" width="1056" height="656" rx="48" fill="#1c1917"/>
+  <path d="M410 520h380l-50-190H460z" fill="#f97316"/>
+  <path d="M455 330c30-70 80-70 110 0m70 0c30-70 80-70 110 0" fill="none" stroke="#fff7ed" stroke-width="22" stroke-linecap="round"/>
+  <circle cx="500" cy="430" r="26" fill="#fff7ed"/>
+  <circle cx="600" cy="430" r="26" fill="#fff7ed"/>
+  <circle cx="700" cy="430" r="26" fill="#fff7ed"/>
+  <text x="600" y="652" fill="#fff7ed" font-family="Arial, sans-serif" font-size="56" font-weight="700" text-anchor="middle">Kids Party</text>
+</svg>

@@ -50,12 +50,19 @@ export const adminRepository = {
         proposal: {
           include: {
             menu: {
-              select: {
-                title: true,
-                price: true,
-              },
-            },
+          select: {
+            title: true,
+            price: true,
           },
+        },
+        request: {
+          select: {
+            eventType: true,
+            serviceType: true,
+            serviceTypeLabel: true,
+          },
+        },
+      },
         },
         payments: true,
       },

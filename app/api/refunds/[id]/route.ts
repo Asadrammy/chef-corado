@@ -5,9 +5,10 @@ import { getServerSession } from 'next-auth';
 import { refundService } from '@/lib/services/refund-service';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { Role } from '@/types';
-import { prisma } from '@/lib/prisma';
-import { ledgerService } from '@/lib/services/ledger-service';
 import { logger } from '@/lib/logger';
+import { requireAdminPermission } from '@/lib/admin-rbac';
+import { StripeService } from '@/lib/services/stripe-service';
+import Stripe from 'stripe';
 
 const updateRefundSchema = z.object({
   status: z.enum(['APPROVED', 'REJECTED']),
@@ -35,10 +36,13 @@ export async function GET(
     }
 
     // Role-based access control
-    const hasAccess = 
-      session.user.role === Role.ADMIN ||
-      refund.payment?.booking?.clientId === session.user.id ||
+    let hasAccess = refund.payment?.booking?.clientId === session.user.id ||
       refund.payment?.booking?.chefId === session.user.id;
+
+    if (session.user.role === Role.ADMIN) {
+      await requireAdminPermission("refunds.request")
+      hasAccess = true
+    }
 
     if (!hasAccess) {
       return apiError("FORBIDDEN", "Access denied", 403);
@@ -46,6 +50,12 @@ export async function GET(
 
     return apiSuccess(refund);
   } catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return apiError("UNAUTHORIZED", "Unauthorized", 401);
+    }
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return apiError("FORBIDDEN", "Insufficient permissions", 403);
+    }
     return apiError("INTERNAL_SERVER_ERROR", "Failed to fetch refund", 500);
   }
 }
@@ -55,12 +65,8 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  
   try {
-    if (!session?.user?.id || session.user.role !== Role.ADMIN) {
-      return apiError("UNAUTHORIZED", "Admin access required", 401);
-    }
+    const actor = await requireAdminPermission("refunds.approve")
 
     const { id: refundId } = await context.params;
     const body = await request.json();
@@ -77,67 +83,47 @@ export async function PATCH(
       return apiError("CONFLICT", `Refund already ${refund.status.toLowerCase()}`, 409);
     }
 
-    let updatedRefund;
-
     if (data.status === 'APPROVED') {
-      // Validate payment status before approving
-      const payment = await prisma.payment.findUnique({
-        where: { id: refund.paymentId },
-        include: { booking: true }
-      });
-
-      if (!payment) {
-        return apiError("NOT_FOUND", "Payment not found", 404);
+      if (!StripeService.isConfigured()) {
+        return apiError("SERVICE_UNAVAILABLE", "Stripe is not configured, so this refund cannot be approved safely.", 503);
       }
 
-      if (payment.status !== 'PAID' && payment.status !== 'RELEASED') {
-        return apiError("BAD_REQUEST", "Cannot refund payment that is not paid", 400);
-      }
-
-      // Check for existing disputes
-      const existingDispute = await prisma.dispute.findFirst({
-        where: {
-          bookingId: payment.bookingId,
-          status: { in: ['PENDING', 'UNDER_REVIEW'] }
-        }
-      });
-
-      if (existingDispute) {
-        return apiError("CONFLICT", "Cannot approve refund while dispute is active", 409);
-      }
-
-      // For now, just mark as approved (Stripe integration would be here)
-      updatedRefund = await prisma.refund.update({
-        where: { id: refundId },
-        data: {
-          status: 'APPROVED',
-          processedBy: session.user.id,
-          processedAt: new Date(),
-        }
-      });
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+        apiVersion: '2026-03-25.dahlia' as Stripe.LatestApiVersion,
+      })
+      const updatedRefund = await refundService.approveRefund(refundId, actor.userId, stripe)
       
-      logger.info(`Refund approved: ${refundId} by admin ${session.user.id}`, {
+      logger.info(`Refund approved: ${refundId} by admin ${actor.userId}`, {
         refundId,
         paymentId: refund.paymentId,
         amount: refund.amount,
-        approvedBy: session.user.id
+        approvedBy: actor.userId
       });
+
+      return apiSuccess(updatedRefund);
 
     } else if (data.status === 'REJECTED') {
-      // Reject refund
-      updatedRefund = await refundService.rejectRefund(refundId, session.user.id, data.adminNote || '');
+      const updatedRefund = await refundService.rejectRefund(refundId, actor.userId, data.adminNote || '');
       
-      logger.info(`Refund rejected: ${refundId} by admin ${session.user.id}`, {
+      logger.info(`Refund rejected: ${refundId} by admin ${actor.userId}`, {
         refundId,
         paymentId: refund.paymentId,
         amount: refund.amount,
-        rejectedBy: session.user.id,
+        rejectedBy: actor.userId,
         reason: data.adminNote
       });
+
+      return apiSuccess(updatedRefund);
     }
 
-    return apiSuccess(updatedRefund);
+    return apiError("BAD_REQUEST", "Unsupported refund action", 400);
   } catch (error) {
+    if (error instanceof Error && error.message === "UNAUTHORIZED") {
+      return apiError("UNAUTHORIZED", "Unauthorized", 401);
+    }
+    if (error instanceof Error && error.message === "FORBIDDEN") {
+      return apiError("FORBIDDEN", "Insufficient permissions", 403);
+    }
     if (error instanceof z.ZodError) {
       return apiError(
         "VALIDATION_ERROR",
@@ -154,7 +140,7 @@ export async function PATCH(
     logger.error("Refund update error", {
       error: error instanceof Error ? error.message : String(error),
       refundId: (await context.params).id,
-      userId: session?.user?.id
+      userId: undefined
     });
 
     return apiError("INTERNAL_SERVER_ERROR", "Failed to update refund", 500);

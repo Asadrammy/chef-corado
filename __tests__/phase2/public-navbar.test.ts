@@ -43,16 +43,23 @@ describe("PublicNavbar hierarchy contract", () => {
     expect(navbarSource).toContain("Chefs")
   })
 
-  it("keeps admin login configured but out of the public navbar", () => {
+  it("shows admin login as a separate quiet public account section", () => {
     expect(authNavItems.adminLogin.href).toBe("/login?role=ADMIN")
-    expect(navbarSource).not.toContain("authNavItems.adminLogin")
-    expect(navbarSource).not.toContain("Admin Login")
+    expect(navbarSource).toContain("const adminAuthItems")
+    expect(navbarSource).toContain("authNavItems.adminLogin.href")
+    expect(navbarSource).toContain('label: "Admin login"')
+    expect(navbarSource).toContain("text-muted-foreground")
+    expect(navbarSource).not.toContain("/dashboard/admin")
+    expect(navbarSource).not.toContain("/register?role=ADMIN")
   })
 
   it("keeps mobile auth grouped and closes the sheet on route selection", () => {
     expect(navbarSource).toContain("MobileAuthGroup")
     expect(navbarSource).toContain('title="Customers"')
     expect(navbarSource).toContain('title="Chefs"')
+    expect(navbarSource).toContain('title="Admin"')
+    expect(navbarSource).toContain("items={adminAuthItems}")
+    expect(navbarSource).toContain("quiet")
     expect(navbarSource).toContain("SheetClose")
   })
 
