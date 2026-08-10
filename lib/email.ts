@@ -1,5 +1,7 @@
 import { Resend } from 'resend'
 import { shouldSendNotification, type NotificationTopic } from '@/lib/notification-preferences'
+import { formatCurrency } from '@/lib/currency'
+import { APPROVED_PUBLIC_CONTACT } from '@/lib/marketplace-rules'
 
 let resend: Resend | null = null
 
@@ -28,7 +30,7 @@ export async function sendEmail({ to, subject, html, from }: EmailData) {
 
   try {
     const { data, error } = await client.emails.send({
-      from: from || process.env.RESEND_FROM_EMAIL || 'noreply@chefplatform.com',
+      from: from || process.env.RESEND_FROM_EMAIL || APPROVED_PUBLIC_CONTACT.email,
       to: Array.isArray(to) ? to : [to],
       subject,
       html,
@@ -85,7 +87,7 @@ export async function sendPreferenceAwareEmail({
 
 // Email templates
 export const emailTemplates = {
-  newRequest: (chefName: string, requestTitle: string, requestLocation: string, budget: number) => `
+  newRequest: (chefName: string, requestTitle: string, requestLocation: string, budget: number, currency = "GBP") => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #333;">New Service Request Available</h2>
       <p>Hi <strong>${chefName}</strong>,</p>
@@ -93,14 +95,14 @@ export const emailTemplates = {
       <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <h3 style="margin-top: 0; color: #e91e63;">${requestTitle}</h3>
         <p><strong>Location:</strong> ${requestLocation}</p>
-        <p><strong>Budget:</strong> $${budget.toFixed(2)}</p>
+        <p><strong>Budget:</strong> ${formatCurrency(budget, currency)}</p>
       </div>
       <p>Log in to your dashboard to view details and submit a proposal.</p>
-      <p style="margin-top: 30px;">Best regards,<br>The Chef Platform Team</p>
+      <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
     </div>
   `,
 
-  newProposal: (clientName: string, chefName: string, proposalPrice: number, requestTitle: string) => `
+  newProposal: (clientName: string, chefName: string, proposalPrice: number, requestTitle: string, currency = "GBP") => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #333;">New Proposal Received</h2>
       <p>Hi <strong>${clientName}</strong>,</p>
@@ -108,51 +110,51 @@ export const emailTemplates = {
       <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <h3 style="margin-top: 0; color: #4caf50;">${requestTitle}</h3>
         <p><strong>Chef:</strong> ${chefName}</p>
-        <p><strong>Proposal Price:</strong> $${proposalPrice.toFixed(2)}</p>
+        <p><strong>Proposal Price:</strong> ${formatCurrency(proposalPrice, currency)}</p>
       </div>
       <p>Log in to your dashboard to review the proposal and accept or decline.</p>
-      <p style="margin-top: 30px;">Best regards,<br>The Chef Platform Team</p>
+      <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
     </div>
   `,
 
   proposalAccepted: (chefName: string, clientName: string, requestTitle: string) => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #333;">Proposal Accepted! 🎉</h2>
+      <h2 style="color: #333;">Proposal Accepted!</h2>
       <p>Hi <strong>${chefName}</strong>,</p>
       <p>Congratulations! <strong>${clientName}</strong> has accepted your proposal for:</p>
       <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <h3 style="margin-top: 0; color: #4caf50;">${requestTitle}</h3>
       </div>
       <p>The client will proceed with payment. You'll be notified once payment is confirmed.</p>
-      <p style="margin-top: 30px;">Best regards,<br>The Chef Platform Team</p>
+      <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
     </div>
   `,
 
-  paymentReceived: (userName: string, bookingTitle: string, amount: number) => `
+  paymentReceived: (userName: string, bookingTitle: string, amount: number, currency = "GBP") => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #333;">Payment Received ✅</h2>
+      <h2 style="color: #333;">Payment Received</h2>
       <p>Hi <strong>${userName}</strong>,</p>
       <p>Payment has been successfully received for:</p>
       <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <h3 style="margin-top: 0; color: #4caf50;">${bookingTitle}</h3>
-        <p><strong>Amount:</strong> $${amount.toFixed(2)}</p>
+        <p><strong>Amount:</strong> ${formatCurrency(amount, currency)}</p>
       </div>
       <p>The payment is now being held in escrow and will be released to the chef after service completion.</p>
-      <p style="margin-top: 30px;">Best regards,<br>The Chef Platform Team</p>
+      <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
     </div>
   `,
 
-  paymentReleased: (chefName: string, amount: number, bookingTitle: string) => `
+  paymentReleased: (chefName: string, amount: number, bookingTitle: string, currency = "GBP") => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #333;">Payment Released! 💰</h2>
+      <h2 style="color: #333;">Payment Released!</h2>
       <p>Hi <strong>${chefName}</strong>,</p>
       <p>Your payment has been released for:</p>
       <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
         <h3 style="margin-top: 0; color: #4caf50;">${bookingTitle}</h3>
-        <p><strong>Amount Released:</strong> $${amount.toFixed(2)}</p>
+        <p><strong>Amount Released:</strong> ${formatCurrency(amount, currency)}</p>
       </div>
       <p>The funds have been transferred to your account. Thank you for your service!</p>
-      <p style="margin-top: 30px;">Best regards,<br>The Chef Platform Team</p>
+      <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
     </div>
   `,
 }

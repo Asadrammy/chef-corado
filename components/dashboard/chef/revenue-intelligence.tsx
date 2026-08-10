@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils"
 
 interface RevenueIntelligenceProps {
   totalEarnings: number
-  earningsTrend: Array<{ date: string; earnings: number }>
+  totalEarningsCurrency?: string
+  earningsTrend: Array<{ date: string; earnings: number; currency?: string }>
   completedBookings: number
   activeBookings: number
   monthlyGoal?: number
@@ -18,6 +19,7 @@ interface RevenueIntelligenceProps {
 
 export function RevenueIntelligence({
   totalEarnings,
+  totalEarningsCurrency = "GBP",
   earningsTrend,
   completedBookings,
   activeBookings,
@@ -62,21 +64,21 @@ export function RevenueIntelligence({
   const metrics = [
     {
       label: "This Month",
-      value: formatCurrency(thisMonthEarnings),
-      subtext: `of ${formatCurrency(monthlyGoal)} goal`,
+      value: formatCurrency(thisMonthEarnings, totalEarningsCurrency),
+      subtext: `of ${formatCurrency(monthlyGoal, totalEarningsCurrency)} goal`,
       progress: goalProgress,
       icon: <Wallet className="h-4 w-4" />,
     },
     {
       label: "Projected",
-      value: formatCurrency(projectedEarnings),
+      value: formatCurrency(projectedEarnings, totalEarningsCurrency),
       subtext: onTrack ? "On track to hit goal" : "Below target pace",
       trend: weekTrend,
       icon: weekTrend >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />,
     },
     {
       label: "Avg per Booking",
-      value: formatCurrency(avgBookingValue),
+      value: formatCurrency(avgBookingValue, totalEarningsCurrency),
       subtext: `${completedBookings} completed`,
       icon: <Target className="h-4 w-4" />,
     },
@@ -155,7 +157,7 @@ export function RevenueIntelligence({
                 Below Target Pace
               </p>
               <p className="text-sm text-amber-700 dark:text-amber-500">
-                You need {formatCurrency(expectedAtThisPoint - thisMonthEarnings)} more 
+                You need {formatCurrency(expectedAtThisPoint - thisMonthEarnings, totalEarningsCurrency)} more
                 to be on track. Consider sending more quotes to increase bookings.
               </p>
             </div>
@@ -170,7 +172,7 @@ export function RevenueIntelligence({
                 On Track to Hit Goal
               </p>
               <p className="text-sm text-emerald-700 dark:text-emerald-500">
-                You&apos;re {formatCurrency(thisMonthEarnings - expectedAtThisPoint)} ahead of pace. 
+                You&apos;re {formatCurrency(thisMonthEarnings - expectedAtThisPoint, totalEarningsCurrency)} ahead of pace.
                 Keep up the great work!
               </p>
             </div>

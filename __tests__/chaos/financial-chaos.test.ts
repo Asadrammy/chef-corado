@@ -147,7 +147,7 @@ describe('Financial Chaos Tests', () => {
   describe('Commission Calculations', () => {
     it('should calculate commissions correctly', async () => {
       const amount = 1000
-      const commissionRate = 0.1 // 10%
+      const commissionRate = 0.2 // 20%
       const commission = amount * commissionRate
       const chefAmount = amount - commission
 
@@ -164,8 +164,8 @@ describe('Financial Chaos Tests', () => {
       expect(integrity.valid).toBe(true)
 
       // Verify amounts
-      expect(commission).toBe(100)
-      expect(chefAmount).toBe(900)
+      expect(commission).toBe(200)
+      expect(chefAmount).toBe(800)
     })
 
     it('should handle variable commission rates', async () => {

@@ -3,7 +3,7 @@ import { PublicEnquiryForm } from "@/components/public/public-enquiry-form";
 import { buildPublicMetadata } from "@/lib/public-site";
 
 export const metadata = buildPublicMetadata({
-  title: "Property Manager Affiliate | Chef Marketplace",
+  title: "Property Manager Affiliate | ChefaChef",
   description: "Private chef partnership opportunities for property managers, short-stay hosts, and serviced residences.",
   path: "/property-manager-affiliate",
 });

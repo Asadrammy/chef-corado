@@ -65,20 +65,27 @@ export class DoubleEntryLedger {
     // Validate entries balance
     this.validateBalance(transaction.entries)
 
-    // Record in database
+    // Record in the active Ledger table. Accounting-specific fields are stored
+    // in metadata because the marketplace schema uses a general ledger model.
     await prisma.$transaction(async (tx) => {
       for (const entry of transaction.entries) {
-        await (tx as any).ledgerEntry.create({
+        await tx.ledger.create({
           data: {
-            transactionId: transaction.transactionId,
             transactionType: transaction.transactionType,
-            accountId: entry.accountId,
-            accountType: entry.accountType,
-            entryType: entry.entryType,
             amount: entry.amount,
+            currency: String(transaction.metadata?.currency || 'GBP'),
+            fromAccount: entry.entryType === EntryType.DEBIT ? entry.accountId : null,
+            toAccount: entry.entryType === EntryType.CREDIT ? entry.accountId : null,
             description: entry.description,
-            timestamp: transaction.timestamp,
-            metadata: transaction.metadata ? JSON.stringify(transaction.metadata) : null,
+            metadata: JSON.stringify({
+              ...transaction.metadata,
+              doubleEntryTransactionId: transaction.transactionId,
+              accountId: entry.accountId,
+              accountType: entry.accountType,
+              entryType: entry.entryType,
+              timestamp: transaction.timestamp.toISOString(),
+            }),
+            createdBy: 'DOUBLE_ENTRY_LEDGER',
           },
         })
       }
@@ -228,16 +235,20 @@ export class DoubleEntryLedger {
    * Get account balance
    */
   async getAccountBalance(accountId: string, accountType: AccountType): Promise<number> {
-    const entries = await (prisma as any).ledgerEntry.findMany({
+    const entries = await prisma.ledger.findMany({
       where: {
-        accountId,
-        accountType,
+        metadata: { contains: `"accountId":"${accountId}"` },
       },
     })
 
     let balance = 0
     for (const entry of entries) {
-      if (entry.entryType === EntryType.CREDIT) {
+      const metadata = this.parseEntryMetadata(entry.metadata)
+      if (metadata.accountId !== accountId || metadata.accountType !== accountType) {
+        continue
+      }
+
+      if (metadata.entryType === EntryType.CREDIT) {
         balance += entry.amount
       } else {
         balance -= entry.amount
@@ -251,17 +262,26 @@ export class DoubleEntryLedger {
    * Get all account balances
    */
   async getAllBalances(): Promise<Record<string, number>> {
-    const entries = await (prisma as any).ledgerEntry.findMany()
+    const entries = await prisma.ledger.findMany({
+      where: {
+        metadata: { contains: '"doubleEntryTransactionId"' },
+      },
+    })
 
     const balances: Record<string, number> = {}
 
     for (const entry of entries) {
-      const key = `${entry.accountType}:${entry.accountId}`
+      const metadata = this.parseEntryMetadata(entry.metadata)
+      if (!metadata.accountId || !metadata.accountType || !metadata.entryType) {
+        continue
+      }
+
+      const key = `${metadata.accountType}:${metadata.accountId}`
       if (!balances[key]) {
         balances[key] = 0
       }
 
-      if (entry.entryType === EntryType.CREDIT) {
+      if (metadata.entryType === EntryType.CREDIT) {
         balances[key] += entry.amount
       } else {
         balances[key] -= entry.amount
@@ -278,19 +298,28 @@ export class DoubleEntryLedger {
   async verifyIntegrity(): Promise<{ valid: boolean; errors: string[] }> {
     const errors: string[] = []
 
-    // Get all transactions
-    const transactions = await (prisma as any).ledgerEntry.groupBy({
-      by: ['transactionId'],
+    const entries = await prisma.ledger.findMany({
+      where: {
+        metadata: { contains: '"doubleEntryTransactionId"' },
+      },
     })
 
-    for (const tx of transactions) {
-      const entries = await (prisma as any).ledgerEntry.findMany({
-        where: { transactionId: tx.transactionId },
-      })
+    const grouped = new Map<string, typeof entries>()
+    for (const entry of entries) {
+      const metadata = this.parseEntryMetadata(entry.metadata)
+      if (!metadata.doubleEntryTransactionId) {
+        continue
+      }
+      const group = grouped.get(metadata.doubleEntryTransactionId) || []
+      group.push(entry)
+      grouped.set(metadata.doubleEntryTransactionId, group)
+    }
 
+    for (const [transactionId, transactionEntries] of grouped) {
       let balance = 0
-      for (const entry of entries) {
-        if (entry.entryType === EntryType.CREDIT) {
+      for (const entry of transactionEntries) {
+        const metadata = this.parseEntryMetadata(entry.metadata)
+        if (metadata.entryType === EntryType.CREDIT) {
           balance += entry.amount
         } else {
           balance -= entry.amount
@@ -299,7 +328,7 @@ export class DoubleEntryLedger {
 
       if (Math.abs(balance) > 0.01) {
         // Allow for floating point errors
-        errors.push(`Transaction ${tx.transactionId} does not balance: ${balance}`)
+        errors.push(`Transaction ${transactionId} does not balance: ${balance}`)
       }
     }
 
@@ -317,12 +346,14 @@ export class DoubleEntryLedger {
     limit: number = 100,
     offset: number = 0
   ): Promise<any[]> {
-    return (prisma as any).ledgerEntry.findMany({
-      where: { accountId },
-      orderBy: { timestamp: 'desc' },
+    const entries = await prisma.ledger.findMany({
+      where: { metadata: { contains: `"accountId":"${accountId}"` } },
+      orderBy: { createdAt: 'desc' },
       take: limit,
       skip: offset,
     })
+
+    return entries.filter((entry) => this.parseEntryMetadata(entry.metadata).accountId === accountId)
   }
 
   /**
@@ -344,6 +375,15 @@ export class DoubleEntryLedger {
       throw new Error(
         `Transaction does not balance: debits ${debits} != credits ${credits}`
       )
+    }
+  }
+
+  private parseEntryMetadata(metadata: string | null): Record<string, any> {
+    if (!metadata) return {}
+    try {
+      return JSON.parse(metadata)
+    } catch {
+      return {}
     }
   }
 }

@@ -232,7 +232,7 @@ export class NotificationWorker {
           <p>Hi <strong>${user.name || 'User'}</strong>,</p>
           <p>${message}</p>
           ${metadata?.bookingId ? `<p><a href="${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/dashboard">View details in your dashboard</a></p>` : ''}
-          <p style="margin-top: 30px;">Best regards,<br>The Chef Platform Team</p>
+          <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
         </div>
       `,
     })

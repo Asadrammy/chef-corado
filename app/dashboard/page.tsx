@@ -29,8 +29,8 @@ const roleHighlights = [
 
 export async function generateMetadata(): Promise<Metadata> {
   return generateMeta({
-    title: "Chef Marketplace Dashboard",
-    description: "Role-based dashboards for chefs, clients, and admins in the private chef marketplace.",
+    title: "ChefaChef Dashboard",
+    description: "Role-based dashboards for chefs, clients, and admins in ChefaChef.",
   })
 }
 
@@ -54,12 +54,11 @@ export default async function Page() {
           <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
         </div>
         <h1 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white mb-4">
-          Chef Marketplace Dashboard
+          ChefaChef Dashboard
         </h1>
         <p className="text-gray-600 dark:text-gray-300 leading-relaxed max-w-4xl">
-          This space is being reworked into a private chef marketplace where clients submit requests, chefs respond
-          via proposals, and admins oversee approvals and payments. Use the role-specific routes below as we
-          build out each section.
+          Manage your ChefaChef workspace from the role-specific routes below. Clients can track requests,
+          chefs can respond with proposals, and admins can oversee approvals, operations, and payments.
         </p>
       </section>
 
@@ -77,7 +76,7 @@ export default async function Page() {
             <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-4">{card.description}</p>
             <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 text-sm font-medium">
               <span>Coming soon</span>
-              <span>→</span>
+              <span aria-hidden="true">-&gt;</span>
             </div>
           </article>
         ))}

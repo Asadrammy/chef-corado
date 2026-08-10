@@ -304,18 +304,18 @@ async function seedPayments(bookings: any[]) {
   const payments = [];
 
   for (const booking of completedBookings) {
-    const payment = await prisma.payment.create({ data: { bookingId: booking.id, totalAmount: booking.totalPrice, commissionAmount: booking.totalPrice * 0.15, chefAmount: booking.totalPrice * 0.85, status: Math.random() > 0.3 ? 'COMPLETED' : 'RELEASED', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}`, stripeChargeId: `ch_${booking.id.slice(0, 8)}_${Date.now()}`, releasedAt: new Date(booking.createdAt.getTime() + 24 * 60 * 60 * 1000), releasedBy: 'system' } });
+    const payment = await prisma.payment.create({ data: { bookingId: booking.id, totalAmount: booking.totalPrice, commissionAmount: booking.totalPrice * 0.2, chefAmount: booking.totalPrice * 0.8, status: Math.random() > 0.3 ? 'COMPLETED' : 'RELEASED', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}`, stripeChargeId: `ch_${booking.id.slice(0, 8)}_${Date.now()}`, releasedAt: new Date(booking.createdAt.getTime() + 24 * 60 * 60 * 1000), releasedBy: 'system' } });
     payments.push(payment);
   }
 
   for (const booking of confirmedBookings) {
-    const payment = await prisma.payment.create({ data: { bookingId: booking.id, totalAmount: booking.totalPrice, commissionAmount: booking.totalPrice * 0.15, chefAmount: booking.totalPrice * 0.85, status: 'HELD', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}` } });
+    const payment = await prisma.payment.create({ data: { bookingId: booking.id, totalAmount: booking.totalPrice, commissionAmount: booking.totalPrice * 0.2, chefAmount: booking.totalPrice * 0.8, status: 'HELD', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}` } });
     payments.push(payment);
   }
 
   // Create payments for cancelled bookings so refunds can be generated
   for (const booking of cancelledBookings) {
-    const payment = await prisma.payment.create({ data: { bookingId: booking.id, totalAmount: booking.totalPrice, commissionAmount: booking.totalPrice * 0.15, chefAmount: booking.totalPrice * 0.85, status: 'REFUNDED', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}`, stripeChargeId: `ch_${booking.id.slice(0, 8)}_${Date.now()}` } });
+    const payment = await prisma.payment.create({ data: { bookingId: booking.id, totalAmount: booking.totalPrice, commissionAmount: booking.totalPrice * 0.2, chefAmount: booking.totalPrice * 0.8, status: 'REFUNDED', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}`, stripeChargeId: `ch_${booking.id.slice(0, 8)}_${Date.now()}` } });
     payments.push(payment);
   }
 

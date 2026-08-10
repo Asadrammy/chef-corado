@@ -8,7 +8,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { buildPublicMetadata, fetchFromApp } from "@/lib/public-site";
 
 export const metadata = buildPublicMetadata({
-  title: "Reviews | Chef Marketplace",
+  title: "Reviews | ChefaChef",
   description: "Read real client feedback from private chef profiles and completed dining experiences.",
   path: "/reviews",
 });

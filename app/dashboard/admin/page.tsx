@@ -21,6 +21,7 @@ type AdminDashboardStats = {
   totalBookings: number
   activeBookings: number
   totalRevenue: number
+  revenueByCurrency?: { currency: string; amount: number }[]
   pendingPayouts: number
 }
 
@@ -79,6 +80,7 @@ async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
         },
         select: {
           commissionAmount: true,
+          currency: true,
         },
       }),
       prisma.payment.count({
@@ -88,12 +90,19 @@ async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
       }),
     ])
 
+    const revenueByCurrency = completedPayments.reduce<Record<string, number>>((acc, payment) => {
+      const currency = payment.currency || "GBP"
+      acc[currency] = (acc[currency] ?? 0) + payment.commissionAmount
+      return acc
+    }, {})
+
     return {
       totalChefs,
       pendingChefs,
       totalBookings,
       activeBookings,
       totalRevenue: completedPayments.reduce((sum, payment) => sum + payment.commissionAmount, 0),
+      revenueByCurrency: Object.entries(revenueByCurrency).map(([currency, amount]) => ({ currency, amount })),
       pendingPayouts,
     }
   } catch (error) {
@@ -109,9 +118,14 @@ async function getAdminDashboardStats(): Promise<AdminDashboardStats> {
 export default async function AdminDashboardPage() {
   const adminAccess = await requireAdminPagePermission("analytics.view")
 
-  const { totalChefs, pendingChefs, activeBookings, totalRevenue, pendingPayouts } = isLocalDemoSessionUser(adminAccess.userId, adminAccess.email)
+  const stats: AdminDashboardStats = isLocalDemoSessionUser(adminAccess.userId, adminAccess.email)
     ? localDemoAdminDashboardStats()
     : await getAdminDashboardStats()
+  const { totalChefs, pendingChefs, activeBookings, totalRevenue, pendingPayouts } = stats
+  const revenueByCurrency = stats.revenueByCurrency?.length
+    ? stats.revenueByCurrency
+    : [{ currency: "GBP", amount: totalRevenue }]
+  const revenueSummary = revenueByCurrency.map((row) => formatCurrency(row.amount, row.currency)).join(" / ")
   const visibleModules = getVisibleAdminModules(adminAccess.adminRole)
   const canViewBookings = adminAccess.permissions.includes("bookings.view")
   const canViewFinance = adminAccess.permissions.includes("finance.view")
@@ -149,7 +163,7 @@ export default async function AdminDashboardPage() {
             <div className="icon-bg">
               <Users className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
             </div>
-            <span className="text-sm font-medium text-green-600">+12%</span>
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Live count</span>
           </div>
           <h3 className="text-2xl font-semibold text-gray-900 dark:text-white">{totalChefs}</h3>
           <p className="text-sm text-gray-600 dark:text-gray-300">Total Chefs</p>
@@ -160,7 +174,7 @@ export default async function AdminDashboardPage() {
             <div className="icon-bg">
               <Calendar className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
             </div>
-            <span className="text-sm font-medium text-green-600">+8%</span>
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Live count</span>
           </div>
           <h3 className="text-2xl font-semibold text-gray-900 dark:text-white">{activeBookings}</h3>
           <p className="text-sm text-gray-600 dark:text-gray-300">Active Bookings</p>
@@ -171,10 +185,14 @@ export default async function AdminDashboardPage() {
             <div className="icon-bg">
               <Wallet className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
             </div>
-            <span className="text-sm font-medium text-green-600">+15%</span>
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">By currency</span>
           </div>
-          <h3 className="text-2xl font-semibold text-gray-900 dark:text-white">${totalRevenue.toFixed(0)}</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-300">Platform Revenue</p>
+          <div className="space-y-1">
+            {revenueByCurrency.slice(0, 3).map((row) => (
+              <h3 key={row.currency} className="text-xl font-semibold text-gray-900 dark:text-white">{formatCurrency(row.amount, row.currency)}</h3>
+            ))}
+          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-300">Platform Fees</p>
         </div>
         
         <div className="card-hover bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-sm p-6">
@@ -276,7 +294,7 @@ export default async function AdminDashboardPage() {
                     <p className="text-xs text-gray-600 dark:text-gray-300">Commission earned</p>
                   </div>
                 </div>
-                <Badge variant="secondary" className="shrink-0">{formatCurrency(totalRevenue, 'GBP')}</Badge>
+                <Badge variant="secondary" className="shrink-0">{revenueSummary}</Badge>
               </div>
             </Link> : null}
             {visibleModules.filter((module) => !["/dashboard/admin", "/dashboard/admin/chefs", "/dashboard/admin/bookings", "/dashboard/admin/payments", "/dashboard/admin/finance"].includes(module.url)).slice(0, 4).map((module) => (

@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button"
 import { buildPublicMetadata } from "@/lib/public-site"
 
 export const metadata = buildPublicMetadata({
-  title: "Terms | Chef Marketplace",
-  description: "Review Chef Marketplace client terms, chef terms, and privacy information.",
+  title: "Terms | ChefaChef",
+  description: "Review ChefaChef client terms, chef terms, and privacy information.",
   path: "/terms",
 })
 
@@ -35,7 +35,7 @@ export default function TermsPage() {
       <PublicPageHero
         eyebrow="Legal"
         title="Terms for clients, chefs, and marketplace privacy."
-        description="Choose the policy area that matches how you use Chef Marketplace."
+        description="Choose the policy area that matches how you use ChefaChef."
       />
 
       <section className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 lg:px-8">

@@ -185,8 +185,8 @@ export function assertPricingRuleMatchesRequest(input: {
   rule: {
     status: string
     currency: string
-    minGuests: number | null
-    maxGuests: number | null
+    minGuests?: number | null
+    maxGuests?: number | null
     version: string
   }
   request: {
@@ -235,7 +235,7 @@ export async function assertProposalMeetsActivePricingRule(input: {
   const requestBoundRule = input.request.pricingRuleId
     ? await prisma.servicePricingRule.findUnique({ where: { id: input.request.pricingRuleId } })
     : null
-  const rule = requestBoundRule ?? await findActivePricingRule({
+  const rule = requestBoundRule ?? await findAuthoritativePricingRule({
     serviceType: input.request.serviceType,
     countryCode: input.request.countryCode ?? "GB",
     tier: input.request.serviceTier,

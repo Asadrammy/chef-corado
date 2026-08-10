@@ -1,5 +1,7 @@
+import { COUNTRY_BOOKING_RULES } from "@/lib/marketplace-rules";
+
 export const SERVICE_ENGINE_VERSION = "2026-08-phase-2";
-export const SERVICE_PRICING_VERSION = "2026-08-phase-2-draft";
+export const SERVICE_PRICING_VERSION = "2026-08-10-client-confirmed";
 
 export type CountryCode = "GB" | "US" | "KE" | "IT";
 export type CurrencyCode = "GBP" | "USD" | "KES" | "EUR";
@@ -43,7 +45,7 @@ export type ServiceImageMetadata = {
   alt: string;
   source: string;
   photographer?: string;
-  licence: "CLIENT_SUPPLIED_APPROVED" | "UNSPLASH_LICENSE" | "PLACEHOLDER_CLIENT_REVIEW_REQUIRED";
+  licence: "CLIENT_SUPPLIED_APPROVED" | "CLIENT_SUPPLIED_LICENCE_CONFIRMATION_PENDING" | "UNSPLASH_LICENSE" | "PLACEHOLDER_CLIENT_REVIEW_REQUIRED";
   licenceUrl?: string;
   suppliedByClient?: boolean;
   approvedAt?: string;
@@ -67,6 +69,23 @@ export type ServicePricingRule = {
   version: string;
   evidenceSource: string;
   evidenceNotes: string;
+};
+
+export type PricingRuleLike = {
+  id?: string | null;
+  serviceType: string;
+  countryCode: string;
+  currency: string;
+  tier?: string | null;
+  minimumSpend?: number | null;
+  pricePerPersonMin?: number | null;
+  pricePerPersonMax?: number | null;
+  minGuests?: number | null;
+  maxGuests?: number | null;
+  warningCopy?: string | null;
+  customerGuidance?: string | null;
+  status: string;
+  version: string;
 };
 
 export type ServiceTypeConfig = {
@@ -94,27 +113,18 @@ export type ServiceTypeConfig = {
 
 const supportedCountries = ["GB", "US", "KE", "IT"] as const;
 
-const clientApprovedAt = "2026-08-04";
+export const CHILD_BILLING_RULE_COPY =
+  "Every two kids under 10 years old will be equated to one adult and will be charged as such.";
 
-const unsplashImage = (src: string, alt: string, photographer: string, source: string): ServiceImageMetadata => ({
-  src,
-  alt,
-  source,
-  photographer,
-  licence: "UNSPLASH_LICENSE",
-  licenceUrl: "https://unsplash.com/license",
-  notes: "Licensed image with source metadata recorded for the client booking flow.",
-});
-
-const clientImage = (fileName: string, alt: string, notes: string, photographer?: string): ServiceImageMetadata => ({
+const approvedClientImage = (fileName: string, alt: string, notes: string, photographer?: string): ServiceImageMetadata => ({
   src: `/images/service-types/${fileName}.jpg`,
   alt,
-  source: "Client-supplied chat attachment",
+  source: "Client-supplied approved image",
   photographer,
-  licence: "CLIENT_SUPPLIED_APPROVED",
+  licence: "CLIENT_SUPPLIED_LICENCE_CONFIRMATION_PENDING",
   suppliedByClient: true,
-  approvedAt: clientApprovedAt,
-  notes,
+  approvedAt: "2026-08-10",
+  notes: `${notes} Production licence evidence should remain attached to the service asset record before launch.`,
 });
 
 const licensedLocalImage = (fileName: string, alt: string, photographer: string, source: string): ServiceImageMetadata => ({
@@ -172,6 +182,101 @@ const activeGbPricing = (
   evidenceNotes: "Customer-facing guidance mirrors the active UK/GBP ServicePricingRule activation values.",
 });
 
+const activeUsPricing = (
+  serviceType: string,
+  minGuests: number,
+  maxGuests: number,
+  customerGuidance?: string,
+): ServicePricingRule => ({
+  id: `${serviceType.toLowerCase()}_usd_2026_08_10_active`,
+  serviceType,
+  countryCode: "US",
+  currency: "USD",
+  minimumSpend: 500,
+  pricePerPersonMin: 57,
+  pricePerPersonMax: 99,
+  minGuests,
+  maxGuests,
+  status: "ACTIVE",
+  version: SERVICE_PRICING_VERSION,
+  warningCopy: "Your budget is below the client-confirmed USA guidance of $500 minimum spend or $75 per person.",
+  customerGuidance: customerGuidance ?? COUNTRY_BOOKING_RULES.US.pricing,
+  evidenceSource: "CLIENT REQUIREMENTS 10 AUGUST 2026.docx",
+  evidenceNotes: "Client confirmed USA online bookings, $500 or $75pp minimum guidance, $57-$99+ per-person event rates, $40-$60/hour assistance, and $300-$3,000/day multi-day rates.",
+});
+
+const activeItalyPricing = (
+  serviceType: string,
+  minGuests: number,
+  maxGuests: number,
+  pricePerPersonMin = 48,
+  pricePerPersonMax = 100,
+  customerGuidance?: string,
+): ServicePricingRule => ({
+  id: `${serviceType.toLowerCase()}_eur_2026_08_10_active`,
+  serviceType,
+  countryCode: "IT",
+  currency: "EUR",
+  pricePerPersonMin,
+  pricePerPersonMax,
+  minGuests,
+  maxGuests,
+  status: "ACTIVE",
+  version: SERVICE_PRICING_VERSION,
+  customerGuidance: customerGuidance ?? COUNTRY_BOOKING_RULES.IT.pricing,
+  evidenceSource: "CLIENT REQUIREMENTS 10 AUGUST 2026.docx",
+  evidenceNotes: "Client confirmed Italy online bookings, EUR 770 average for 10 guests, menu guidance from EUR 38-EUR 100+ per person, EUR 18-EUR 40/hour, and EUR 200-EUR 1,500/day. No Italy minimum spend was supplied.",
+});
+
+const activeKenyaPricing = (
+  serviceType: string,
+  minimumSpend: number,
+  pricePerPersonMin: number | undefined,
+  pricePerPersonMax: number | undefined,
+  minGuests: number,
+  maxGuests: number,
+  customerGuidance: string,
+): ServicePricingRule => ({
+  id: `${serviceType.toLowerCase()}_kes_2026_08_10_active`,
+  serviceType,
+  countryCode: "KE",
+  currency: "KES",
+  minimumSpend,
+  pricePerPersonMin,
+  pricePerPersonMax,
+  minGuests,
+  maxGuests,
+  status: "ACTIVE",
+  version: SERVICE_PRICING_VERSION,
+  warningCopy: `Your budget is below the client-confirmed Kenya guidance of ${minimumSpend} KES for this service category.`,
+  customerGuidance,
+  evidenceSource: "CLIENT REQUIREMENTS 10 AUGUST 2026.docx",
+  evidenceNotes: "Client confirmed Kenya online bookings, deposit expectations, ingredient/grocery-float handling, and category-specific KES guidance.",
+});
+
+const kenyaMinimumSpendByService: Record<string, number> = {
+  THREE_COURSE_MEAL: 10000,
+  FOUR_FIVE_COURSE_MEAL: 10000,
+  SIX_NINE_COURSE_MEAL: 10000,
+  SHARING_PLATES: 20000,
+  SHARING_BUFFET: 20000,
+  CANAPES_AND_DRINKS: 20000,
+  BARBECUE_BBQ: 20000,
+  BRUNCH: 10000,
+  GRAZING_TABLE: 20000,
+  COOKING_CLASS: 10000,
+  AFTERNOON_TEA: 10000,
+  KIDS_PARTY: 20000,
+  DELIVERY_PLATTER: 10000,
+};
+
+const standardCountryPricing = (serviceType: string, gbRule: ServicePricingRule, minGuests: number, maxGuests: number) => [
+  gbRule,
+  activeUsPricing(serviceType, minGuests, maxGuests),
+  activeItalyPricing(serviceType, minGuests, maxGuests),
+  activeKenyaPricing(serviceType, kenyaMinimumSpendByService[serviceType] ?? 10000, 2500, 4000, minGuests, maxGuests, COUNTRY_BOOKING_RULES.KE.pricing),
+] as const;
+
 export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
   {
     id: "THREE_COURSE_MEAL",
@@ -196,7 +301,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "GLOBAL",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("THREE_COURSE_MEAL", 350, 55, 85, 2, "Typical UK three-course private dining guidance. Chefs may quote higher for premium ingredients, weekends, or added staff.")],
+    pricingRules: standardCountryPricing("THREE_COURSE_MEAL", activeGbPricing("THREE_COURSE_MEAL", 350, 55, 85, 2, "Typical UK three-course private dining guidance. Chefs may quote higher for premium ingredients, weekends, or added staff."), 2, 200),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -225,7 +330,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "GLOBAL",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("FOUR_FIVE_COURSE_MEAL", 500, 80, 120, 2, "Longer multi-course private dining requires more preparation, service time, and premium ingredients.")],
+    pricingRules: standardCountryPricing("FOUR_FIVE_COURSE_MEAL", activeGbPricing("FOUR_FIVE_COURSE_MEAL", 500, 80, 120, 2, "Longer multi-course private dining requires more preparation, service time, and premium ingredients."), 2, 200),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -254,7 +359,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "GLOBAL",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("SIX_NINE_COURSE_MEAL", 700, 100, 190, 2, "Tasting menus require specialist preparation and are priced above standard dinner-party formats.")],
+    pricingRules: standardCountryPricing("SIX_NINE_COURSE_MEAL", activeGbPricing("SIX_NINE_COURSE_MEAL", 700, 100, 190, 2, "Tasting menus require specialist preparation and are priced above standard dinner-party formats."), 2, 120),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -283,7 +388,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "GLOBAL",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("SHARING_PLATES", 400, 40, 70, 4, "Sharing plates are priced separately from buffet service and may vary by cuisine and staffing.")],
+    pricingRules: standardCountryPricing("SHARING_PLATES", activeGbPricing("SHARING_PLATES", 400, 40, 70, 4, "Sharing plates are priced separately from buffet service and may vary by cuisine and staffing."), 4, 200),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -291,9 +396,9 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
   },
   {
     id: "SHARING_BUFFET",
-    label: "Buffet",
+    label: "Sharing Buffet",
     description: "Buffet-style service with dishes arranged for guests to serve or share.",
-    image: clientImage("sharing-buffet", "Guests sharing buffet dishes at an outdoor table", "Screenshot states: This is Sharing Buffet."),
+    image: approvedClientImage("sharing-buffet", "Guests sharing buffet dishes at an outdoor table", "Client approved current/supplied service image for use on 10 August 2026."),
     enabled: true,
     supportedCountries,
     bookingMode: "STANDARD",
@@ -310,7 +415,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "GLOBAL",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("SHARING_BUFFET", 320, 40, 70, 6, "Buffet pricing is distinct from sharing plates and reflects setup, volume, and service style.")],
+    pricingRules: standardCountryPricing("SHARING_BUFFET", activeGbPricing("SHARING_BUFFET", 320, 40, 70, 6, "Buffet pricing is distinct from sharing plates and reflects setup, volume, and service style."), 6, 250),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -318,9 +423,9 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
   },
   {
     id: "CANAPES_AND_DRINKS",
-    label: "Canapes",
-    description: "Canapes paired with drinks service for receptions or parties.",
-    image: licensedLocalImage("canapes-and-drinks", "Canapes reception service", "Anna Pelzer", "https://unsplash.com/photos/bowl-of-vegetable-salads-1546069901-ba9599a7e63c"),
+    label: "Canapés and Drinks",
+    description: "Canapés paired with drinks service for receptions or parties.",
+    image: licensedLocalImage("canapes-and-drinks", "Canapés reception service", "Anna Pelzer", "https://unsplash.com/photos/bowl-of-vegetable-salads-1546069901-ba9599a7e63c"),
     enabled: true,
     supportedCountries,
     bookingMode: "STANDARD",
@@ -339,17 +444,17 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "GLOBAL",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("CANAPES_AND_DRINKS", 300, 40, 75, 6, "Canapes pricing is separate from seated dining because staffing, reception format, and drinks support may be involved.")],
+    pricingRules: standardCountryPricing("CANAPES_AND_DRINKS", activeGbPricing("CANAPES_AND_DRINKS", 300, 40, 75, 6, "Canapes pricing is separate from seated dining because staffing, reception format, and drinks support may be involved."), 6, 300),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
-    sourceNotes: "Client-facing label is Canapes; internal service id remains CANAPES_AND_DRINKS for existing backend compatibility.",
+    sourceNotes: "Client-facing label is Canapés and Drinks; internal service id remains CANAPES_AND_DRINKS for backend compatibility.",
   },
   {
     id: "BARBECUE_BBQ",
-    label: "Barbeque (BBQ)",
+    label: "Barbecue (BBQ)",
     description: "Outdoor or grill-led service for relaxed group dining.",
-    image: clientImage("barbecue-bbq", "Meat and vegetables cooking on a barbecue grill", "Screenshot states: This is BBQ."),
+    image: approvedClientImage("barbecue-bbq", "Meat and vegetables cooking on a barbecue grill", "Client approved current/supplied service image for use on 10 August 2026."),
     enabled: true,
     supportedCountries,
     bookingMode: "STANDARD",
@@ -370,7 +475,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "GLOBAL",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("BARBECUE_BBQ", 500, 30, 65, 10, "BBQ pricing depends on equipment, outdoor setup, menu complexity, and whether the chef brings grill equipment.")],
+    pricingRules: standardCountryPricing("BARBECUE_BBQ", activeGbPricing("BARBECUE_BBQ", 500, 30, 65, 10, "BBQ pricing depends on equipment, outdoor setup, menu complexity, and whether the chef brings grill equipment."), 4, 250),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -380,7 +485,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     id: "BRUNCH",
     label: "Brunch",
     description: "Late-morning and daytime menus for hosted gatherings.",
-    image: clientImage("brunch", "Brunch dishes and coffee arranged on a table", "Filename names Duncan Shaffer and Unsplash; license still needs source URL confirmation.", "Duncan Shaffer"),
+    image: approvedClientImage("brunch", "Brunch dishes and coffee arranged on a table", "Client approved current/supplied service image for use on 10 August 2026.", "Duncan Shaffer"),
     enabled: true,
     supportedCountries,
     bookingMode: "STANDARD",
@@ -400,7 +505,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "GLOBAL",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("BRUNCH", 300, 35, 60, 4, "Brunch guidance covers chef-led breakfast or brunch service and is not reused from dinner pricing.")],
+    pricingRules: standardCountryPricing("BRUNCH", activeGbPricing("BRUNCH", 300, 35, 60, 4, "Brunch guidance covers chef-led breakfast or brunch service and is not reused from dinner pricing."), 2, 150),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -410,7 +515,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     id: "GRAZING_TABLE",
     label: "Grazing Table",
     description: "Styled table spreads with grazing, antipasti, fruit, cheese, or themed platters.",
-    image: clientImage("grazing-table", "Grazing table board with cheese, charcuterie, fruit, and crackers", "Screenshot states this is grazing table and duplicate/alternate grazing table image was supplied."),
+    image: approvedClientImage("grazing-table", "Grazing table board with cheese, charcuterie, fruit, and crackers", "Client approved current/supplied service image for use on 10 August 2026."),
     enabled: true,
     supportedCountries,
     bookingMode: "STANDARD",
@@ -429,7 +534,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "GLOBAL",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("GRAZING_TABLE", 490, 15, 28, 8, "Grazing Table pricing includes styling/setup expectations and is separate from buffet service.")],
+    pricingRules: standardCountryPricing("GRAZING_TABLE", activeGbPricing("GRAZING_TABLE", 490, 15, 28, 8, "Grazing Table pricing includes styling/setup expectations and is separate from buffet service."), 4, 250),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -459,7 +564,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "GLOBAL",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("COOKING_CLASS", 680, 85, 130, 2, "Cooking Class pricing is based on tuition, ingredients, class duration, and equipment requirements.")],
+    pricingRules: standardCountryPricing("COOKING_CLASS", activeGbPricing("COOKING_CLASS", 680, 85, 130, 2, "Cooking Class pricing is based on tuition, ingredients, class duration, and equipment requirements."), 2, 20),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -487,7 +592,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "SERVICE_SPECIFIC",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("AFTERNOON_TEA", 290, 40, 60, 4, "Afternoon Tea is priced independently from brunch and dinner services.")],
+    pricingRules: standardCountryPricing("AFTERNOON_TEA", activeGbPricing("AFTERNOON_TEA", 290, 40, 60, 4, "Afternoon Tea is priced independently from brunch and dinner services."), 2, 120),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -497,7 +602,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     id: "KIDS_PARTY",
     label: "Kids Party",
     description: "Food and service tailored for children's parties.",
-    image: clientImage("kids-party", "Kids party dessert table with cake, balloons, cupcakes, and decorations", "Screenshot states: This is kids party.", "Yulia Gapeenko"),
+    image: approvedClientImage("kids-party", "Kids party dessert table with cake, balloons, cupcakes, and decorations", "Client approved current/supplied service image for use on 10 August 2026.", "Yulia Gapeenko"),
     enabled: true,
     supportedCountries,
     bookingMode: "STANDARD",
@@ -516,7 +621,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "SERVICE_SPECIFIC",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("KIDS_PARTY", 150, 9, 18, 8, "Kids Party guidance uses child-friendly catering references and the under-10 billing rule.")],
+    pricingRules: standardCountryPricing("KIDS_PARTY", activeGbPricing("KIDS_PARTY", 150, 9, 18, 8, "Kids Party guidance uses child-friendly catering references and the under-10 billing rule."), 2, 150),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -542,7 +647,7 @@ export const SERVICE_TYPE_CONFIG: readonly ServiceTypeConfig[] = [
     cuisineCompatibility: "GLOBAL",
     eventCompatibility: "STANDARD_EVENTS",
     dietaryRequirements: true,
-    pricingRules: [activeGbPricing("DELIVERY_PLATTER", 120, 8, 20, 8, "Delivery Platter pricing is for prepared platter or drop-off style service and does not imply staffed event catering.")],
+    pricingRules: standardCountryPricing("DELIVERY_PLATTER", activeGbPricing("DELIVERY_PLATTER", 120, 8, 20, 8, "Delivery Platter pricing is for prepared platter or drop-off style service and does not imply staffed event catering."), 2, 300),
     effectiveDate: "2026-08-04",
     version: SERVICE_ENGINE_VERSION,
     status: "ACTIVE",
@@ -600,6 +705,61 @@ export function getPricingRule(serviceType: string, countryCode: string, tier?: 
     rule.countryCode === countryCode &&
     (!rule.tier || !tier || rule.tier === tier)
   ) ?? service.pricingRules.find((rule) => rule.countryCode === countryCode) ?? null;
+}
+
+export function validateServiceSpecificAnswers(
+  serviceType: string,
+  answers?: Record<string, unknown> | null,
+) {
+  const service = getServiceTypeConfig(serviceType);
+  if (!service) return [{ id: "serviceType", label: "Service type" }];
+
+  const provided = answers ?? {};
+  const sharedQuestionIds = new Set(["cuisinePreferences", "dietaryRequirements", "serviceTier"]);
+
+  return service.requiredQuestions
+    .filter((question) => question.required && !sharedQuestionIds.has(question.id))
+    .filter((question) => {
+      const value = provided[question.id];
+      if (Array.isArray(value)) return value.length === 0;
+      if (typeof value === "string") return value.trim().length === 0;
+      return value == null;
+    })
+    .map((question) => ({ id: question.id, label: question.label }));
+}
+
+export function resolvePricingState(input: {
+  serviceType: string;
+  countryCode: string;
+  tier?: string | null;
+  budget?: number | null;
+  activeRule?: PricingRuleLike | null;
+}) {
+  const currency = getCurrencyForCountry(input.countryCode);
+  const rule = input.activeRule ?? getPricingRule(input.serviceType, input.countryCode, input.tier);
+
+  if (!rule) {
+    return {
+      currency,
+      rule: null,
+      pricingStatus: "LOCAL_QUOTE_REQUIRED",
+      budgetStatus: "LOCAL_QUOTE_REQUIRED",
+      budgetWarning: "Pricing for this market is pending approval, so the request will be treated as a local quote enquiry.",
+    };
+  }
+
+  const minimumSpend = rule.minimumSpend ?? null;
+  const belowMinimum = minimumSpend != null && input.budget != null && input.budget < minimumSpend;
+
+  return {
+    currency,
+    rule,
+    pricingStatus: "ACTIVE_RULE_APPLIED",
+    budgetStatus: belowMinimum ? "BELOW_MINIMUM_ALLOW_ENQUIRY" : "WITHIN_GUIDANCE",
+    budgetWarning: belowMinimum
+      ? rule.warningCopy ?? "Your budget is below the active guidance for this service. You may submit the enquiry, but chefs can quote only if the commercial terms work."
+      : null,
+  };
 }
 
 export function calculateGuestComposition(input: {

@@ -29,7 +29,7 @@ export async function generateMetadata({ params }: ExperiencePageProps) {
   });
 
   return buildPublicMetadata({
-    title: `${experience?.title ?? "Private Chef Experience"} | Chef Marketplace`,
+    title: `${experience?.title ?? "Private Chef Experience"} | ChefaChef`,
     description: experience?.description ?? "Explore a chef-led private dining experience.",
     path: `/experiences/${id}`,
   });
@@ -94,7 +94,7 @@ export default async function ExperiencePage({ params }: ExperiencePageProps) {
           image: experience.experienceImage || "/images/marketplace/seo-private-dining.png",
           brand: {
             "@type": "Brand",
-            name: "Chef Marketplace",
+            name: "ChefaChef",
           },
           offers: {
             "@type": "Offer",

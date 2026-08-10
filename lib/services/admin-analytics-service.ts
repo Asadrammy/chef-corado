@@ -19,6 +19,25 @@ function initializeDateMap(startDate: Date, endDate: Date) {
   return dateMap
 }
 
+function normalizeCurrency(currency?: string | null) {
+  return (currency || "GBP").toUpperCase()
+}
+
+function addCurrencyAmount(map: Map<string, number>, currency: string | null | undefined, amount: number) {
+  const normalizedCurrency = normalizeCurrency(currency)
+  map.set(normalizedCurrency, (map.get(normalizedCurrency) || 0) + amount)
+}
+
+function currencyMapToRows(map: Map<string, number>) {
+  return Array.from(map.entries())
+    .map(([currency, amount]) => ({ currency, amount: Math.round(amount * 100) / 100 }))
+    .filter((item) => item.amount > 0)
+}
+
+function singleCurrencyTotal(rows: Array<{ currency: string; amount: number }>) {
+  return rows.length === 1 ? rows[0].amount : undefined
+}
+
 export const adminAnalyticsService = {
   async getBookingsAnalytics(days: number) {
     const { startDate, endDate } = buildDateRange(days)
@@ -34,6 +53,7 @@ export const adminAnalyticsService = {
         createdAt: true,
         status: true,
         totalPrice: true,
+        currency: true,
         bookingType: true,
       },
       orderBy: {
@@ -59,7 +79,9 @@ export const adminAnalyticsService = {
       acc[booking.bookingType] = (acc[booking.bookingType] || 0) + 1
       return acc
     }, {})
-    const totalBookingValue = bookings.reduce((sum, booking) => sum + booking.totalPrice, 0)
+    const totalBookingValueByCurrencyMap = new Map<string, number>()
+    bookings.forEach((booking) => addCurrencyAmount(totalBookingValueByCurrencyMap, booking.currency, booking.totalPrice))
+    const totalBookingValueByCurrency = currencyMapToRows(totalBookingValueByCurrencyMap)
 
     return {
       data,
@@ -67,7 +89,8 @@ export const adminAnalyticsService = {
         totalBookings,
         averageDailyBookings: Math.round(averageDailyBookings * 100) / 100,
         daysWithBookings,
-        totalBookingValue: Math.round(totalBookingValue * 100) / 100,
+        totalBookingValue: singleCurrencyTotal(totalBookingValueByCurrency),
+        totalBookingValueByCurrency,
         statusBreakdown,
         typeBreakdown,
         dateRange: {
@@ -101,26 +124,43 @@ export const adminAnalyticsService = {
       },
     })
 
-    const revenueByDate = initializeDateMap(startDate, endDate)
+    const revenueByDate = new Map<string, Map<string, number>>()
+    initializeDateMap(startDate, endDate).forEach((_revenue, date) => {
+      revenueByDate.set(date, new Map())
+    })
+    const totalRevenueByCurrencyMap = new Map<string, number>()
     payments.forEach((payment) => {
       const dateStr = formatDateKey(payment.createdAt)
-      revenueByDate.set(dateStr, (revenueByDate.get(dateStr) || 0) + payment.commissionAmount)
+      const currency = normalizeCurrency(payment.currency)
+      const dateCurrencyMap = revenueByDate.get(dateStr) || new Map<string, number>()
+      dateCurrencyMap.set(currency, (dateCurrencyMap.get(currency) || 0) + payment.commissionAmount)
+      revenueByDate.set(dateStr, dateCurrencyMap)
+      addCurrencyAmount(totalRevenueByCurrencyMap, currency, payment.commissionAmount)
     })
 
-    const data = Array.from(revenueByDate.entries()).map(([date, revenue]) => ({
+    const data = Array.from(revenueByDate.entries()).map(([date, currencies]) => ({
       date,
-      revenue: Math.round(revenue * 100) / 100,
+      revenueByCurrency: Object.fromEntries(
+        Array.from(currencies.entries()).map(([currency, amount]) => [currency, Math.round(amount * 100) / 100])
+      ),
     }))
 
-    const totalRevenue = data.reduce((sum, item) => sum + item.revenue, 0)
-    const averageDailyRevenue = totalRevenue / days
-    const daysWithRevenue = data.filter((item) => item.revenue > 0).length
+    const revenueByCurrency = currencyMapToRows(totalRevenueByCurrencyMap)
+    const averageDailyRevenueByCurrency = revenueByCurrency.map((item) => ({
+      currency: item.currency,
+      amount: Math.round((item.amount / days) * 100) / 100,
+    }))
+    const daysWithRevenue = data.filter((item) =>
+      Object.values(item.revenueByCurrency).some((amount) => Number(amount) > 0)
+    ).length
 
     return {
       data,
       summary: {
-        totalRevenue: Math.round(totalRevenue * 100) / 100,
-        averageDailyRevenue: Math.round(averageDailyRevenue * 100) / 100,
+        totalRevenue: singleCurrencyTotal(revenueByCurrency),
+        totalRevenueByCurrency: revenueByCurrency,
+        averageDailyRevenue: singleCurrencyTotal(averageDailyRevenueByCurrency),
+        averageDailyRevenueByCurrency,
         daysWithRevenue,
         totalPayments: payments.length,
         dateRange: {

@@ -6,7 +6,7 @@ import { handleApiError } from "@/lib/error-handler"
 import { prisma } from "@/lib/prisma"
 
 const disputeActionSchema = z.object({
-  status: z.enum(["OPEN", "UNDER_REVIEW", "WAITING_ON_CUSTOMER", "PROPOSED_RESOLUTION", "RESOLVED", "CLOSED"]).optional(),
+  status: z.enum(["OPEN", "UNDER_REVIEW", "WAITING_ON_CUSTOMER", "PROPOSED_RESOLUTION", "RESOLVED", "REJECTED", "ESCALATED", "CLOSED"]).optional(),
   assignedTo: z.string().optional().nullable(),
   investigationState: z.string().max(120).optional().nullable(),
   internalNotes: z.string().max(3000).optional().nullable(),
@@ -21,7 +21,16 @@ export async function PATCH(
     const actor = await requireAdminPermission("disputes.resolve")
     const { id } = await context.params
     const payload = disputeActionSchema.parse(await request.json())
-    const existing = await prisma.dispute.findUnique({ where: { id } })
+    const existing = await prisma.dispute.findUnique({
+      where: { id },
+      include: {
+        booking: {
+          include: {
+            chef: { select: { userId: true } },
+          },
+        },
+      },
+    })
 
     if (!existing) {
       return NextResponse.json({ error: "Dispute not found" }, { status: 404 })
@@ -36,10 +45,27 @@ export async function PATCH(
           investigationState: payload.investigationState === undefined ? existing.investigationState : payload.investigationState,
           internalNotes: payload.internalNotes === undefined ? existing.internalNotes : payload.internalNotes,
           resolution: payload.resolution === undefined ? existing.resolution : payload.resolution,
-          resolvedBy: payload.status === "RESOLVED" ? actor.userId : existing.resolvedBy,
-          resolvedAt: payload.status === "RESOLVED" ? new Date() : existing.resolvedAt,
+          resolvedBy: payload.status && ["RESOLVED", "REJECTED", "CLOSED"].includes(payload.status) ? actor.userId : existing.resolvedBy,
+          resolvedAt: payload.status && ["RESOLVED", "REJECTED", "CLOSED"].includes(payload.status) ? new Date() : existing.resolvedAt,
         },
       })
+
+      if (payload.status && payload.status !== existing.status) {
+        await tx.notification.createMany({
+          data: [
+            {
+              userId: existing.booking.clientId,
+              type: "DISPUTE_UPDATED",
+              message: `Dispute for booking ${existing.bookingId} moved to ${payload.status.replace(/_/g, " ")}.`,
+            },
+            {
+              userId: existing.booking.chef.userId,
+              type: "DISPUTE_UPDATED",
+              message: `Dispute for booking ${existing.bookingId} moved to ${payload.status.replace(/_/g, " ")}.`,
+            },
+          ],
+        })
+      }
 
       await tx.auditLog.create({
         data: {

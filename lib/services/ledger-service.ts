@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { formatCurrency } from "@/lib/currency"
 import { logger } from "@/lib/logger"
 
 export type TransactionType = 
@@ -93,7 +94,8 @@ export const ledgerService = {
     commissionAmount: number,
     chefAmount: number,
     createdBy: string,
-    metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
+    currency = "GBP"
   ) {
     // Record total payment from client to platform
     await this.recordTransaction({
@@ -103,7 +105,7 @@ export const ledgerService = {
       bookingId,
       fromAccount: "CLIENT_STRIPE",
       toAccount: "PLATFORM_HOLDING",
-      description: `Payment received from client: $${totalAmount}`,
+      description: `Payment received from client: ${formatCurrency(totalAmount, currency)}`,
       createdBy,
       metadata: { ...metadata, breakdown: { total: totalAmount, commission: commissionAmount, chef: chefAmount } },
     })
@@ -117,7 +119,7 @@ export const ledgerService = {
         bookingId,
         fromAccount: "PLATFORM_HOLDING",
         toAccount: "PLATFORM_FEE",
-        description: `Platform commission: $${commissionAmount}`,
+        description: `Platform commission: ${formatCurrency(commissionAmount, currency)}`,
         createdBy,
         metadata,
       })
@@ -133,7 +135,8 @@ export const ledgerService = {
     bookingId: string,
     amount: number,
     createdBy: string,
-    reason?: string
+    reason?: string,
+    currency = "GBP"
   ) {
     await this.recordTransaction({
       transactionType: "REFUND",
@@ -143,7 +146,7 @@ export const ledgerService = {
       bookingId,
       fromAccount: "PLATFORM_HOLDING",
       toAccount: "STRIPE_REFUND",
-      description: `Refund processed: $${amount}${reason ? ` - ${reason}` : ""}`,
+      description: `Refund processed: ${formatCurrency(amount, currency)}${reason ? ` - ${reason}` : ""}`,
       createdBy,
       metadata: { reason },
     })
@@ -157,9 +160,11 @@ export const ledgerService = {
     chefId: string,
     amount: number,
     createdBy: string,
-    stripeTransferId?: string
+    stripeTransferId?: string,
+    currency = "GBP"
   ) {
-    const existingPayout = await prisma.payout.findUnique({ where: { id: payoutId }, select: { id: true } }).catch(() => null)
+    const existingPayout = await prisma.payout.findUnique({ where: { id: payoutId }, select: { id: true, currency: true } }).catch(() => null)
+    const payoutCurrency = existingPayout?.currency || currency
 
     await this.recordTransaction({
       transactionType: "PAYOUT",
@@ -167,7 +172,7 @@ export const ledgerService = {
       payoutId: existingPayout ? payoutId : undefined,
       fromAccount: "PLATFORM_HOLDING",
       toAccount: "CHEF_PAYOUT",
-      description: `Payout to chef ${chefId}: $${amount}${stripeTransferId ? ` (Transfer: ${stripeTransferId})` : ""}`,
+      description: `Payout to chef ${chefId}: ${formatCurrency(amount, payoutCurrency)}${stripeTransferId ? ` (Transfer: ${stripeTransferId})` : ""}`,
       createdBy,
       metadata: { chefId, stripeTransferId, payoutReference: payoutId },
     })

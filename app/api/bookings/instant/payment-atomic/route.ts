@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { normalizeCurrency } from '@/lib/currency';
+import { calculateChefPayout, calculatePlatformCommission } from '@/lib/marketplace-rules';
 import { logger } from '@/lib/logger';
 import { enforceUserModeration } from '@/lib/security/moderation-guard';
 import { enforceClientCompliance } from '@/lib/security/legal-compliance';
@@ -118,8 +119,8 @@ export async function POST(request: NextRequest) {
       // Step 4: Calculate pricing with cooking class invariant
       const bookingCounts = validateExperienceBookingCounts(experience, payload.guestCount);
       const totalPrice = bookingCounts.totalPrice;
-      const commissionAmount = totalPrice * 0.2;
-      const chefAmount = totalPrice * 0.8;
+      const commissionAmount = calculatePlatformCommission(totalPrice);
+      const chefAmount = calculateChefPayout(totalPrice);
       const currency = normalizeCurrency((experience as any).currency || 'GBP');
       const bookingData = {
         clientId: session.user.id as string,
@@ -132,7 +133,7 @@ export async function POST(request: NextRequest) {
         totalPrice,
         currency,
         bookingType: 'INSTANT',
-        status: 'PENDING_PAYMENT',
+        status: 'PENDING',
         specialRequests: payload.specialRequests || null,
       } as any
       const paymentData = {
@@ -218,8 +219,8 @@ export async function POST(request: NextRequest) {
     await prisma.payment.update({
       where: { id: result.payment.id },
       data: {
-        stripePaymentIntentId: checkoutSession.payment_intent as string,
-        stripeChargeId: checkoutSession.id,
+        stripePaymentIntentId: typeof checkoutSession.payment_intent === "string" ? checkoutSession.payment_intent : undefined,
+        stripeCheckoutSessionId: checkoutSession.id,
       },
     });
 

@@ -215,8 +215,8 @@ async function main() {
     data: {
       bookingId: booking1.id,
       totalAmount: booking1.totalPrice,
-      commissionAmount: booking1.totalPrice * 0.15,
-      chefAmount: booking1.totalPrice * 0.85,
+      commissionAmount: booking1.totalPrice * 0.2,
+      chefAmount: booking1.totalPrice * 0.8,
       status: 'RELEASED',
     } as any,
   });

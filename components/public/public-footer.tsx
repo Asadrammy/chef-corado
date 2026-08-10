@@ -20,7 +20,7 @@ export function PublicFooter() {
         <div className="grid gap-10 md:grid-cols-2 xl:grid-cols-5">
           <div className="xl:col-span-1">
             <div className="max-w-sm space-y-4">
-              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-white/60">Chef Marketplace</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-white/60">ChefaChef</p>
               <h2 className="text-2xl font-semibold tracking-tight text-white">Private dining, beautifully hosted.</h2>
               <p className="text-sm leading-6 text-white/68">
                 Discover vetted chefs, compare cuisines, and plan intimate dinners, milestone celebrations, and chef-led experiences with a calmer sense of occasion.
@@ -43,6 +43,7 @@ export function PublicFooter() {
                     <span className="inline-flex min-h-5 items-center gap-2">
                       {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
                       <span>{item.label}</span>
+                      {item.value ? <span className="text-xs text-white/45">{item.value}</span> : null}
                       {item.note ? <span className="text-xs text-white/35">{item.note}</span> : null}
                     </span>
                   );
@@ -72,7 +73,7 @@ export function PublicFooter() {
         </div>
 
         <div className="flex flex-col gap-4 border-t border-white/10 pt-8 text-sm text-white/55 md:flex-row md:items-center md:justify-between">
-          <p>Copyright {new Date().getFullYear()} Chef Marketplace. Private chef discovery and beautifully hosted events.</p>
+          <p>Copyright {new Date().getFullYear()} ChefaChef. Private chef discovery and beautifully hosted events.</p>
           <div className="flex flex-wrap items-center gap-4" aria-label="Legal footer links">
             <Link href="/privacy" className="transition-colors hover:text-white">Privacy</Link>
             <Link href="/terms/client" className="transition-colors hover:text-white">Client Terms</Link>

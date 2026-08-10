@@ -15,12 +15,15 @@ import {
 interface AnalyticsData {
   totalBookings?: number;
   totalSpending?: number;
+  totalSpendingByCurrency?: CurrencyAmount[];
   totalEarnings?: number;
+  earningsByCurrency?: CurrencyAmount[];
   completedBookings?: number;
   totalUsers?: number;
   totalChefs?: number;
   totalClients?: number;
   totalRevenue?: number;
+  revenueByCurrency?: CurrencyAmount[];
   proposalsSent?: number;
   averageRating?: number;
   bookingsByStatus?: Record<string, number>;
@@ -32,6 +35,11 @@ interface AnalyticsData {
     revenueChange?: number;
   };
 }
+
+type CurrencyAmount = {
+  currency: string;
+  amount: number;
+};
 
 interface MetricCard {
   title: string;
@@ -86,6 +94,18 @@ export function MarketplaceMetrics() {
   const getMetricsForRole = (): MetricCard[] => {
     if (!analytics) return [];
 
+    const formatCurrencyBreakdown = (amounts?: CurrencyAmount[], fallbackAmount?: number) => {
+      if (amounts?.length) {
+        return amounts.map((item) => formatCurrency(item.amount, item.currency)).join(" / ");
+      }
+
+      if (fallbackAmount !== undefined) {
+        return formatCurrency(fallbackAmount, "GBP");
+      }
+
+      return "No financial activity";
+    };
+
     switch (userRole) {
       case "CLIENT":
         return [
@@ -99,7 +119,7 @@ export function MarketplaceMetrics() {
           },
           {
             title: "Total Spending",
-            value: formatCurrency(analytics.totalSpending || 0),
+            value: formatCurrencyBreakdown(analytics.totalSpendingByCurrency, analytics.totalSpending),
             change: analytics.trends?.spendingChange,
             changeType: (analytics.trends?.spendingChange || 0) >= 0 ? "increase" : "decrease",
             icon: <CurrencyDollarIcon className="w-6 h-6" />,
@@ -119,7 +139,7 @@ export function MarketplaceMetrics() {
         return [
           {
             title: "Total Earnings",
-            value: formatCurrency(analytics.totalEarnings || 0),
+            value: formatCurrencyBreakdown(analytics.earningsByCurrency, analytics.totalEarnings),
             change: analytics.trends?.earningsChange,
             changeType: (analytics.trends?.earningsChange || 0) >= 0 ? "increase" : "decrease",
             icon: <CurrencyDollarIcon className="w-6 h-6" />,
@@ -155,7 +175,7 @@ export function MarketplaceMetrics() {
           },
           {
             title: "Platform Revenue",
-            value: formatCurrency(analytics.totalRevenue || 0),
+            value: formatCurrencyBreakdown(analytics.revenueByCurrency, analytics.totalRevenue),
             change: analytics.trends?.revenueChange,
             changeType: (analytics.trends?.revenueChange || 0) >= 0 ? "increase" : "decrease",
             icon: <CurrencyDollarIcon className="w-6 h-6" />,

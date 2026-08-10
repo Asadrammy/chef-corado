@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import { APPROVED_PUBLIC_CONTACT } from "@/lib/marketplace-rules";
 
 export type PublicNavItem = {
   label: string;
@@ -8,6 +9,7 @@ export type PublicNavItem = {
 export type FooterItem = {
   label: string;
   href?: string;
+  value?: string;
   note?: string;
   disabled?: boolean;
 };
@@ -38,13 +40,22 @@ export const publicCtaItems = {
   findLocalChef: { label: "Find Local Chef", href: "/find-local-chef" },
 };
 
-function configuredFooterItem(label: string, href?: string | null, note = "Available on request"): FooterItem {
-  const value = href?.trim();
-  return value ? { label, href: value } : { label, note, disabled: true };
+function configuredFooterItem(label: string, href?: string | null, note = "Configuration required", value?: string | null): FooterItem {
+  const link = href?.trim();
+  const displayValue = value?.trim();
+  return link ? { label, href: link, value: displayValue } : { label, note, disabled: true, value: displayValue };
 }
 
-const contactPhone = process.env.NEXT_PUBLIC_CONTACT_PHONE?.trim();
-const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim();
+const contactPhone = process.env.NEXT_PUBLIC_CONTACT_PHONE?.trim() || APPROVED_PUBLIC_CONTACT.phone;
+const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || APPROVED_PUBLIC_CONTACT.email;
+const contactWhatsappActive = process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_ACTIVE === "true";
+const contactWhatsapp = contactWhatsappActive
+  ? process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_URL?.trim() || APPROVED_PUBLIC_CONTACT.whatsappUrl
+  : "";
+const socialFacebook = process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK_URL?.trim() || APPROVED_PUBLIC_CONTACT.facebookUrl;
+const socialInstagram = process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL?.trim() || APPROVED_PUBLIC_CONTACT.instagramUrl;
+const socialX = process.env.NEXT_PUBLIC_SOCIAL_X_URL?.trim() || APPROVED_PUBLIC_CONTACT.xUrl;
+const socialYoutube = process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE_URL?.trim() || APPROVED_PUBLIC_CONTACT.youtubeUrl;
 
 export const footerSections: FooterSection[] = [
   {
@@ -70,18 +81,18 @@ export const footerSections: FooterSection[] = [
   {
     title: "Contact",
     items: [
-      configuredFooterItem("WhatsApp", process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_URL),
-      configuredFooterItem("Telephone", contactPhone ? `tel:${contactPhone}` : null),
-      configuredFooterItem("Email", contactEmail ? `mailto:${contactEmail}` : null, "Contact information coming soon"),
+      configuredFooterItem("WhatsApp", contactWhatsapp, "Not active yet", APPROVED_PUBLIC_CONTACT.phoneDisplay),
+      configuredFooterItem("Telephone", contactPhone ? `tel:${contactPhone}` : null, "Configuration required", APPROVED_PUBLIC_CONTACT.phoneDisplay),
+      configuredFooterItem("Email", contactEmail ? `mailto:${contactEmail}` : null, "Configuration required", contactEmail),
     ],
   },
   {
     title: "Social",
     items: [
-      configuredFooterItem("Facebook", process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK_URL, "Coming soon"),
-      configuredFooterItem("Instagram", process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL, "Coming soon"),
-      configuredFooterItem("X/Twitter", process.env.NEXT_PUBLIC_SOCIAL_X_URL, "Coming soon"),
-      configuredFooterItem("YouTube", process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE_URL, "Coming soon"),
+      configuredFooterItem("Facebook", socialFacebook, "Configuration required"),
+      configuredFooterItem("Instagram", socialInstagram, "Awaiting approved page"),
+      configuredFooterItem("X/Twitter", socialX, "Awaiting approved page"),
+      configuredFooterItem("YouTube", socialYoutube, "Awaiting approved page"),
     ],
   },
 ];
@@ -161,7 +172,7 @@ export function buildPublicMetadata({
       title,
       description,
       url,
-      siteName: "Chef Marketplace",
+      siteName: "ChefaChef",
       images: [
         {
           url: getAbsoluteUrl("/images/marketplace/seo-private-dining.png"),

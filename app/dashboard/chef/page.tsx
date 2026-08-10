@@ -30,6 +30,8 @@ function getLocalChefDashboardData(): ChefDashboardData {
 
   return {
     totalEarnings: 4280,
+    totalEarningsCurrency: "USD",
+    earningsByCurrency: [{ currency: "USD", amount: 4280 }],
     activeBookings: 3,
     availableRequests: 4,
     completedBookings: 12,
@@ -106,25 +108,25 @@ function getLocalChefDashboardData(): ChefDashboardData {
     experiences: [],
     reviews: [],
     earningsData: [
-      { month: "Apr 2026", earnings: 3120 },
-      { month: "May 2026", earnings: 4280 },
-      { month: "Jun 2026", earnings: 1860 },
+      { month: "Apr 2026", earnings: 3120, currency: "USD" },
+      { month: "May 2026", earnings: 4280, currency: "USD" },
+      { month: "Jun 2026", earnings: 1860, currency: "USD" },
     ],
     earningsTrend: [
-      { date: "Jun 1", earnings: 0 },
-      { date: "Jun 2", earnings: 420 },
-      { date: "Jun 3", earnings: 0 },
-      { date: "Jun 4", earnings: 680 },
-      { date: "Jun 5", earnings: 0 },
-      { date: "Jun 6", earnings: 760 },
-      { date: "Jun 7", earnings: 0 },
-      { date: "Jun 8", earnings: 0 },
-      { date: "Jun 9", earnings: 540 },
-      { date: "Jun 10", earnings: 0 },
-      { date: "Jun 11", earnings: 0 },
-      { date: "Jun 12", earnings: 890 },
-      { date: "Jun 13", earnings: 0 },
-      { date: "Jun 14", earnings: 0 },
+      { date: "Jun 1", earnings: 0, currency: "USD" },
+      { date: "Jun 2", earnings: 420, currency: "USD" },
+      { date: "Jun 3", earnings: 0, currency: "USD" },
+      { date: "Jun 4", earnings: 680, currency: "USD" },
+      { date: "Jun 5", earnings: 0, currency: "USD" },
+      { date: "Jun 6", earnings: 760, currency: "USD" },
+      { date: "Jun 7", earnings: 0, currency: "USD" },
+      { date: "Jun 8", earnings: 0, currency: "USD" },
+      { date: "Jun 9", earnings: 540, currency: "USD" },
+      { date: "Jun 10", earnings: 0, currency: "USD" },
+      { date: "Jun 11", earnings: 0, currency: "USD" },
+      { date: "Jun 12", earnings: 890, currency: "USD" },
+      { date: "Jun 13", earnings: 0, currency: "USD" },
+      { date: "Jun 14", earnings: 0, currency: "USD" },
     ],
     kpiTrends: [
       { date: "Jun 1", quotesSent: 1, proposalsAccepted: 0, proposalsRejected: 0, earnings: 0 },
@@ -197,6 +199,8 @@ export default async function ChefDashboardPage() {
 
   const {
     totalEarnings = 0,
+    totalEarningsCurrency = "GBP",
+    earningsByCurrency = [],
     activeBookings = 0,
     availableRequests = 0,
     completedBookings = 0,
@@ -224,6 +228,8 @@ export default async function ChefDashboardPage() {
           activeBookings={activeBookings}
           availableRequests={availableRequests}
           totalEarnings={totalEarnings}
+          totalEarningsCurrency={totalEarningsCurrency}
+          earningsByCurrency={earningsByCurrency}
         />
 
         <ChefStats
@@ -246,6 +252,7 @@ export default async function ChefDashboardPage() {
             {/* Revenue Intelligence - Premium Feature */}
             <RevenueIntelligence
               totalEarnings={totalEarnings}
+              totalEarningsCurrency={totalEarningsCurrency}
               earningsTrend={earningsTrend}
               completedBookings={completedBookings}
               activeBookings={activeBookings}
@@ -259,6 +266,8 @@ export default async function ChefDashboardPage() {
 
             <ChefPerformance
               totalEarnings={totalEarnings}
+              totalEarningsCurrency={totalEarningsCurrency}
+              earningsByCurrency={earningsByCurrency}
               completedBookings={completedBookings}
               earningsTrend={earningsTrend}
               averageRating={averageRating}

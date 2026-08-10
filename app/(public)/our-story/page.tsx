@@ -2,8 +2,8 @@ import { PublicContentPage } from "@/components/public/public-content-page";
 import { buildPublicMetadata } from "@/lib/public-site";
 
 export const metadata = buildPublicMetadata({
-  title: "Our Story | Chef Marketplace",
-  description: "Learn how Chef Marketplace helps hosts discover vetted private chefs for beautifully hosted dining.",
+  title: "Our Story | ChefaChef",
+  description: "Learn how ChefaChef helps hosts discover vetted private chefs for beautifully hosted dining.",
   path: "/our-story",
 });
 
@@ -12,7 +12,7 @@ export default function OurStoryPage() {
     <PublicContentPage
       eyebrow="Our story"
       title="A better way to gather around the table."
-      description="Chef Marketplace was created for people who want the warmth of hosting without losing the evening to planning, shopping, cooking, and service."
+      description="ChefaChef was created for people who want the warmth of hosting without losing the evening to planning, shopping, cooking, and service."
       primaryCta={{ label: "Browse chefs", href: "/browse-chefs" }}
       secondaryCta={{ label: "Read reviews", href: "/reviews" }}
       image="/images/marketplace/seo-private-dining.png"

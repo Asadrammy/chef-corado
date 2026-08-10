@@ -8,11 +8,19 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { Wallet, Calendar, Users, Star, TrendingUp, Activity } from 'lucide-react';
 import { formatCurrency } from '@/lib/currency';
 
+type CurrencyAmount = {
+  currency: string;
+  amount: number;
+};
+
 interface AnalyticsData {
   totalBookings?: number;
   totalSpending?: number;
+  totalSpendingByCurrency?: CurrencyAmount[];
   totalEarnings?: number;
+  earningsByCurrency?: CurrencyAmount[];
   totalRevenue?: number;
+  revenueByCurrency?: CurrencyAmount[];
   totalUsers?: number;
   totalChefs?: number;
   totalClients?: number;
@@ -23,8 +31,8 @@ interface AnalyticsData {
   activeBookings?: number;
   pendingProposals?: number;
   bookingsByStatus?: Record<string, number>;
-  spendingTrends?: Array<{ date: string; amount: number }>;
-  earningsTrends?: Array<{ date: string; amount: number }>;
+  spendingTrends?: Array<{ date: string; amount: number; currency?: string }>;
+  earningsTrends?: Array<{ date: string; amount: number; currency?: string }>;
   platformStats?: Record<string, number>;
 }
 
@@ -89,19 +97,31 @@ export function AnalyticsDashboard({ userId, userRole }: AnalyticsDashboardProps
     );
   }
 
+  const formatCurrencyBreakdown = (amounts?: CurrencyAmount[], fallbackAmount?: number) => {
+    if (amounts?.length) {
+      return amounts.map((item) => formatCurrency(item.amount, item.currency)).join(' / ');
+    }
+
+    if (fallbackAmount !== undefined) {
+      return formatCurrency(fallbackAmount, 'GBP');
+    }
+
+    return 'No financial activity';
+  };
+
   const renderMetricCards = () => {
     const cards = [];
 
     if (userRole === 'CLIENT') {
       cards.push(
         { title: 'Total Bookings', value: analytics.totalBookings || 0, icon: 'Calendar', color: 'text-blue-600' },
-        { title: 'Total Spending', value: formatCurrency(analytics.totalSpending || 0, 'GBP'), icon: 'Wallet', color: 'text-green-600' },
+        { title: 'Total Spending', value: formatCurrencyBreakdown(analytics.totalSpendingByCurrency, analytics.totalSpending), icon: 'Wallet', color: 'text-green-600' },
       );
     } else if (userRole === 'CHEF') {
       cards.push(
         { title: 'Total Bookings', value: analytics.totalBookings || 0, icon: 'Calendar', color: 'text-blue-600' },
         { title: 'Completed', value: analytics.completedBookings || 0, icon: 'Activity', color: 'text-green-600' },
-        { title: 'Total Earnings', value: formatCurrency(analytics.totalEarnings || 0, 'GBP'), icon: 'Wallet', color: 'text-green-600' },
+        { title: 'Total Earnings', value: formatCurrencyBreakdown(analytics.earningsByCurrency, analytics.totalEarnings), icon: 'Wallet', color: 'text-green-600' },
         { title: 'Average Rating', value: analytics.averageRating?.toFixed(1) || '0.0', icon: 'Star', color: 'text-yellow-600' },
         { title: 'Total Reviews', value: analytics.totalReviews || 0, icon: 'Users', color: 'text-purple-600' },
         { title: 'Proposals Sent', value: analytics.proposalsSent || 0, icon: 'TrendingUp', color: 'text-indigo-600' },
@@ -112,7 +132,7 @@ export function AnalyticsDashboard({ userId, userRole }: AnalyticsDashboardProps
         { title: 'Total Chefs', value: analytics.totalChefs || 0, icon: 'Users', color: 'text-green-600' },
         { title: 'Total Clients', value: analytics.totalClients || 0, icon: 'Users', color: 'text-purple-600' },
         { title: 'Total Bookings', value: analytics.totalBookings || 0, icon: 'Calendar', color: 'text-orange-600' },
-        { title: 'Platform Revenue', value: formatCurrency(analytics.totalRevenue || 0, 'GBP'), icon: 'Wallet', color: 'text-green-600' },
+        { title: 'Platform Revenue', value: formatCurrencyBreakdown(analytics.revenueByCurrency, analytics.totalRevenue), icon: 'Wallet', color: 'text-green-600' },
         { title: 'Active Bookings', value: analytics.activeBookings || 0, icon: 'Activity', color: 'text-blue-600' },
         { title: 'Pending Proposals', value: analytics.pendingProposals || 0, icon: 'TrendingUp', color: 'text-yellow-600' },
       );
@@ -174,7 +194,10 @@ export function AnalyticsDashboard({ userId, userRole }: AnalyticsDashboardProps
               <XAxis dataKey="date" />
               <YAxis />
               <Tooltip 
-                formatter={(value) => [formatCurrency(Number(value), 'GBP'), 'Amount']}
+                formatter={(value, _name, item) => [
+                  formatCurrency(Number(value), item?.payload?.currency || 'GBP'),
+                  'Amount',
+                ]}
               />
               <Line 
                 type="monotone" 

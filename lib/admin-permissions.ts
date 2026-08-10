@@ -38,6 +38,7 @@ export const ADMIN_PERMISSIONS = [
   "supportTickets.view",
   "supportTickets.assign",
   "supportTickets.resolve",
+  "notifications.view",
   "disputes.view",
   "disputes.resolve",
   "finance.view",
@@ -90,6 +91,7 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminStaffRole, readonly AdminPermis
     "supportTickets.view",
     "supportTickets.assign",
     "supportTickets.resolve",
+    "notifications.view",
     "disputes.view",
     "disputes.resolve",
     "analytics.view",
@@ -106,6 +108,7 @@ export const ADMIN_ROLE_PERMISSIONS: Record<AdminStaffRole, readonly AdminPermis
     "supportTickets.view",
     "supportTickets.assign",
     "supportTickets.resolve",
+    "notifications.view",
     "disputes.view",
     "credits.issue",
   ],
@@ -141,6 +144,7 @@ export const ADMIN_ROLE_LABELS: Record<AdminStaffRole, string> = {
 export const ADMIN_MODULES = [
   { title: "Overview", url: "/dashboard/admin", permission: "analytics.view" },
   { title: "Users", url: "/dashboard/admin/users", permission: "users.view" },
+  { title: "Client Profiles", url: "/dashboard/admin/client-profiles", permission: "users.view" },
   { title: "Chef Verification", url: "/dashboard/admin/chefs", permission: "chefs.review" },
   { title: "Compliance", url: "/dashboard/admin/compliance", permission: "certificates.view" },
   { title: "Background Checks", url: "/dashboard/admin/background-checks", permission: "backgroundChecks.view" },
@@ -160,6 +164,7 @@ export const ADMIN_MODULES = [
   { title: "Invoices", url: "/dashboard/admin/invoices", permission: "invoices.manage" },
   { title: "Analytics", url: "/dashboard/admin/analytics", permission: "analytics.view" },
   { title: "Support Tickets", url: "/dashboard/admin/support-tickets", permission: "supportTickets.view" },
+  { title: "Notifications", url: "/dashboard/admin/notifications", permission: "notifications.view" },
   { title: "Staff & Permissions", url: "/dashboard/admin/staff", permission: "admins.edit" },
   { title: "Audit Logs", url: "/dashboard/admin/audit-logs", permission: "auditLogs.view" },
   { title: "Settings", url: "/dashboard/admin/settings", permission: "platformSettings.manage" },
@@ -176,11 +181,11 @@ export const ADMIN_MODULE_GROUPS = [
   },
   {
     label: "Users & Compliance",
-    modules: ["Users", "Chef Verification", "Compliance", "Background Checks"],
+    modules: ["Users", "Client Profiles", "Chef Verification", "Compliance", "Background Checks"],
   },
   {
     label: "Support & Trust",
-    modules: ["Support Tickets", "Disputes"],
+    modules: ["Support Tickets", "Notifications", "Disputes"],
   },
   {
     label: "Finance",

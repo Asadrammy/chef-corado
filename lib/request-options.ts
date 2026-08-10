@@ -13,14 +13,17 @@ export {
   EVENT_TYPE_OPTIONS,
   SERVICE_ENGINE_VERSION as SERVICE_TYPE_REGISTRY_VERSION,
   SERVICE_TYPE_CONFIG as SERVICE_TYPE_OPTIONS,
+  CHILD_BILLING_RULE_COPY,
   calculateGuestComposition,
   getBudgetWarning,
   getCountryOption,
   getCurrencyForCountry,
   getLocaleForCountry,
   getPricingRule,
+  resolvePricingState,
   getServiceTypeConfig as getServiceTypeOption,
   getServiceTypeLabel,
+  validateServiceSpecificAnswers,
 } from "@/lib/service-engine";
 
 import {
@@ -72,9 +75,9 @@ export const CUISINE_TYPES = [
   "Greek",
   "Caribbean",
   "Modern European",
-  "Meal Prep-Lunch and Dinner",
+  "Meal Prep - Lunch & Dinner",
   "French",
-  "Canapè Party",
+  "Canap\u00e9 Party",
   "Fusion",
   "Turkish",
   "Korean",
@@ -93,16 +96,14 @@ export const CUISINE_TYPES = [
   "Lebanese",
   "Vegetarian",
   "Vegan",
-  "Latin America",
+  "Latin American",
   "Scottish",
   "Polish",
   "Micro Biotic",
-  "Macro Biotic",
   "Nigerian",
   "Creole",
   "Russian",
   "Iraqi",
-  "Morocco",
   "Moroccan",
   "Scandinavian",
   "Iranian",
@@ -116,8 +117,18 @@ export const CUISINE_TYPES = [
   "Afghan",
   "Pakistani",
   "Georgian",
-  "Other",
 ] as const;
+
+export const CUISINE_ALIASES: Record<string, typeof CUISINE_TYPES[number]> = {
+  "Meal Prep-Lunch and Dinner": "Meal Prep - Lunch & Dinner",
+  "Meal Prep Lunch & Dinner": "Meal Prep - Lunch & Dinner",
+  "Canap\u00e8 Party": "Canap\u00e9 Party",
+  "Canape Party": "Canap\u00e9 Party",
+  "Canap\\u00c3\\u00a9 Party": "Canap\u00e9 Party",
+  "Latin America": "Latin American",
+  "Morocco": "Moroccan",
+  "Macro Biotic": "Micro Biotic",
+};
 
 export const DIETARY_REQUIREMENTS = [
   "Vegetarian",
@@ -140,6 +151,15 @@ export type ServiceType = typeof REQUEST_SERVICE_TYPES[number];
 export type CookingClassType = typeof COOKING_CLASS_TYPES[number];
 export type CuisineType = typeof CUISINE_TYPES[number];
 export type DietaryRequirement = typeof DIETARY_REQUIREMENTS[number];
+
+export function normalizeCuisineType(value: string) {
+  const trimmed = value.trim();
+  return CUISINE_ALIASES[trimmed] ?? trimmed;
+}
+
+export function isCuisineType(value: string): value is CuisineType {
+  return (CUISINE_TYPES as readonly string[]).includes(value);
+}
 
 export function isCurrentTermsVersion(version?: string | null) {
   return version === TERMS_VERSION;

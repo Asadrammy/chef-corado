@@ -8,7 +8,7 @@ import { requireAdminPagePermission } from "@/lib/admin-rbac"
 import { formatCurrency } from "@/lib/currency"
 import { isPrismaConnectionError, prisma, withPrismaReconnect } from "@/lib/prisma"
 
-const disputeStatuses = ["OPEN", "UNDER_REVIEW", "WAITING_ON_CUSTOMER", "PROPOSED_RESOLUTION", "RESOLVED", "CLOSED"].map((value) => ({ label: value.replace(/_/g, " "), value }))
+const disputeStatuses = ["OPEN", "UNDER_REVIEW", "WAITING_ON_CUSTOMER", "PROPOSED_RESOLUTION", "RESOLVED", "REJECTED", "ESCALATED", "CLOSED"].map((value) => ({ label: value.replace(/_/g, " "), value }))
 
 type AdminDispute = Prisma.DisputeGetPayload<{
   include: {
@@ -85,7 +85,7 @@ export default async function AdminDisputesPage({
         metrics={[
           { label: "Open", value: disputes.filter((dispute) => ["OPEN", "UNDER_REVIEW", "WAITING_ON_CUSTOMER"].includes(dispute.status)).length },
           { label: "Proposed", value: disputes.filter((dispute) => dispute.status === "PROPOSED_RESOLUTION").length },
-          { label: "Resolved", value: disputes.filter((dispute) => dispute.status === "RESOLVED").length },
+          { label: "Resolved", value: disputes.filter((dispute) => ["RESOLVED", "REJECTED", "CLOSED"].includes(dispute.status)).length },
           { label: "Unassigned", value: disputes.filter((dispute) => !dispute.assignedTo).length },
         ]}
       />

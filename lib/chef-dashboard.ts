@@ -14,8 +14,15 @@ export type ChefDashboardRequestItem = {
   distanceKm?: number
 }
 
+export type CurrencyAmount = {
+  currency: string
+  amount: number
+}
+
 export type ChefDashboardData = {
   totalEarnings: number
+  totalEarningsCurrency: string
+  earningsByCurrency: CurrencyAmount[]
   activeBookings: number
   availableRequests: number
   completedBookings: number
@@ -52,8 +59,8 @@ export type ChefDashboardData = {
   bookings: unknown[]
   experiences: unknown[]
   reviews: unknown[]
-  earningsData: Array<{ month: string; earnings: number }>
-  earningsTrend: Array<{ date: string; earnings: number }>
+  earningsData: Array<{ month: string; earnings: number; currency: string }>
+  earningsTrend: Array<{ date: string; earnings: number; currency: string }>
   /** KPI trends for the last 14 days */
   kpiTrends: Array<{
     date: string
@@ -87,6 +94,7 @@ type DashboardBooking = {
   eventDate: Date
   status: string
   totalPrice: number
+  currency: string
   bookingType: string
   location: string
   guestCount: number
@@ -94,6 +102,7 @@ type DashboardBooking = {
     totalAmount: number
     commissionAmount: number
     chefAmount: number
+    currency: string
     status: string
     releasedAt: Date | null
   } | null
@@ -103,10 +112,18 @@ type DashboardBooking = {
   } | null
 }
 
+function normalizeCurrency(currency?: string | null) {
+  return (currency || "GBP").toUpperCase()
+}
+
 function getBookingEarnings(booking: DashboardBooking) {
   return booking.payments?.status === "COMPLETED"
     ? booking.payments?.chefAmount || 0
     : 0
+}
+
+function getBookingEarningsCurrency(booking: DashboardBooking) {
+  return normalizeCurrency(booking.payments?.currency || booking.currency)
 }
 
 function isBookingActive(status: string) {
@@ -245,6 +262,7 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
       bio: true,
       cuisineType: true,
       experience: true,
+      preferredCurrency: true,
       profileImage: true,
       isApproved: true,
       user: {
@@ -316,6 +334,7 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
         eventDate: true,
         status: true,
         totalPrice: true,
+        currency: true,
         bookingType: true,
         location: true,
         guestCount: true,
@@ -324,6 +343,7 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
             totalAmount: true,
             commissionAmount: true,
             chefAmount: true,
+            currency: true,
             status: true,
             releasedAt: true,
           },
@@ -481,10 +501,22 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
 
   const activeBookings = bookings.filter((booking) => isBookingActive(booking.status)).length
 
-  const totalEarnings = completedBookings.reduce(
-    (sum, booking) => sum + getBookingEarnings(booking),
-    0
-  )
+  const earningsByCurrencyMap = new Map<string, number>()
+  completedBookings.forEach((booking) => {
+    const earnings = getBookingEarnings(booking)
+    if (earnings <= 0) return
+    const currency = getBookingEarningsCurrency(booking)
+    earningsByCurrencyMap.set(currency, (earningsByCurrencyMap.get(currency) || 0) + earnings)
+  })
+  const earningsByCurrency = Array.from(earningsByCurrencyMap.entries()).map(([currency, amount]) => ({
+    currency,
+    amount: Math.round(amount * 100) / 100,
+  }))
+  const preferredCurrency = normalizeCurrency(chefProfile.preferredCurrency)
+  const totalEarningsCurrency = earningsByCurrencyMap.has(preferredCurrency)
+    ? preferredCurrency
+    : earningsByCurrency[0]?.currency || preferredCurrency
+  const totalEarnings = earningsByCurrencyMap.get(totalEarningsCurrency) || 0
 
   const averageRating = reviews.length
     ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
@@ -583,7 +615,7 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
   )
 
   const earningsByMonth = new Map<string, number>()
-  completedBookings.forEach((booking) => {
+  completedBookings.filter((booking) => getBookingEarningsCurrency(booking) === totalEarningsCurrency).forEach((booking) => {
     const monthKey = booking.createdAt.toLocaleDateString("en-US", {
       month: "short",
       year: "numeric",
@@ -596,6 +628,7 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
   const earningsData = Array.from(earningsByMonth.entries()).map(([monthKey, earnings]) => ({
     month: monthKey,
     earnings: Math.round(earnings * 100) / 100,
+    currency: totalEarningsCurrency,
   }))
 
   const today = new Date()
@@ -603,7 +636,7 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
   thirteenDaysAgo.setDate(today.getDate() - 13)
   thirteenDaysAgo.setHours(0, 0, 0, 0)
 
-  const earningsTrendMap = new Map<string, { date: string; earnings: number; sortKey: number }>()
+  const earningsTrendMap = new Map<string, { date: string; earnings: number; currency: string; sortKey: number }>()
 
   for (let index = 0; index < 14; index += 1) {
     const currentDate = new Date(thirteenDaysAgo)
@@ -616,11 +649,12 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
         day: "numeric",
       }),
       earnings: 0,
+      currency: totalEarningsCurrency,
       sortKey: currentDate.getTime(),
     })
   }
 
-  completedBookings.forEach((booking) => {
+  completedBookings.filter((booking) => getBookingEarningsCurrency(booking) === totalEarningsCurrency).forEach((booking) => {
     const bookingDate = new Date(booking.createdAt)
     bookingDate.setHours(0, 0, 0, 0)
 
@@ -643,6 +677,7 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
     .map(({ date, earnings }) => ({
       date,
       earnings: Math.round(earnings * 100) / 100,
+      currency: totalEarningsCurrency,
     }))
 
   // Calculate KPI trends for the last 14 days
@@ -683,7 +718,9 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
       proposalsAccepted: dayProposals.filter((p) => p.status === "ACCEPTED").length,
       proposalsRejected: dayProposals.filter((p) => p.status === "REJECTED").length,
       earnings: Math.round(
-        dayBookings.reduce((sum, b) => sum + getBookingEarnings(b), 0) * 100
+        dayBookings
+          .filter((booking) => getBookingEarningsCurrency(booking) === totalEarningsCurrency)
+          .reduce((sum, b) => sum + getBookingEarnings(b), 0) * 100
       ) / 100,
     })
   }
@@ -739,6 +776,8 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
 
   return {
     totalEarnings: Math.round(totalEarnings * 100) / 100,
+    totalEarningsCurrency,
+    earningsByCurrency,
     activeBookings,
     availableRequests: availableRequests.length,
     completedBookings: completedBookings.length,
@@ -776,6 +815,7 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
         eventDate: booking.eventDate.toISOString(),
         status: booking.status,
         totalPrice: booking.totalPrice,
+        currency: booking.currency,
         bookingType: booking.bookingType,
         location: booking.location,
         guestCount: booking.guestCount,

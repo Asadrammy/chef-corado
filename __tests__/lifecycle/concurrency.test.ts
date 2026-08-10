@@ -18,12 +18,15 @@ describe("Concurrency Tests", () => {
   let testClient: any
   let testBooking: any
   let testPayment: any
+  let testRunId: string
 
   beforeAll(async () => {
+    testRunId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
     testChef = await prisma.user.create({
       data: {
         name: "Test Chef",
-        email: "test-chef-concurrency@example.com",
+        email: `test-chef-concurrency-${testRunId}@example.test`,
         password: "hashed-password",
         role: "CHEF",
       },
@@ -40,7 +43,7 @@ describe("Concurrency Tests", () => {
     testClient = await prisma.user.create({
       data: {
         name: "Test Client",
-        email: "test-client-concurrency@example.com",
+        email: `test-client-concurrency-${testRunId}@example.test`,
         password: "hashed-password",
         role: "CLIENT",
       },
@@ -71,9 +74,13 @@ describe("Concurrency Tests", () => {
   })
 
   afterAll(async () => {
+    if (!testChef?.id || !testClient?.id) {
+      return
+    }
+
     await prisma.$transaction([
-      prisma.payment.deleteMany({ where: { id: testPayment.id } }),
-      prisma.booking.deleteMany({ where: { id: testBooking.id } }),
+      prisma.payment.deleteMany({ where: { id: testPayment?.id ?? "__missing__" } }),
+      prisma.booking.deleteMany({ where: { id: testBooking?.id ?? "__missing__" } }),
       prisma.chefProfile.deleteMany({ where: { userId: testChef.id } }),
       prisma.user.deleteMany({ where: { id: { in: [testChef.id, testClient.id] } } }),
     ])

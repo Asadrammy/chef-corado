@@ -9,6 +9,14 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Calendar, User, ChefHat, Eye, CheckCircle2, Clock3, Sparkles, ArrowUpRight, Wallet } from "lucide-react"
 import { getServiceTypeLabel } from "@/lib/request-options"
+import { formatCurrency } from "@/lib/currency"
+
+const operationalStatusOptions = [
+  "NOT_STARTED",
+  "EN_ROUTE",
+  "COOKING_SERVICE_IN_PROGRESS",
+  "COMPLETED",
+] as const
 
 // Prevent static generation
 export const dynamic = 'force-dynamic'
@@ -16,7 +24,10 @@ export const dynamic = 'force-dynamic'
 interface Booking {
   id: string
   totalPrice: number
+  currency?: string
   status: string
+  operationalStatus?: string
+  operationalStatusUpdatedAt?: string | null
   createdAt: string
   updatedAt: string
   client: {
@@ -82,6 +93,28 @@ export default function AdminBookingsPage() {
       setError("Failed to load bookings")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const updateOperationalStatus = async (bookingId: string, operationalStatus: string) => {
+    const previous = bookings
+    setBookings((current) => current.map((booking) =>
+      booking.id === bookingId ? { ...booking, operationalStatus } : booking
+    ))
+
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ operationalStatus }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to update operational status")
+      }
+    } catch {
+      setBookings(previous)
+      setError("Failed to update operational status")
     }
   }
 
@@ -163,7 +196,14 @@ export default function AdminBookingsPage() {
   const pendingBookings = bookings.filter((booking) => booking.status === "PENDING")
   const confirmedBookings = bookings.filter((booking) => booking.status === "CONFIRMED")
   const completedBookings = bookings.filter((booking) => booking.status === "COMPLETED")
-  const totalVolume = bookings.reduce((sum, booking) => sum + booking.totalPrice, 0)
+  const volumeByCurrency = bookings.reduce((acc, booking) => {
+    const currency = (booking.currency || "GBP").toUpperCase()
+    acc.set(currency, (acc.get(currency) ?? 0) + booking.totalPrice)
+    return acc
+  }, new Map<string, number>())
+  const volumeSummary = Array.from(volumeByCurrency.entries())
+    .map(([currency, amount]) => formatCurrency(amount, currency))
+    .join(" / ") || "No GMV"
 
   const stats = [
     {
@@ -193,7 +233,7 @@ export default function AdminBookingsPage() {
     {
       title: "Completed",
       value: completedBookings.length.toString(),
-      meta: `${totalVolume.toFixed(2)} total GMV`,
+      meta: `${volumeSummary} total GMV`,
       icon: CheckCircle2,
       accent: "from-emerald-500/15 via-teal-500/10 to-transparent",
       iconClassName: "text-emerald-600 dark:text-emerald-300",
@@ -244,10 +284,10 @@ export default function AdminBookingsPage() {
                 Booking volume
               </div>
               <div className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                ${totalVolume.toFixed(2)}
+                {volumeSummary}
               </div>
               <div className="mt-1 text-sm text-muted-foreground">
-                Across {bookings.length} total booking records
+                Currency-separated across {bookings.length} booking records
               </div>
             </div>
             <div className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm shadow-black/5">
@@ -371,7 +411,8 @@ export default function AdminBookingsPage() {
                         "Menu",
                         "Price",
                         "Payment",
-                        "Status",
+                        "Booking status",
+                        "Ops status",
                         "Date",
                         "Actions",
                       ].map((heading) => (
@@ -392,9 +433,9 @@ export default function AdminBookingsPage() {
 
                       return (
                         <tr key={booking.id} className="group">
-                          <td colSpan={9} className="p-0 pt-2 first:pt-0">
+                          <td colSpan={10} className="p-0 pt-2 first:pt-0">
                             <div className="rounded-[20px] border border-border/60 bg-background/90 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-border group-hover:bg-background group-hover:shadow-lg group-hover:shadow-black/[0.06]">
-                              <div className="grid grid-cols-[1fr_1.35fr_1.35fr_1.2fr_1fr_0.95fr_0.85fr_0.95fr_0.8fr] items-center gap-3 px-5 py-4">
+                            <div className="grid grid-cols-[1fr_1.35fr_1.35fr_1.2fr_1fr_0.95fr_0.85fr_0.9fr_0.95fr_0.8fr] items-center gap-3 px-5 py-4">
                                 <div className="min-w-0">
                                   <div className="inline-flex items-center rounded-full border border-border/60 bg-muted/50 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-foreground shadow-sm">
                                     #{booking.id.slice(-8)}
@@ -448,7 +489,7 @@ export default function AdminBookingsPage() {
                                         {booking.proposal.menu.title}
                                       </div>
                                       <div className="mt-1 text-xs text-muted-foreground">
-                                        Menu base ${booking.proposal.menu.price.toFixed(2)}
+                                        Menu base {formatCurrency(booking.proposal.menu.price, booking.currency ?? "GBP")}
                                       </div>
                                     </>
                                   ) : (
@@ -467,10 +508,10 @@ export default function AdminBookingsPage() {
 
                                 <div>
                                   <div className="text-lg font-semibold tracking-tight text-foreground">
-                                    ${(booking.proposal?.price ?? booking.totalPrice).toFixed(2)}
+                                    {formatCurrency(booking.proposal?.price ?? booking.totalPrice, booking.currency ?? "GBP")}
                                   </div>
                                   <div className="mt-1 text-xs text-muted-foreground">
-                                    Total ${booking.totalPrice.toFixed(2)}
+                                    Total {formatCurrency(booking.totalPrice, booking.currency ?? "GBP")}
                                   </div>
                                 </div>
 
@@ -478,7 +519,7 @@ export default function AdminBookingsPage() {
                                   {payment ? (
                                     <>
                                       <div className="text-base font-semibold text-emerald-600 dark:text-emerald-300">
-                                        ${(payment.totalAmount ?? payment.amount ?? 0).toFixed(2)}
+                                        {formatCurrency(payment.totalAmount ?? payment.amount ?? 0, booking.currency ?? "GBP")}
                                       </div>
                                       <div className="mt-2">{getPaymentBadge(booking)}</div>
                                     </>
@@ -491,6 +532,20 @@ export default function AdminBookingsPage() {
                                 </div>
 
                                 <div>{getStatusBadge(booking.status)}</div>
+
+                                <div className="space-y-2">
+                                  {getStatusBadge(booking.operationalStatus ?? "NOT_STARTED")}
+                                  <select
+                                    value={booking.operationalStatus ?? "NOT_STARTED"}
+                                    onChange={(event) => updateOperationalStatus(booking.id, event.target.value)}
+                                    className="h-8 w-full rounded-lg border border-border/60 bg-background px-2 text-xs text-foreground"
+                                    aria-label={`Operational status for booking ${booking.id}`}
+                                  >
+                                    {operationalStatusOptions.map((option) => (
+                                      <option key={option} value={option}>{option.replaceAll("_", " ")}</option>
+                                    ))}
+                                  </select>
+                                </div>
 
                                 <div>
                                   <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm">

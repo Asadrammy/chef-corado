@@ -6,7 +6,7 @@ import { requireAdminPagePermission } from "@/lib/admin-rbac"
 import { formatCurrency } from "@/lib/currency"
 import { prisma } from "@/lib/prisma"
 
-const pipeline = ["NEW", "QUALIFICATION", "SHORTLISTING", "CANDIDATE_CONTACT", "INTERVIEW", "OFFER_PLACEMENT", "WON", "LOST", "CLOSED"].map((value) => ({ label: value.replace(/_/g, " "), value }))
+const pipeline = ["NEW", "QUALIFYING", "MATCHING", "INTRODUCED", "IN_PROGRESS", "PLACED", "CLOSED"].map((value) => ({ label: value.replace(/_/g, " "), value }))
 
 export default async function AdminFullTimeEnquiriesPage({
   searchParams,
@@ -44,10 +44,10 @@ export default async function AdminFullTimeEnquiriesPage({
       />
       <AdminMetricGrid
         metrics={[
-          { label: "Open pipeline", value: enquiries.filter((item) => !["WON", "LOST", "CLOSED"].includes(item.status)).length },
-          { label: "Qualification", value: enquiries.filter((item) => item.status === "QUALIFICATION").length },
-          { label: "Offer / placement", value: enquiries.filter((item) => item.status === "OFFER_PLACEMENT").length },
-          { label: "Closed", value: enquiries.filter((item) => ["WON", "LOST", "CLOSED"].includes(item.status)).length },
+          { label: "Open pipeline", value: enquiries.filter((item) => !["PLACED", "CLOSED"].includes(item.status)).length },
+          { label: "Qualifying", value: enquiries.filter((item) => item.status === "QUALIFYING").length },
+          { label: "In progress", value: enquiries.filter((item) => item.status === "IN_PROGRESS").length },
+          { label: "Placed / closed", value: enquiries.filter((item) => ["PLACED", "CLOSED"].includes(item.status)).length },
         ]}
       />
       <AdminToolbar>

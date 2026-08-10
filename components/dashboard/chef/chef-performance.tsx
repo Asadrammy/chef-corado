@@ -10,8 +10,10 @@ import { formatCurrency } from "@/lib/currency"
 
 interface ChefPerformanceProps {
   totalEarnings: number
+  totalEarningsCurrency?: string
+  earningsByCurrency?: Array<{ currency: string; amount: number }>
   completedBookings: number
-  earningsTrend: Array<{ date: string; earnings: number }>
+  earningsTrend: Array<{ date: string; earnings: number; currency?: string }>
   averageRating: number
 }
 
@@ -22,12 +24,12 @@ const chartConfig = {
   },
 }
 
-function currencyTickFormatter(value: number) {
+function currencyTickFormatter(value: number, currency: string) {
   if (value >= 1000) {
-    return `${formatCurrency(value / 1000, 'GBP')}k`
+    return `${formatCurrency(value / 1000, currency)}k`
   }
 
-  return formatCurrency(value, 'GBP')
+  return formatCurrency(value, currency)
 }
 
 function getTrendSummary(earningsTrend: Array<{ date: string; earnings: number }>) {
@@ -53,11 +55,16 @@ function getTrendSummary(earningsTrend: Array<{ date: string; earnings: number }
 
 export function ChefPerformance({
   totalEarnings,
+  totalEarningsCurrency = "GBP",
+  earningsByCurrency = [],
   completedBookings,
   earningsTrend,
   averageRating,
 }: ChefPerformanceProps) {
   const trendSummary = getTrendSummary(earningsTrend)
+  const earningsSummary = earningsByCurrency.length
+    ? earningsByCurrency.map((item) => formatCurrency(item.amount, item.currency)).join(" / ")
+    : formatCurrency(totalEarnings, totalEarningsCurrency)
 
   return (
     <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-lg shadow-slate-900/5 backdrop-blur-xl dark:border-white/10">
@@ -87,7 +94,7 @@ export function ChefPerformance({
         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <DashboardStatCard
             label="Net earnings"
-            value={formatCurrency(totalEarnings, 'GBP')}
+            value={earningsSummary}
             description="Chef payout total from completed payments"
             icon={<Wallet className="h-5 w-5" />}
           />
@@ -137,7 +144,7 @@ export function ChefPerformance({
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={currencyTickFormatter}
+                  tickFormatter={(value) => currencyTickFormatter(Number(value), totalEarningsCurrency)}
                   width={52}
                   className="text-xs"
                 />
@@ -147,7 +154,7 @@ export function ChefPerformance({
                     <ChartTooltipContent
                       className="rounded-2xl border-white/70 bg-white/90 shadow-xl backdrop-blur dark:border-white/10 dark:bg-slate-950/90"
                       formatter={(value) => (
-                        <span className="text-foreground font-medium">{formatCurrency(Number(value), 'GBP')}</span>
+                        <span className="text-foreground font-medium">{formatCurrency(Number(value), totalEarningsCurrency)}</span>
                       )}
                     />
                   }

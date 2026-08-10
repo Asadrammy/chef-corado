@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[linear-gradient(135deg,#3b82f6_0%,#7c3aed_100%)] text-white shadow-[0_12px_28px_rgba(59,130,246,0.35)]">
                     <Sparkles className="h-4 w-4" />
                   </div>
-                  <span className="text-sm font-medium tracking-[0.18em] text-white uppercase">Chef Marketplace</span>
+                  <span className="text-sm font-medium tracking-[0.18em] text-white uppercase">ChefaChef</span>
                 </div>
 
                 <div className="mt-8 space-y-4">

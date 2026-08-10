@@ -10,6 +10,7 @@ import { paymentService } from '@/lib/services/payment-service'
 import { redisLocks } from '@/lib/redis'
 import { getProposalBookingCounts } from '@/lib/booking-counts'
 import { assertProposalMeetsActivePricingRule } from '@/lib/services/pricing-rule-service'
+import { calculateChefPayout, calculatePlatformCommission } from '@/lib/marketplace-rules'
 import { PaymentStatus, BookingStatus, ProposalStatus } from '@/types'
 
 export class StripeWebhookHandler {
@@ -163,8 +164,8 @@ export class StripeWebhookHandler {
           proposalPrice: proposal.price,
         })
 
-        const commissionAmount = amount * 0.2
-        const chefAmount = amount * 0.8
+        const commissionAmount = calculatePlatformCommission(amount)
+        const chefAmount = calculateChefPayout(amount)
         const bookingCounts = getProposalBookingCounts(proposal.request)
         const currency = proposal.request.currency || 'GBP'
 

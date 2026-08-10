@@ -1,13 +1,12 @@
 import { Metadata } from "next"
 import { cookies } from "next/headers"
 import { format } from "date-fns"
-import { ArrowUpRight, ArrowDownRight, Wallet, CreditCard, RefreshCw } from "lucide-react"
+import { Wallet } from "lucide-react"
 
 import { requireAdminPagePermission } from "@/lib/admin-rbac"
 import { formatCurrency } from "@/lib/currency"
 import { generateMeta } from "@/lib/utils"
 import { prisma } from "@/lib/prisma"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
@@ -30,21 +29,8 @@ export default async function AdminFinancePage() {
       include: {
         booking: {
           include: {
-            client: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
-            chef: {
-              include: {
-                user: {
-                  select: {
-                    name: true,
-                  },
-                },
-              },
-            },
+            client: { select: { id: true, name: true } },
+            chef: { include: { user: { select: { name: true } } } },
           },
         },
       },
@@ -53,15 +39,7 @@ export default async function AdminFinancePage() {
     }),
     prisma.payout.findMany({
       include: {
-        chef: {
-          include: {
-            user: {
-              select: {
-                name: true,
-              },
-            },
-          },
-        },
+        chef: { include: { user: { select: { name: true } } } },
       },
       orderBy: { createdAt: "desc" },
       take: 20,
@@ -72,11 +50,7 @@ export default async function AdminFinancePage() {
           include: {
             booking: {
               include: {
-                client: {
-                  select: {
-                    name: true,
-                  },
-                },
+                client: { select: { name: true } },
               },
             },
           },
@@ -87,67 +61,77 @@ export default async function AdminFinancePage() {
     }),
   ])
 
-  const totalPayments = payments.reduce((sum, p) => sum + (p.totalAmount || 0), 0)
-  const totalPayouts = payouts.reduce((sum, p) => sum + p.amount, 0)
-  const totalRefunds = refunds.reduce((sum, r) => sum + r.amount, 0)
-  const netRevenue = totalPayments - totalPayouts - totalRefunds
+  const totalsByCurrency = new Map<string, { payments: number; payouts: number; refunds: number }>()
+  const ensureCurrency = (currency?: string | null) => {
+    const code = (currency || "GBP").toUpperCase()
+    if (!totalsByCurrency.has(code)) {
+      totalsByCurrency.set(code, { payments: 0, payouts: 0, refunds: 0 })
+    }
+    return totalsByCurrency.get(code)!
+  }
+
+  payments.forEach((payment) => {
+    ensureCurrency(payment.currency).payments += payment.totalAmount || 0
+  })
+  payouts.forEach((payout) => {
+    ensureCurrency((payout as any).currency).payouts += payout.amount
+  })
+  refunds.forEach((refund) => {
+    ensureCurrency(refund.payment.currency).refunds += refund.amount
+  })
+
+  const currencyTotals = Array.from(totalsByCurrency.entries())
+    .map(([currency, totals]) => ({
+      currency,
+      ...totals,
+      netRevenue: totals.payments - totals.payouts - totals.refunds,
+    }))
+    .sort((a, b) => a.currency.localeCompare(b.currency))
 
   return (
     <div className="space-y-6">
       <div className="rounded-[30px] border border-white/60 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(244,247,255,0.92))] px-6 py-6 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-[linear-gradient(135deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="space-y-1">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Finance Dashboard</h1>
-            <p className="text-sm text-muted-foreground">View all financial transactions and ledger entries</p>
-          </div>
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Finance Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Currency-separated financial reporting. No FX conversion is applied unless an approved conversion source is configured.
+          </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur dark:border-white/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Payments</p>
-              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalPayments, 'GBP')}</p>
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        {currencyTotals.length === 0 ? (
+          <Card className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur dark:border-white/10">
+            <p className="text-sm font-medium text-muted-foreground">No financial activity recorded yet.</p>
+          </Card>
+        ) : currencyTotals.map((totals) => (
+          <Card key={totals.currency} className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur dark:border-white/10">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">{totals.currency} finance totals</p>
+                <p className="mt-2 text-2xl font-bold text-foreground">{formatCurrency(totals.netRevenue, totals.currency)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Net revenue without FX conversion</p>
+              </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                <Wallet className="h-6 w-6" />
+              </div>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
-              <Wallet className="h-6 w-6" />
+            <div className="mt-5 grid gap-3 text-sm sm:grid-cols-3">
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
+                <p className="text-muted-foreground">Payments</p>
+                <p className="font-semibold text-foreground">{formatCurrency(totals.payments, totals.currency)}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
+                <p className="text-muted-foreground">Payouts</p>
+                <p className="font-semibold text-foreground">{formatCurrency(totals.payouts, totals.currency)}</p>
+              </div>
+              <div className="rounded-xl border border-border/60 bg-muted/30 p-3">
+                <p className="text-muted-foreground">Refunds</p>
+                <p className="font-semibold text-foreground">{formatCurrency(totals.refunds, totals.currency)}</p>
+              </div>
             </div>
-          </div>
-        </Card>
-        <Card className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur dark:border-white/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Payouts</p>
-              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalPayouts, 'GBP')}</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-500/20 text-blue-600 dark:text-blue-400">
-              <Wallet className="h-6 w-6" />
-            </div>
-          </div>
-        </Card>
-        <Card className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur dark:border-white/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Total Refunds</p>
-              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(totalRefunds, 'GBP')}</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-rose-500/20 text-rose-600 dark:text-rose-400">
-              <RefreshCw className="h-6 w-6" />
-            </div>
-          </div>
-        </Card>
-        <Card className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur dark:border-white/10">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Net Revenue</p>
-              <p className="text-2xl font-bold text-foreground mt-2">{formatCurrency(netRevenue, 'GBP')}</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/20 text-violet-600 dark:text-violet-400">
-              <CreditCard className="h-6 w-6" />
-            </div>
-          </div>
-        </Card>
+          </Card>
+        ))}
       </div>
 
       <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
@@ -164,7 +148,7 @@ export default async function AdminFinancePage() {
               {ledgerEntries.map((entry) => (
                 <div
                   key={entry.id}
-                  className="flex items-center justify-between p-4 rounded-xl border border-white/60 bg-muted/30 hover:bg-muted/40 transition-colors"
+                  className="flex items-center justify-between rounded-xl border border-white/60 bg-muted/30 p-4 transition-colors hover:bg-muted/40"
                 >
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -177,13 +161,11 @@ export default async function AdminFinancePage() {
                     </div>
                     <p className="text-sm text-foreground">{entry.description}</p>
                     <p className="text-xs text-muted-foreground">
-                      {entry.fromAccount} → {entry.toAccount}
+                      {entry.fromAccount} -&gt; {entry.toAccount}
                     </p>
                   </div>
-                  <div className={`text-lg font-semibold ${
-                    entry.amount > 0 ? "text-emerald-600" : "text-rose-600"
-                  }`}>
-                    {entry.amount > 0 ? "+" : ""}{formatCurrency(Math.abs(entry.amount), 'GBP')}
+                  <div className={`text-lg font-semibold ${entry.amount > 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                    {entry.amount > 0 ? "+" : ""}{formatCurrency(Math.abs(entry.amount), entry.currency)}
                   </div>
                 </div>
               ))}

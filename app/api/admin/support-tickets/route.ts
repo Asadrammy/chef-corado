@@ -72,6 +72,16 @@ export async function PATCH(request: NextRequest) {
         })
       }
 
+      if (existing.requesterId && (!payload.internal || payload.status || payload.resolution)) {
+        await tx.notification.create({
+          data: {
+            userId: existing.requesterId,
+            type: "SUPPORT_TICKET_UPDATED",
+            message: `Support ticket "${ticket.subject}" was updated.`,
+          },
+        })
+      }
+
       await tx.auditLog.create({
         data: {
           action: "SUPPORT_TICKET_UPDATED",

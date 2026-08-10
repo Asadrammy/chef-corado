@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { APPROVED_PUBLIC_CONTACT, PLATFORM_COMMISSION_PERCENT } from "@/lib/marketplace-rules"
 import { cn } from "@/lib/utils"
 
 type FAQCategory = "getting-started" | "bookings" | "payments" | "visibility" | "account"
@@ -68,7 +69,7 @@ const faqData: FAQ[] = [
     keywords: ["quote", "modify", "update", "change", "price"],
     links: [
       { label: "Messages", href: "/dashboard/chef/messages" },
-      { label: "Email support", href: "mailto:info@chefachef.co.uk" },
+      { label: "Email support", href: `mailto:${APPROVED_PUBLIC_CONTACT.email}` },
     ],
   },
   {
@@ -104,14 +105,14 @@ const faqData: FAQ[] = [
     keywords: ["payment", "receive", "when", "transfer", "payout"],
     links: [
       { label: "Payouts", href: "/dashboard/chef/payouts" },
-      { label: "Email support", href: "mailto:info@chefachef.co.uk" },
+      { label: "Email support", href: `mailto:${APPROVED_PUBLIC_CONTACT.email}` },
     ],
   },
   {
     id: "pm-3",
     category: "payments",
     question: "What fees does the platform charge?",
-    answer: "The system stores platform commission and payout amounts on payment records, but this help page does not publish a fixed fee percentage. Use your payment/payout breakdown for a specific booking, and contact support for commercial fee questions.",
+    answer: `ChefaChef deducts a ${PLATFORM_COMMISSION_PERCENT}% marketplace commission from eligible customer payments. Your payout summary shows the customer payment, platform commission, final payout amount, and currency for each payment record.`,
     keywords: ["fee", "commission", "percentage", "charge", "deduct"],
     links: [{ label: "Payouts", href: "/dashboard/chef/payouts" }],
   },
@@ -121,7 +122,7 @@ const faqData: FAQ[] = [
     question: "Why is my Stripe showing as not configured?",
     answer: "This can mean your Stripe onboarding is incomplete or the platform payment configuration needs attention. Contact support before relying on new paid bookings if Stripe is not configured.",
     keywords: ["stripe", "configured", "api", "key", "error"],
-    links: [{ label: "Email support", href: "mailto:info@chefachef.co.uk" }],
+    links: [{ label: "Email support", href: `mailto:${APPROVED_PUBLIC_CONTACT.email}` }],
   },
   // Visibility
   {
@@ -187,11 +188,11 @@ const faqData: FAQ[] = [
     id: "ac-5",
     category: "account",
     question: "How do I change my email or password?",
-    answer: "Email changes require support assistance for security. Contact info@chefachef.co.uk with your request. For password changes, use the Forgot Password link on the login page or contact support if you cannot complete the reset.",
+    answer: `Email changes require support assistance for security. Contact ${APPROVED_PUBLIC_CONTACT.email} with your request. For password changes, use the Forgot Password link on the login page or contact support if you cannot complete the reset.`,
     keywords: ["email", "password", "change", "update", "security"],
     links: [
       { label: "Forgot Password", href: "/forgot-password" },
-      { label: "Email support", href: "mailto:info@chefachef.co.uk" },
+      { label: "Email support", href: `mailto:${APPROVED_PUBLIC_CONTACT.email}` },
     ],
   },
   // Additional Bookings
@@ -203,7 +204,7 @@ const faqData: FAQ[] = [
     keywords: ["cancel", "cancellation", "client", "refund", "policy"],
     links: [
       { label: "Bookings", href: "/dashboard/chef/bookings" },
-      { label: "Email support", href: "mailto:info@chefachef.co.uk" },
+      { label: "Email support", href: `mailto:${APPROVED_PUBLIC_CONTACT.email}` },
     ],
   },
   {
@@ -224,7 +225,7 @@ const faqData: FAQ[] = [
     question: "How do I handle tips from clients?",
     answer: "The current checkout flow charges the accepted proposal amount. Do not rely on an automatic tip field unless it is visible during checkout for that booking. If a client wants to add extra payment, keep the discussion on-platform and contact support.",
     keywords: ["tip", "gratuity", "extra", "bonus", "payment"],
-    links: [{ label: "Email support", href: "mailto:info@chefachef.co.uk" }],
+    links: [{ label: "Email support", href: `mailto:${APPROVED_PUBLIC_CONTACT.email}` }],
   },
   // Additional Visibility
   {
@@ -444,13 +445,13 @@ export default function ChefHelpPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               <Button asChild variant="outline" className="w-full justify-start rounded-2xl border-white/70 bg-white/80 shadow-sm dark:border-white/10 dark:bg-white/5">
-                <Link href="mailto:info@chefachef.co.uk">
+                <Link href={`mailto:${APPROVED_PUBLIC_CONTACT.email}`}>
                   <Mail className="size-4" />
                   <span>Email support</span>
                 </Link>
               </Button>
               <Button asChild variant="outline" className="w-full justify-start rounded-2xl border-white/70 bg-white/80 shadow-sm dark:border-white/10 dark:bg-white/5">
-                <Link href="mailto:info@chefachef.co.uk?subject=Chefachef%20Help%20Request" target="_blank" rel="noreferrer">
+                <Link href={`mailto:${APPROVED_PUBLIC_CONTACT.email}?subject=Chefachef%20Help%20Request`} target="_blank" rel="noreferrer">
                   <MessageSquareText className="size-4" />
                   <span>Open support request</span>
                 </Link>
@@ -468,7 +469,7 @@ export default function ChefHelpPage() {
                 <p className="font-medium text-foreground">Monday - Friday</p>
                 <p className="text-muted-foreground">9:00 AM - 6:00 PM EST</p>
                 <p className="mt-3 text-muted-foreground">
-                  For urgent issues outside these hours, please email info@chefachef.co.uk and we will respond as soon as possible.
+                  For urgent issues outside these hours, please email {APPROVED_PUBLIC_CONTACT.email} and we will respond as soon as possible.
                 </p>
               </div>
             </CardContent>

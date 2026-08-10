@@ -15,6 +15,9 @@ export const requestRepository = {
     serviceSpecificAnswers?: string
     pricingRuleVersion?: string
     pricingRuleId?: string
+    pricingStatus?: string
+    budgetStatus?: string
+    budgetWarning?: string | null
     adultCount?: number
     childrenUnder10?: number
     billableGuestCount?: number
@@ -52,6 +55,9 @@ export const requestRepository = {
       serviceSpecificAnswers: input.serviceSpecificAnswers || null,
       pricingRuleVersion: input.pricingRuleVersion || null,
       pricingRuleId: input.pricingRuleId || null,
+      pricingStatus: input.pricingStatus || "LOCAL_QUOTE_REQUIRED",
+      budgetStatus: input.budgetStatus || "UNASSESSED",
+      budgetWarning: input.budgetWarning || null,
       adultCount: input.adultCount ?? null,
       childrenUnder10: input.childrenUnder10 ?? null,
       billableGuestCount: input.billableGuestCount ?? null,
@@ -86,6 +92,10 @@ export const requestRepository = {
       where: {
         isApproved: true,
         isBanned: false,
+        user: {
+          role: "CHEF",
+          isBanned: false,
+        },
         latitude: { not: null },
         longitude: { not: null },
         radius: { gt: 0 },
@@ -95,6 +105,23 @@ export const requestRepository = {
           select: {
             name: true,
             email: true,
+          },
+        },
+        menus: {
+          select: {
+            cuisineType: true,
+            eventType: true,
+            price: true,
+          },
+        },
+        experiences: {
+          select: {
+            serviceType: true,
+            cuisineType: true,
+            eventType: true,
+            price: true,
+            minGuests: true,
+            maxGuests: true,
           },
         },
       },
@@ -125,6 +152,7 @@ export const requestRepository = {
         },
       },
       include: {
+        multiDayDates: true,
         client: {
           select: {
             id: true,

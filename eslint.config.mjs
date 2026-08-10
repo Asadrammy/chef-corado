@@ -7,5 +7,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig([{
+    ignores: [
+        ".next/**",
+        ".jest-cache/**",
+        ".swc/**",
+        "coverage/**",
+        "node_modules/**",
+        "qa-artifacts/**",
+        "artifacts/**",
+        "prisma/generated/**",
+        "*.tsbuildinfo",
+    ],
     extends: [...nextCoreWebVitals],
 }]);

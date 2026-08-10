@@ -9,7 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { buildPublicMetadata, fetchFromApp, homepageCuisineHighlights } from "@/lib/public-site";
 
 export const metadata = buildPublicMetadata({
-  title: "Browse Chefs | Chef Marketplace",
+  title: "Browse Chefs | ChefaChef",
   description: "Browse approved chef profiles by cuisine, location, and review signals on the public marketplace.",
   path: "/browse-chefs",
 });
@@ -84,7 +84,7 @@ export default async function BrowseChefsPage({
         data={{
           "@context": "https://schema.org",
           "@type": "ItemList",
-          name: "Private chefs on Chef Marketplace",
+          name: "Private chefs on ChefaChef",
           itemListElement: filteredChefs.slice(0, 12).map((chef, index) => ({
             "@type": "ListItem",
             position: index + 1,

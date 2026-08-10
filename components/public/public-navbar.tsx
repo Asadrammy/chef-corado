@@ -28,13 +28,13 @@ import {
 
 function BrandMark() {
   return (
-    <Link href="/" className="flex min-w-0 items-center gap-2.5" aria-label="Chef Marketplace home">
+    <Link href="/" className="flex min-w-0 items-center gap-2.5" aria-label="ChefaChef home">
       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,hsl(var(--brand-primary)),hsl(var(--brand-secondary)))] text-white shadow-lg shadow-primary/20">
         <ChefHat className="h-5 w-5" />
       </div>
       <div className="min-w-0">
         <span className="block whitespace-nowrap text-sm font-semibold uppercase tracking-[0.18em] text-primary/80 sm:text-[15px]">
-          Chef Marketplace
+          ChefaChef
         </span>
       </div>
     </Link>

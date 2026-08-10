@@ -71,7 +71,11 @@ export async function getAdminAccessContext(requiredPermission?: AdminPermission
     throw new Error("FORBIDDEN")
   }
 
-  const adminRole = isAdminStaffRole(user.adminRole) ? user.adminRole : "SUPER_ADMIN"
+  if (!isAdminStaffRole(user.adminRole)) {
+    throw new Error("FORBIDDEN")
+  }
+
+  const adminRole = user.adminRole
   const permissions = getAdminRolePermissions(adminRole, user.adminPermissions)
 
   if (requiredPermission && !permissions.includes(requiredPermission)) {

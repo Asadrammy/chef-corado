@@ -16,6 +16,7 @@ import { logger } from '@/lib/logger'
 import { generateIdempotencyKey } from '@/lib/utils/idempotency'
 import { getProposalBookingCounts } from '@/lib/booking-counts'
 import { assertProposalMeetsActivePricingRule } from '@/lib/services/pricing-rule-service'
+import { calculateChefPayout, calculatePlatformCommission } from '@/lib/marketplace-rules'
 import { BookingStatus, PaymentStatus, ProposalStatus } from '@/types'
 
 export interface PaymentGuaranteeResult {
@@ -45,7 +46,7 @@ export class PaymentGuarantee {
       const proposal = await tx.proposal.findUnique({
         where: { id: proposalId },
         include: {
-          request: true,
+          request: { include: { multiDayDates: true } },
           chef: { include: { user: true } },
         },
       })
@@ -61,30 +62,26 @@ export class PaymentGuarantee {
       // 🔴 P0 FIX #2 & #3: CAPACITY CHECK + ATOMIC BOOKING
       // Check and update availability atomically to prevent overbooking
       // IMPORTANT: Use pessimistic locking with FOR UPDATE
-      const availability = await tx.availability.findFirst({
-        where: {
-          chefId: proposal.chefId,
-          date: proposal.request.eventDate,
-          isAvailable: true,
-          currentBookings: { lt: tx.availability.fields.maxBookings }
+      const requestedDates = proposal.request.multiDayDates?.length
+        ? proposal.request.multiDayDates.map((item: { date: Date }) => item.date)
+        : [proposal.request.eventDate]
+
+      const availabilitySlots = []
+      for (const date of requestedDates) {
+        const slot = await tx.availability.findFirst({
+          where: {
+            chefId: proposal.chefId,
+            date,
+            isAvailable: true,
+            currentBookings: { lt: tx.availability.fields.maxBookings }
+          }
+        })
+
+        if (!slot) {
+          return { guaranteed: false, error: `Slot no longer available for ${date.toISOString().slice(0, 10)}` }
         }
-      })
 
-      if (!availability) {
-        return { guaranteed: false, error: 'Slot no longer available' }
-      }
-
-      // CRITICAL: Double-check capacity with pessimistic lock
-      // This prevents race conditions where capacity changed between check and update
-      const recheckedAvailability = await tx.availability.findFirst({
-        where: {
-          id: availability.id,
-          currentBookings: { lt: tx.availability.fields.maxBookings }
-        }
-      })
-
-      if (!recheckedAvailability) {
-        return { guaranteed: false, error: 'Slot capacity changed during transaction' }
+        availabilitySlots.push(slot)
       }
 
       // Step 2: Check if booking already exists (idempotency)
@@ -119,8 +116,8 @@ export class PaymentGuarantee {
 
       // Step 4: 🔴 P0 FIX #3: FULL ATOMIC TRANSACTION
       // Create booking, payment, update availability, and update proposal in ONE transaction
-      const commissionAmount = amount * 0.2
-      const chefAmount = amount * 0.8
+      const commissionAmount = calculatePlatformCommission(amount)
+      const chefAmount = calculateChefPayout(amount)
       const bookingCounts = getProposalBookingCounts(proposal.request)
       const currency = proposal.request.currency || 'GBP'
 
@@ -161,43 +158,34 @@ export class PaymentGuarantee {
           currency,
           status: PaymentStatus.PAID,
           stripePaymentIntentId: paymentIntentId,
-          stripeChargeId: stripeSessionId,
+          stripeCheckoutSessionId: stripeSessionId,
           idempotencyKey,
         },
       })
 
       // ATOMIC: Update availability to prevent overbooking
       // Use the rechecked availability to ensure we're updating the correct record
-      const updatedAvailability = await tx.availability.update({
-        where: { 
-          id: recheckedAvailability.id,
-          currentBookings: { lt: tx.availability.fields.maxBookings } // Double-check constraint
-        },
-        data: {
-          currentBookings: {
-            increment: 1
+      for (const slot of availabilitySlots) {
+        const updatedAvailability = await tx.availability.update({
+          where: {
+            id: slot.id,
+            currentBookings: { lt: tx.availability.fields.maxBookings }
+          },
+          data: {
+            currentBookings: {
+              increment: 1
+            }
           }
-        }
-      })
+        })
 
-      // Verify update succeeded and didn't exceed capacity
-      if (updatedAvailability.currentBookings > recheckedAvailability.maxBookings) {
-        logger.error('[PAYMENT_GUARANTEE] Capacity constraint violation detected', {
-          availabilityId: recheckedAvailability.id,
-          currentBookings: updatedAvailability.currentBookings,
-          maxBookings: recheckedAvailability.maxBookings
-        });
-        throw new Error('CRITICAL: Capacity exceeded during update - database constraint violation')
-      }
-      
-      // CRITICAL: Additional safety check - this should never happen due to DB constraint
-      if (updatedAvailability.currentBookings > recheckedAvailability.maxBookings) {
-        logger.error('[PAYMENT_GUARANTEE] Capacity exceeded - data corruption detected', {
-          availabilityId: recheckedAvailability.id,
-          currentBookings: updatedAvailability.currentBookings,
-          maxBookings: recheckedAvailability.maxBookings
-        });
-        throw new Error('CRITICAL: Capacity exceeded - data corruption detected')
+        if (updatedAvailability.currentBookings > updatedAvailability.maxBookings) {
+          logger.error('[PAYMENT_GUARANTEE] Capacity constraint violation detected', {
+            availabilityId: updatedAvailability.id,
+            currentBookings: updatedAvailability.currentBookings,
+            maxBookings: updatedAvailability.maxBookings
+          })
+          throw new Error('CRITICAL: Capacity exceeded during update - database constraint violation')
+        }
       }
 
       // ATOMIC: Update proposal status
@@ -211,8 +199,7 @@ export class PaymentGuarantee {
         paymentId: payment.id,
         proposalId,
         amount,
-        availabilityId: availability.id,
-        newCurrentBookings: availability.currentBookings + 1,
+        availabilityIds: availabilitySlots.map((slot) => slot.id),
       })
 
       return {

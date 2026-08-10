@@ -22,20 +22,77 @@ describe('Payment Chaos Tests', () => {
   let testBookingId: string
   let testClientId: string
   let testChefId: string
+  let testChefUserId: string
+  let testRunId: string
 
   beforeEach(async () => {
-    // Setup test data
-    testClientId = 'test-client-' + Date.now()
-    testChefId = 'test-chef-' + Date.now()
-    testBookingId = 'test-booking-' + Date.now()
-    testPaymentId = 'test-payment-' + Date.now()
+    testRunId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    testPaymentId = `test-payment-${testRunId}`
+
+    const client = await prisma.user.create({
+      data: {
+        name: 'Payment Chaos Client',
+        email: `payment-chaos-client-${testRunId}@example.test`,
+        password: 'hashed-password',
+        role: 'CLIENT',
+      },
+    })
+
+    const chefUser = await prisma.user.create({
+      data: {
+        name: 'Payment Chaos Chef',
+        email: `payment-chaos-chef-${testRunId}@example.test`,
+        password: 'hashed-password',
+        role: 'CHEF',
+      },
+    })
+
+    const chefProfile = await prisma.chefProfile.create({
+      data: {
+        userId: chefUser.id,
+        location: 'Test Location',
+        radius: 50,
+      },
+    })
+
+    const booking = await prisma.booking.create({
+      data: {
+        clientId: client.id,
+        chefId: chefProfile.id,
+        eventDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        location: 'Test Location',
+        guestCount: 2,
+        totalPrice: 100,
+        status: 'PENDING',
+      },
+    })
+
+    testClientId = client.id
+    testChefUserId = chefUser.id
+    testChefId = chefProfile.id
+    testBookingId = booking.id
   })
 
   afterEach(async () => {
     // Cleanup
     try {
+      await prisma.ledger.deleteMany({
+        where: { metadata: { contains: testRunId } },
+      })
+      await prisma.webhookLog.deleteMany({
+        where: { stripeEventId: { contains: testRunId } },
+      })
       await prisma.payment.deleteMany({
-        where: { id: { startsWith: 'test-payment-' } },
+        where: { id: { contains: testRunId } },
+      })
+      await prisma.booking.deleteMany({
+        where: { id: testBookingId },
+      })
+      await prisma.chefProfile.deleteMany({
+        where: { id: testChefId },
+      })
+      await prisma.user.deleteMany({
+        where: { id: { in: [testClientId, testChefUserId].filter(Boolean) } },
       })
     } catch (e) {
       // Ignore cleanup errors
@@ -45,7 +102,7 @@ describe('Payment Chaos Tests', () => {
   describe('Duplicate Webhook Handling', () => {
     it('should handle duplicate webhook delivery idempotently', async () => {
       const event: Stripe.Event = {
-        id: 'evt_duplicate_' + Date.now(),
+        id: `evt_duplicate_${testRunId}`,
         object: 'event',
         api_version: '2026-03-25.dahlia',
         created: Math.floor(Date.now() / 1000),
@@ -70,7 +127,7 @@ describe('Payment Chaos Tests', () => {
       expect(second.id).toBe(first.id) // Same record
 
       // Verify only one entry in database
-      const count = await (prisma as any).webhookEvent.count({
+      const count = await prisma.webhookLog.count({
         where: { stripeEventId: event.id },
       })
       expect(count).toBe(1)
@@ -78,7 +135,7 @@ describe('Payment Chaos Tests', () => {
 
     it('should process duplicate webhook only once', async () => {
       const event: Stripe.Event = {
-        id: 'evt_dup_process_' + Date.now(),
+        id: `evt_dup_process_${testRunId}`,
         object: 'event',
         api_version: '2026-03-25.dahlia',
         created: Math.floor(Date.now() / 1000),
@@ -118,7 +175,7 @@ describe('Payment Chaos Tests', () => {
 
       // Create events with different timestamps
       const event1: Stripe.Event = {
-        id: 'evt_delayed_1_' + Date.now(),
+        id: `evt_delayed_1_${testRunId}`,
         object: 'event',
         api_version: '2026-03-25.dahlia',
         created: now,
@@ -127,7 +184,7 @@ describe('Payment Chaos Tests', () => {
       } as Stripe.Event
 
       const event2: Stripe.Event = {
-        id: 'evt_delayed_2_' + Date.now(),
+        id: `evt_delayed_2_${testRunId}`,
         object: 'event',
         api_version: '2026-03-25.dahlia',
         created: now + 10, // Later event
@@ -137,6 +194,7 @@ describe('Payment Chaos Tests', () => {
 
       // Store later event first
       await webhookEventStore.storeEvent(event2)
+      await webhookEventStore.markProcessed(event2.id)
 
       // Check if earlier event would be out of order
       const result = await webhookEventStore.handleOutOfOrderEvent(event1, 1)
@@ -148,14 +206,14 @@ describe('Payment Chaos Tests', () => {
   describe('Stripe Success but DB Fail', () => {
     it('should reconcile when Stripe succeeded but DB not updated', async () => {
       // Simulate: Stripe says payment succeeded, but DB still shows HELD
-      const paymentId = 'test-payment-reconcile-' + Date.now()
+      const paymentId = `test-payment-reconcile-${testRunId}`
 
       // Create payment in DB with HELD status
       const payment = await (prisma as any).payment.create({
         data: {
           id: paymentId,
           bookingId: testBookingId,
-          stripePaymentIntentId: 'pi_test_' + Date.now(),
+          stripePaymentIntentId: `pi_test_${testRunId}`,
           totalAmount: 100,
           commissionAmount: 10,
           chefAmount: 90,
@@ -174,14 +232,14 @@ describe('Payment Chaos Tests', () => {
 
   describe('Concurrent Payment Processing', () => {
     it('should handle concurrent payment requests safely', async () => {
-      const paymentId = 'test-concurrent-' + Date.now()
+      const paymentId = `test-concurrent-${testRunId}`
 
       // Create payment
       const payment = await (prisma as any).payment.create({
         data: {
           id: paymentId,
           bookingId: testBookingId,
-          stripePaymentIntentId: 'pi_concurrent_' + Date.now(),
+          stripePaymentIntentId: `pi_concurrent_${testRunId}`,
           totalAmount: 100,
           commissionAmount: 10,
           chefAmount: 90,
@@ -217,7 +275,7 @@ describe('Payment Chaos Tests', () => {
         paymentId,
         testClientId,
         100,
-        'pi_test_' + Date.now()
+        `pi_test_${testRunId}`
       )
 
       // Verify ledger integrity
@@ -229,26 +287,28 @@ describe('Payment Chaos Tests', () => {
     it('should detect ledger imbalance', async () => {
       // Create imbalanced entry (this should not happen in normal operation)
       try {
-        await (prisma as any).ledgerEntry.create({
+        await prisma.ledger.create({
           data: {
-            transactionId: 'test-imbalance-' + Date.now(),
             transactionType: 'PAYMENT_CAPTURE',
-            accountId: testClientId,
-            accountType: 'CLIENT_WALLET',
-            entryType: 'DEBIT',
             amount: 100,
             description: 'Imbalanced entry',
-            timestamp: new Date(),
+            fromAccount: testClientId,
+            metadata: JSON.stringify({
+              doubleEntryTransactionId: `test-imbalance-${testRunId}`,
+              accountId: testClientId,
+              accountType: 'CLIENT_WALLET',
+              entryType: 'DEBIT',
+              testRunId,
+            }),
+            createdBy: 'DOUBLE_ENTRY_LEDGER_TEST',
           },
         })
       } catch (e) {
         // Ignore if table doesn't exist
       }
 
-      // Verify integrity check catches it
       const integrity = await doubleEntryLedger.verifyIntegrity()
-      // May or may not find error depending on setup
-      expect(integrity).toBeDefined()
+      expect(integrity.valid).toBe(false)
     })
   })
 

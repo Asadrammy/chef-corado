@@ -297,8 +297,8 @@ async function main() {
       .map((booking, index) => ({
         bookingId: booking.id,
         totalAmount: booking.totalPrice,
-        commissionAmount: booking.totalPrice * 0.15, // 15% commission
-        chefAmount: booking.totalPrice * 0.85, // 85% to chef
+        commissionAmount: booking.totalPrice * 0.2, // 20% commission
+        chefAmount: booking.totalPrice * 0.8, // 85% to chef
         status: 'COMPLETED',
         releasedAt: new Date(Date.now() - (index + 1) * 24 * 60 * 60 * 1000) // Released at different times
       }))
@@ -326,7 +326,7 @@ async function main() {
   // Calculate totals
   const totalEarnings = createdBookings
     .filter(b => b.status === 'COMPLETED')
-    .reduce((sum, booking) => sum + (booking.totalPrice * 0.85), 0);
+    .reduce((sum, booking) => sum + (booking.totalPrice * 0.8), 0);
 
   const activeBookings = createdBookings.filter(b => b.status === 'CONFIRMED').length;
   const completedBookings = createdBookings.filter(b => b.status === 'COMPLETED').length;

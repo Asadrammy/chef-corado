@@ -9,6 +9,8 @@ import { generateIdempotencyKey } from "@/lib/utils/idempotency"
 import { BookingStatus, PaymentStatus, ProposalStatus } from "@/types"
 import { logPaymentSuccess, logPaymentFailure, logWebhookProcessed, logWebhookFailure, logLedgerError } from "@/lib/monitoring/financial-monitor"
 import { logger } from "@/lib/logger"
+import { invoiceService } from "@/lib/services/invoice-service"
+import { calculateChefPayout, calculatePlatformCommission } from "@/lib/marketplace-rules"
 
 const WEBHOOK_STATUS = {
   PENDING: "PENDING",
@@ -114,8 +116,8 @@ export const paymentService = {
 
       // Record in ledger for financial tracking (CRITICAL for money safety)
       try {
-        const commissionAmount = amount * 0.2
-        const chefAmount = amount * 0.8
+        const commissionAmount = calculatePlatformCommission(amount)
+        const chefAmount = calculateChefPayout(amount)
         
         await ledgerService.recordPayment(
           result.paymentId!,
@@ -124,7 +126,8 @@ export const paymentService = {
           commissionAmount,
           chefAmount,
           "SYSTEM",
-          { stripeSessionId: session.id, proposalId }
+          { stripeSessionId: session.id, proposalId },
+          (session.currency || "GBP").toUpperCase()
         )
       } catch (ledgerError) {
         // CRITICAL: Log ledger error and fail the transaction
@@ -139,6 +142,8 @@ export const paymentService = {
         })
         throw ledgerError
       }
+
+      await invoiceService.ensureReceiptForPayment(tx, result.paymentId!, "SYSTEM")
 
       logger.info('[PAYMENT_SERVICE] Payment guarantee completed successfully', {
         bookingId: result.bookingId,

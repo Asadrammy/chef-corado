@@ -5,6 +5,7 @@ import { handleApiError } from "@/lib/error-handler"
 import { applyRateLimit } from "@/lib/redis-rate-limiter"
 import { logger } from "@/lib/logger"
 import { prisma } from "@/lib/prisma"
+import { invoiceService } from "@/lib/services/invoice-service"
 
 // Initialize Stripe with safety check
 const getStripeClient = () => {
@@ -116,7 +117,10 @@ export async function POST(request: Request) {
       // Step 4: Get booking and payment with lock
       const booking = await tx.booking.findUnique({
         where: { id: bookingId },
-        include: { payments: true }
+        include: {
+          payments: true,
+          chef: { select: { userId: true } },
+        }
       })
 
       if (!booking) {
@@ -156,7 +160,7 @@ export async function POST(request: Request) {
         data: {
           status: 'PAID',
           stripePaymentIntentId: session.payment_intent as string,
-          stripeChargeId: session.id,
+          stripeCheckoutSessionId: session.id,
         }
       })
 
@@ -184,7 +188,7 @@ export async function POST(request: Request) {
             message: `Your booking has been confirmed!`,
           },
           {
-            userId: booking.chefId,
+            userId: booking.chef.userId,
             type: 'BOOKING_CONFIRMED',
             message: `New booking confirmed!`,
           },
@@ -221,6 +225,8 @@ export async function POST(request: Request) {
           createdBy: 'SYSTEM',
         }
       })
+
+      await invoiceService.ensureReceiptForPayment(tx, paymentId, "SYSTEM")
 
       logger.info('[WEBHOOK_ATOMIC] Payment and booking confirmed atomically', {
         bookingId,

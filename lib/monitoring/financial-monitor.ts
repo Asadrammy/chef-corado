@@ -369,9 +369,10 @@ export class FinancialMonitor {
    */
   private startPeriodicFlush() {
     if (typeof setInterval !== 'undefined') {
-      setInterval(() => {
+      const interval = setInterval(() => {
         this.flushEvents()
       }, this.flushInterval)
+      interval.unref?.()
     }
   }
 

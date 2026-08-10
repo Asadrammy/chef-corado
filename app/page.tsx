@@ -14,7 +14,7 @@ import { generateAvatarFallback } from "@/lib/utils";
 import { buildPublicMetadata, fetchFromApp, homepageCuisineHighlights } from "@/lib/public-site";
 
 export const metadata = buildPublicMetadata({
-  title: "Chef Marketplace | Private chefs for unforgettable dining at home",
+  title: "ChefaChef | Private chefs for unforgettable dining at home",
   description:
     "Discover vetted private chefs for intimate dinners, celebrations, tasting menus, and beautifully hosted culinary experiences.",
   path: "/",
@@ -178,7 +178,7 @@ export default async function RootPage() {
           data={{
             "@context": "https://schema.org",
             "@type": "WebSite",
-            name: "Chef Marketplace",
+            name: "ChefaChef",
             url: "/",
             potentialAction: {
               "@type": "SearchAction",

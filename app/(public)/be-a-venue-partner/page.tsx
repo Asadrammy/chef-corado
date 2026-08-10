@@ -3,7 +3,7 @@ import { PublicEnquiryForm } from "@/components/public/public-enquiry-form";
 import { buildPublicMetadata } from "@/lib/public-site";
 
 export const metadata = buildPublicMetadata({
-  title: "Be a Venue Partner | Chef Marketplace",
+  title: "Be a Venue Partner | ChefaChef",
   description: "Venue partnership landing page for spaces that want to host chef-led private dining and culinary experiences.",
   path: "/be-a-venue-partner",
 });

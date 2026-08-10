@@ -1,10 +1,11 @@
 import Link from "next/link";
 
 import { PublicContentPage } from "@/components/public/public-content-page";
+import { COUNTRY_BOOKING_RULES, MARKETPLACE_PAYMENT_RULES, PLATFORM_COMMISSION_PERCENT } from "@/lib/marketplace-rules";
 import { buildPublicMetadata } from "@/lib/public-site";
 
 export const metadata = buildPublicMetadata({
-  title: "Pricing | Chef Marketplace",
+  title: "Pricing | ChefaChef",
   description: "Understand how private chef pricing is shaped by menu, guest count, service style, and occasion details.",
   path: "/pricing",
 });
@@ -22,19 +23,22 @@ export default function PricingPage() {
     >
       <div className="space-y-4">
         <h2 className="text-xl font-semibold text-foreground">What shapes your quote</h2>
-        <p className="text-sm leading-6 text-muted-foreground">Chef expertise, ingredients, service style, travel, staffing, and the level of preparation all influence the final proposal. Marketplace requests preserve the request currency, with GBP for UK contexts and USD for US contexts where configured.</p>
+        <p className="text-sm leading-6 text-muted-foreground">Chef expertise, ingredients, service style, travel, staffing, and the level of preparation all influence the final proposal. Marketplace requests preserve the request currency by country: GBP for the United Kingdom, USD for the United States, EUR for Italy, and KES for Kenya.</p>
         <ul className="space-y-3 text-sm text-muted-foreground">
           <li>Chef profile, cuisine specialization, and menu ambition</li>
           <li>Guest count, course structure, and level of service</li>
           <li>Ingredients, dietary needs, travel, and event setting</li>
           <li>Bookable experience pricing where a chef has published it</li>
-          <li>Deposit and payment timing depends on the accepted proposal and checkout flow</li>
+          <li>ChefaChef deducts a {PLATFORM_COMMISSION_PERCENT}% marketplace commission before chef payout</li>
+          <li>{MARKETPLACE_PAYMENT_RULES.escrow}</li>
         </ul>
       </div>
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-foreground">Indicative, not guaranteed</h2>
-        <p className="text-sm leading-6 text-muted-foreground">Public pages should help you understand cost drivers, but final pricing is set by the chef proposal or published experience. If a menu has no published price, pricing is discussed with your request.</p>
-        <p className="text-sm leading-6 text-muted-foreground">Ready to start? Browse chefs, compare proposals, or find local coverage in your event area.</p>
+        <h2 className="text-xl font-semibold text-foreground">Country guidance</h2>
+        <p className="text-sm leading-6 text-muted-foreground">USA: {COUNTRY_BOOKING_RULES.US.minimumSpend}; {COUNTRY_BOOKING_RULES.US.pricing}</p>
+        <p className="text-sm leading-6 text-muted-foreground">Italy: {COUNTRY_BOOKING_RULES.IT.pricing} A fixed Italy minimum spend has not been supplied.</p>
+        <p className="text-sm leading-6 text-muted-foreground">Kenya: {COUNTRY_BOOKING_RULES.KE.minimumSpend}. {COUNTRY_BOOKING_RULES.KE.pricing}</p>
+        <p className="text-sm leading-6 text-muted-foreground">Public pages are indicative; final pricing is set by the chef proposal or published experience.</p>
         <Link href="/reviews" className="text-sm font-semibold text-primary hover:underline">Read real reviews</Link>
       </div>
     </PublicContentPage>

@@ -5,6 +5,7 @@ const createJestConfig = nextJest({
 })
 
 const customJestConfig = {
+  cacheDirectory: '<rootDir>/.jest-cache',
   transform: {
     '^.+\\.(ts|tsx)$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.jest.json' }],
   },

@@ -8,6 +8,7 @@
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { getProposalBookingCounts } from '@/lib/booking-counts'
+import { calculateChefPayout, calculatePlatformCommission } from '@/lib/marketplace-rules'
 import Stripe from 'stripe'
 
 export class PaymentReconciliationService {
@@ -95,8 +96,8 @@ export class PaymentReconciliationService {
       // Step 6: ATOMIC: Create booking and payment
       const result = await prisma.$transaction(async (tx) => {
         const amount = paymentIntent.amount / 100
-        const commissionAmount = amount * 0.2
-        const chefAmount = amount * 0.8
+        const commissionAmount = calculatePlatformCommission(amount)
+        const chefAmount = calculateChefPayout(amount)
         const bookingCounts = getProposalBookingCounts(proposal.request)
 
         // Create booking

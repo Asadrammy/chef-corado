@@ -27,9 +27,10 @@ export class BookingConcurrencySafety {
       // Try to acquire lock with timeout
       const lock = await Promise.race([
         this.tryAcquireLock(availabilityId, lockId),
-        new Promise<null>((_, reject) =>
-          setTimeout(() => reject(new Error('Lock acquisition timeout')), timeout)
-        ),
+        new Promise<null>((_, reject) => {
+          const timeoutHandle = setTimeout(() => reject(new Error('Lock acquisition timeout')), timeout)
+          timeoutHandle.unref?.()
+        }),
       ])
 
       if (!lock) {

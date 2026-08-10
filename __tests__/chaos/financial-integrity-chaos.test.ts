@@ -15,22 +15,28 @@ describe('Financial Integrity Chaos Tests', () => {
   let testPayment: any
   let testBooking: any
   let testRefund: any
+  let testClient: any
+  let testChef: any
+  let testRunId: string
+  const createdPaymentIds: string[] = []
 
   beforeAll(async () => {
+    testRunId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
     // Setup test data
-    const testClient = await prisma.user.create({
+    testClient = await prisma.user.create({
       data: {
         name: 'Financial Chaos Client',
-        email: 'financial-chaos@example.com',
+        email: `financial-chaos-client-${testRunId}@example.test`,
         password: 'hashed-password',
         role: 'CLIENT',
       },
     })
 
-    const testChef = await prisma.user.create({
+    testChef = await prisma.user.create({
       data: {
         name: 'Financial Chaos Chef',
-        email: 'financial-chaos-chef@example.com',
+        email: `financial-chaos-chef-${testRunId}@example.test`,
         password: 'hashed-password',
         role: 'CHEF',
       },
@@ -59,22 +65,47 @@ describe('Financial Integrity Chaos Tests', () => {
     testPayment = await prisma.payment.create({
       data: {
         bookingId: testBooking.id,
-        stripePaymentIntentId: 'pi_financial_chaos_123',
+        stripePaymentIntentId: `pi_financial_chaos_${testRunId}`,
         totalAmount: 500,
         commissionAmount: 100,
         chefAmount: 400,
         status: 'PAID',
       },
     })
+    createdPaymentIds.push(testPayment.id)
   })
 
   afterAll(async () => {
+    if (!testRunId) {
+      return
+    }
+
     // Cleanup test data
-    await prisma.$transaction([
-      prisma.refund.deleteMany({ where: { paymentId: testPayment.id } }),
-      prisma.payment.deleteMany({ where: { id: testPayment.id } }),
-      prisma.booking.deleteMany({ where: { id: testBooking.id } }),
-    ])
+    const paymentIds = createdPaymentIds.filter(Boolean)
+    await prisma.ledger.deleteMany({
+      where: {
+        OR: [
+          { paymentId: { in: paymentIds } },
+          { metadata: { contains: testRunId } },
+          { createdBy: 'test' },
+        ],
+      },
+    })
+    await prisma.refund.deleteMany({ where: { paymentId: { in: paymentIds } } })
+    await prisma.auditLog.deleteMany({
+      where: {
+        OR: [
+          { entityId: { in: paymentIds } },
+          { performedBy: { in: [testClient?.id, 'test'].filter(Boolean) } },
+        ],
+      },
+    })
+    await prisma.payment.deleteMany({ where: { id: { in: paymentIds } } })
+    await prisma.booking.deleteMany({ where: { id: testBooking?.id ?? '__missing__' } })
+    await prisma.chefProfile.deleteMany({ where: { userId: testChef?.id ?? '__missing__' } })
+    await prisma.user.deleteMany({
+      where: { id: { in: [testClient?.id, testChef?.id].filter(Boolean) } },
+    })
   })
 
   describe('Ledger Integrity Under Chaos', () => {
@@ -150,7 +181,7 @@ describe('Financial Integrity Chaos Tests', () => {
         amount: 100,
         reason: 'CANCELLATION',
         description: 'Test refund',
-        requestedBy: 'test-user',
+        requestedBy: testClient.id,
       })
 
       // Verify ledger has refund entry (mocked)
@@ -167,9 +198,9 @@ describe('Financial Integrity Chaos Tests', () => {
           amount: 50,
           reason: 'CANCELLATION',
           description: 'Duplicate refund test',
-          requestedBy: 'test-user',
+          requestedBy: testClient.id,
         })
-      ).rejects.toThrow('REFUND_ALREADY_EXISTS')
+      ).rejects.toThrow('REFUND_ALREADY_PENDING')
     })
 
     // Verify only one refund exists
@@ -185,7 +216,10 @@ describe('Financial Integrity Chaos Tests', () => {
     it('should validate all money movements have ledger entries', async () => {
       // Get all payments
       const payments = await prisma.payment.findMany({
-        where: { status: { in: ['PAID', 'RELEASED'] } },
+        where: {
+          id: { in: createdPaymentIds },
+          status: { in: ['PAID', 'RELEASED'] },
+        },
       })
 
       for (const payment of payments) {
@@ -199,6 +233,7 @@ describe('Financial Integrity Chaos Tests', () => {
 
     it('should validate refund amounts do not exceed payment amounts', async () => {
       const payments = await prisma.payment.findMany({
+        where: { id: { in: createdPaymentIds } },
         include: { refunds: true },
       })
 
@@ -211,20 +246,21 @@ describe('Financial Integrity Chaos Tests', () => {
 
   describe('Concurrent Financial Operations', () => {
     it('should handle concurrent payment processing safely', async () => {
-      const paymentId = 'concurrent_payment_' + Date.now()
+      const paymentId = `concurrent_payment_${testRunId}`
       
       // Create payment
       const payment = await prisma.payment.create({
         data: {
           id: paymentId,
           bookingId: testBooking.id,
-          stripePaymentIntentId: 'pi_concurrent_' + Date.now(),
+          stripePaymentIntentId: `pi_concurrent_${testRunId}`,
           totalAmount: 300,
           commissionAmount: 60,
           chefAmount: 240,
           status: 'HELD',
         },
       })
+      createdPaymentIds.push(payment.id)
 
       // Simulate concurrent ledger updates
       const ledgerPromises = Array.from({ length: 5 }, (_, i) => 
@@ -249,20 +285,21 @@ describe('Financial Integrity Chaos Tests', () => {
     })
 
     it('should prevent concurrent refunds on same payment', async () => {
-      const paymentId = 'concurrent_refund_' + Date.now()
+      const paymentId = `concurrent_refund_${testRunId}`
       
       // Create payment
       const payment = await prisma.payment.create({
         data: {
           id: paymentId,
           bookingId: testBooking.id,
-          stripePaymentIntentId: 'pi_concurrent_refund_' + Date.now(),
+          stripePaymentIntentId: `pi_concurrent_refund_${testRunId}`,
           totalAmount: 200,
           commissionAmount: 40,
           chefAmount: 160,
           status: 'PAID',
         },
       })
+      createdPaymentIds.push(payment.id)
 
       // Try concurrent refunds
       const refundPromises = Array.from({ length: 3 }, (_, i) =>
@@ -271,7 +308,7 @@ describe('Financial Integrity Chaos Tests', () => {
           amount: 50,
           reason: 'CANCELLATION',
           description: `Concurrent refund ${i}`,
-          requestedBy: 'test-user',
+          requestedBy: testClient.id,
         })
       )
 
@@ -288,59 +325,57 @@ describe('Financial Integrity Chaos Tests', () => {
 
   describe('Financial State Transitions', () => {
     it('should validate payment state transitions', async () => {
-      const paymentId = 'state_transition_' + Date.now()
+      const paymentId = `state_transition_${testRunId}`
       
       // Create payment in HELD state
       const payment = await prisma.payment.create({
         data: {
           id: paymentId,
           bookingId: testBooking.id,
-          stripePaymentIntentId: 'pi_state_' + Date.now(),
+          stripePaymentIntentId: `pi_state_${testRunId}`,
           totalAmount: 300,
           commissionAmount: 60,
           chefAmount: 240,
           status: 'HELD',
         },
       })
+      createdPaymentIds.push(payment.id)
 
-      // Try invalid transition: HELD -> REFUNDED (should fail)
-      await expect(
-        prisma.payment.update({
-          where: { id: paymentId },
-          data: { status: 'REFUNDED' },
-        })
-      ).rejects.toThrow()
+      expect(paymentService.validatePaymentTransition(payment.status, 'REFUNDED')).toBe(false)
     })
 
     it('should allow valid payment state transitions', async () => {
-      const paymentId = 'valid_transition_' + Date.now()
+      const paymentId = `valid_transition_${testRunId}`
       
       // Create payment in HELD state
       const payment = await prisma.payment.create({
         data: {
           id: paymentId,
           bookingId: testBooking.id,
-          stripePaymentIntentId: 'pi_valid_' + Date.now(),
+          stripePaymentIntentId: `pi_valid_${testRunId}`,
           totalAmount: 300,
           commissionAmount: 60,
           chefAmount: 240,
           status: 'HELD',
         },
       })
+      createdPaymentIds.push(payment.id)
 
-      // Valid transition: HELD -> PAID
+      // Valid transition: HELD -> AUTHORIZED
+      expect(paymentService.validatePaymentTransition(payment.status, 'AUTHORIZED')).toBe(true)
       const updated = await prisma.payment.update({
         where: { id: paymentId },
-        data: { status: 'PAID' },
+        data: { status: 'AUTHORIZED' },
       })
 
-      expect(updated.status).toBe('PAID')
+      expect(updated.status).toBe('AUTHORIZED')
     })
   })
 
   describe('Financial Data Consistency', () => {
     it('should verify booking totals match payment amounts', async () => {
       const bookings = await prisma.booking.findMany({
+        where: { id: testBooking.id },
         include: { payments: true },
       })
 
@@ -353,7 +388,10 @@ describe('Financial Integrity Chaos Tests', () => {
 
     it('should verify commission calculations are correct', async () => {
       const payments = await prisma.payment.findMany({
-        where: { status: { in: ['PAID', 'RELEASED'] } },
+        where: {
+          id: { in: createdPaymentIds },
+          status: { in: ['PAID', 'RELEASED'] },
+        },
       })
 
       for (const payment of payments) {

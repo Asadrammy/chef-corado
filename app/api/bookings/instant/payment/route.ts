@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { normalizeCurrency } from '@/lib/currency';
+import { calculateChefPayout, calculatePlatformCommission } from '@/lib/marketplace-rules';
 
 // Initialize Stripe
 const getStripeClient = () => {
@@ -111,6 +112,25 @@ export async function POST(request: NextRequest) {
         bookingId: booking.id,
         bookingType: "INSTANT",
         currency,
+      },
+      payment_intent_data: {
+        metadata: {
+          bookingId: booking.id,
+          bookingType: "INSTANT",
+        },
+      },
+    });
+
+    await prisma.payment.create({
+      data: {
+        bookingId: booking.id,
+        totalAmount: amount,
+        commissionAmount: calculatePlatformCommission(amount),
+        chefAmount: calculateChefPayout(amount),
+        currency,
+        status: "HELD",
+        stripeCheckoutSessionId: checkoutSession.id,
+        stripePaymentIntentId: typeof checkoutSession.payment_intent === "string" ? checkoutSession.payment_intent : undefined,
       },
     });
 

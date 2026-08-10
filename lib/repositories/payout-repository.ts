@@ -22,24 +22,55 @@ export const payoutRepository = {
         chefId,
         status: "COMPLETED",
         payments: {
-          status: { in: ["PAID", "RELEASED"] },
-        },
-      },
-      include: {
-        payments: {
-          where: {
+          is: {
             status: { in: ["PAID", "RELEASED"] },
           },
         },
       },
+      include: {
+        payments: true,
+      },
     })
   },
 
-  async createPayout(chefId: string, amount: number, idempotencyKey: string) {
+  async getPaidBookingPaymentSummaries(chefId: string) {
+    return prisma.booking.findMany({
+      where: {
+        chefId,
+        payments: {
+          is: {
+            status: { in: ["PAID", "RELEASED"] },
+          },
+        },
+      },
+      include: {
+        payments: true,
+        proposal: {
+          include: {
+            request: {
+              select: {
+                title: true,
+                requestMode: true,
+                serviceTypeLabel: true,
+                countryCode: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 50,
+    })
+  },
+
+  async createPayout(chefId: string, amount: number, currency: string, idempotencyKey: string) {
     return prisma.payout.create({
       data: {
         chefId,
         amount,
+        currency,
         status: "PENDING",
         idempotencyKey,
       },

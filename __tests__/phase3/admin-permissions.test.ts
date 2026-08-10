@@ -46,6 +46,8 @@ describe("Phase 3 admin RBAC permission matrix", () => {
     expect(adminHasPermission("FINANCE_BILLING_ADMIN", "chefs.approve")).toBe(false)
     expect(adminHasPermission("CLIENT", "analytics.view")).toBe(false)
     expect(adminHasPermission("CHEF", "bookings.view")).toBe(false)
+    expect(adminHasPermission(null, "admins.delete")).toBe(false)
+    expect(getAdminRolePermissions(undefined)).toEqual([])
   })
 
   it("rejects unknown permission override strings", () => {

@@ -73,7 +73,17 @@ const getClientNavGroups = (pathname: string): NavGroup[] => [
     items: [
       createNavItem("Proposals", "/dashboard/client/proposals", IconUsers, pathname),
       createNavItem("Bookings", "/dashboard/client/bookings", IconCalendar, pathname),
+      createNavItem("Receipts", "/dashboard/client/invoices", IconCurrencyDollar, pathname),
       createNavItem("Messages", "/dashboard/chat", IconMessageCircle, pathname),
+      createNavItem("Support", "/dashboard/client/support", IconHelp, pathname),
+      createNavItem("Notifications", "/dashboard/notifications", IconMessageCircle, pathname),
+    ],
+  },
+  {
+    label: "Account",
+    items: [
+      createNavItem("Profile", "/dashboard/settings", IconUsers, pathname, true),
+      createNavItem("Settings", "/dashboard/settings/account", IconSettings, pathname),
     ],
   },
 ]
@@ -91,6 +101,8 @@ const getChefNavGroups = (pathname: string): NavGroup[] => [
       createNavItem("Availability", "/dashboard/chef/availability", IconClock, pathname),
       createNavItem("Messages", "/dashboard/chef/messages", IconMessageCircle, pathname),
       createNavItem("Menus", "/dashboard/chef/menus", IconFileText, pathname),
+      createNavItem("Experiences", "/dashboard/chef/experiences", IconChefHat, pathname),
+      createNavItem("Payouts", "/dashboard/chef/payouts", IconCurrencyDollar, pathname),
     ],
   },
   {
@@ -99,6 +111,7 @@ const getChefNavGroups = (pathname: string): NavGroup[] => [
       createNavItem("Profile", "/dashboard/chef/profile", IconChefHat, pathname),
       createNavItem("Settings", "/dashboard/chef/settings", IconSettings, pathname),
       createNavItem("Help Desk", "/dashboard/chef/help", IconHelp, pathname),
+      createNavItem("Support Tickets", "/dashboard/chef/support", IconMessageCircle, pathname),
     ],
   },
 ]
@@ -116,7 +129,7 @@ const adminIconFor = (title: string): Icon => {
 }
 
 const getAdminNavGroups = (pathname: string, adminRole?: string | null, adminPermissions?: string | null): NavGroup[] => {
-  return getVisibleAdminModuleGroups(adminRole ?? "SUPER_ADMIN", adminPermissions).map((group) => ({
+  return getVisibleAdminModuleGroups(adminRole, adminPermissions).map((group) => ({
     label: group.label,
     items: group.modules.map((module) => createNavItem(module.title, module.url, adminIconFor(module.title), pathname, module.url === "/dashboard/admin")),
   }))
@@ -160,7 +173,7 @@ export function MarketplaceSidebar() {
               <IconChefHat className="size-5 text-foreground" />
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold tracking-tight text-foreground">Chef Marketplace</p>
+              <p className="truncate text-sm font-semibold tracking-tight text-foreground">ChefaChef</p>
               <p className="truncate text-xs text-muted-foreground">
                 {userRole === Role.ADMIN ? "Admin Console" : userRole === Role.CHEF ? "Chef Workspace" : "Client Workspace"}
               </p>

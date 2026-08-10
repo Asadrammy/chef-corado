@@ -55,6 +55,12 @@ interface RequestData {
   id: string
   budget: number
   eventDate: Date
+  requestDates?: Date[]
+  serviceType?: string | null
+  eventType?: string | null
+  cuisineTypes?: string[]
+  dietaryRequirements?: string[]
+  pricingGuestCount?: number | null
   details?: string | null
   latitude: number | null
   longitude: number | null
@@ -63,17 +69,24 @@ interface RequestData {
 interface ChefData {
   id: string
   cuisineType?: string | null
+  cuisineTypes?: string | null
+  specialties?: string | null
+  bio?: string | null
   radius: number
   latitude: number | null
   longitude: number | null
   menus: Array<{
     price: number
     cuisineType?: string | null
+    eventType?: string | null
   }>
   experiences: Array<{
     price: number
+    serviceType?: string | null
     cuisineType?: string | null
     eventType?: string | null
+    minGuests?: number | null
+    maxGuests?: number | null
   }>
 }
 
@@ -162,57 +175,45 @@ export class SmartMatchingService {
     chef: ChefData
   ): number {
     const requestDetails = (request.details || "").toLowerCase()
+    const requestedCuisines = request.cuisineTypes?.map((value) => value.toLowerCase()) ?? []
+    const requestedDietary = request.dietaryRequirements?.map((value) => value.toLowerCase()) ?? []
+    const chefText = [
+      chef.cuisineType,
+      chef.cuisineTypes,
+      chef.specialties,
+      chef.bio,
+      ...chef.menus.flatMap((menu) => [menu.cuisineType, menu.eventType]),
+      ...chef.experiences.flatMap((experience) => [experience.cuisineType, experience.eventType, experience.serviceType]),
+    ].filter(Boolean).join(" ").toLowerCase()
     let score = 50 // Base score
 
-    // Check chef's primary cuisine type
-    if (chef.cuisineType) {
-      const chefCuisine = chef.cuisineType.toLowerCase()
-      if (requestDetails.includes(chefCuisine)) {
-        score += 30 // Strong match
-      }
+    if (requestedCuisines.length) {
+      const matchedCuisines = requestedCuisines.filter((cuisine) => chefText.includes(cuisine))
+      score += matchedCuisines.length > 0 ? Math.min(35, matchedCuisines.length * 15) : -10
+    } else if (chef.cuisineType && requestDetails.includes(chef.cuisineType.toLowerCase())) {
+      score += 20
     }
 
-    // Check menu cuisine types
-    const menuCuisines = new Set(
-      chef.menus
-        .map((m) => m.cuisineType?.toLowerCase())
-        .filter(Boolean)
-    )
-    for (const cuisine of menuCuisines) {
-      if (cuisine && requestDetails.includes(cuisine)) {
-        score += 10
-        break // Only count once
-      }
+    if (request.serviceType) {
+      const serviceMatch = chef.experiences.some((experience) => experience.serviceType === request.serviceType) ||
+        chefText.includes(request.serviceType.toLowerCase().replaceAll("_", " "))
+      score += serviceMatch ? 15 : -10
     }
 
-    // Check experience cuisine types
-    const expCuisines = new Set(
-      chef.experiences
-        .map((e) => e.cuisineType?.toLowerCase())
-        .filter(Boolean)
-    )
-    for (const cuisine of expCuisines) {
-      if (cuisine && requestDetails.includes(cuisine)) {
-        score += 10
-        break
-      }
+    if (request.eventType) {
+      const eventType = request.eventType.toLowerCase()
+      score += chef.experiences.some((experience) => experience.eventType?.toLowerCase().includes(eventType)) ||
+        chef.menus.some((menu) => menu.eventType?.toLowerCase().includes(eventType))
+        ? 10
+        : 0
     }
 
-    // Event type matching
-    const eventTypes = ["corporate", "wedding", "birthday", "anniversary", "dinner party"]
-    for (const eventType of eventTypes) {
-      if (requestDetails.includes(eventType)) {
-        const hasEventType = chef.experiences.some(
-          (e) => e.eventType?.toLowerCase().includes(eventType)
-        )
-        if (hasEventType) {
-          score += 15
-        }
-        break
-      }
+    if (requestedDietary.length) {
+      const matchedDietary = requestedDietary.filter((item) => chefText.includes(item))
+      score += matchedDietary.length > 0 ? Math.min(10, matchedDietary.length * 5) : 0
     }
 
-    return Math.min(100, score)
+    return Math.max(0, Math.min(100, score))
   }
 
   /**
@@ -500,8 +501,8 @@ export class SmartMatchingService {
     const chef = await prisma.chefProfile.findUnique({
       where: { id: chefId },
       include: {
-        menus: { select: { price: true, cuisineType: true } },
-        experiences: { select: { price: true, cuisineType: true, eventType: true } },
+      menus: { select: { price: true, cuisineType: true, eventType: true } },
+      experiences: { select: { price: true, cuisineType: true, eventType: true, serviceType: true, minGuests: true, maxGuests: true } },
         reviews: { select: { rating: true } },
         bookings: { where: { status: "COMPLETED" } },
         proposals: true,
@@ -542,6 +543,9 @@ export class SmartMatchingService {
     const chefData: ChefData = {
       id: chef.id,
       cuisineType: chef.cuisineType,
+      cuisineTypes: chef.cuisineTypes,
+      specialties: chef.specialties,
+      bio: chef.bio,
       radius: chef.radius,
       latitude: chef.latitude,
       longitude: chef.longitude,

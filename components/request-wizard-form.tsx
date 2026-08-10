@@ -31,8 +31,10 @@ import {
   DIETARY_REQUIREMENTS,
   EVENT_TYPES,
   SERVICE_TYPE_OPTIONS,
+  CHILD_BILLING_RULE_COPY,
   calculateGuestComposition,
-  getBudgetWarning,
+  resolvePricingState,
+  validateServiceSpecificAnswers,
 } from "@/lib/request-options"
 import { requestSchema } from "@/lib/validation-schemas"
 
@@ -132,12 +134,13 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
     childrenUnder10: formData.childrenUnder10 ? Number(formData.childrenUnder10) : 0,
     fallbackGuestCount: formData.guestCount ? Number(formData.guestCount) : undefined,
   })
-  const budgetWarning = getBudgetWarning({
+  const pricingState = resolvePricingState({
     serviceType: formData.serviceType,
     countryCode: formData.country,
     tier: formData.serviceTier,
-    budget: Number(formData.budget || 0),
+    budget: formData.budget ? Number(formData.budget) : null,
   })
+  const budgetWarning = pricingState.budgetWarning
   const attendeeLabel = isCookingClass ? "students" : "guests"
   const hasSelectedChefContext = Boolean(chefId)
   const progressPercentage = ((stepIndex + 1) / steps.length) * 100
@@ -205,6 +208,10 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
         }
         if (selectedService.serviceTiers.length > 0 && !formData.serviceTier) {
           stepErrors.serviceTier = "Choose a service tier"
+          parsed.success = false
+        }
+        for (const question of validateServiceSpecificAnswers(formData.serviceType, formData.serviceSpecificAnswers)) {
+          stepErrors[`serviceSpecificAnswers.${question.id}`] = `${question.label} is required`
           parsed.success = false
         }
         break
@@ -512,7 +519,7 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
                 {selectedService.requiredQuestions
                   .filter((question) => !["cuisinePreferences", "dietaryRequirements", "serviceTier"].includes(question.id))
                   .map((question) => (
-                    <FormFieldWrapper key={question.id} label={question.label} required={question.required}>
+                    <FormFieldWrapper key={question.id} label={question.label} error={fieldErrors[`serviceSpecificAnswers.${question.id}`]} required={question.required}>
                       {question.options?.length ? (
                         <Select
                           value={formData.serviceSpecificAnswers[question.id] ?? ""}
@@ -671,7 +678,7 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
               </div>
               <div>
                 <p className="text-muted-foreground">Children rule</p>
-                <p className="font-medium text-foreground">Every two children under 10 count as one billable adult.</p>
+                <p className="font-medium text-foreground">{CHILD_BILLING_RULE_COPY}</p>
               </div>
             </div>
             {budgetWarning ? (
@@ -831,7 +838,7 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
             </div>
             <div>
               <p className="text-muted-foreground">Country & location</p>
-              <p className="font-medium text-foreground">{COUNTRY_OPTIONS.find((option) => option.value === formData.country)?.label ?? formData.country} · {formData.location || "Not set"}</p>
+              <p className="font-medium text-foreground">{COUNTRY_OPTIONS.find((option) => option.value === formData.country)?.label ?? formData.country} Â· {formData.location || "Not set"}</p>
             </div>
             <div>
               <p className="text-muted-foreground">{isCookingClass ? "Students/adults" : "Adults and children"}</p>

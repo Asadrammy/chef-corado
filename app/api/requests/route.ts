@@ -42,7 +42,16 @@ export async function POST(request: Request) {
         eventTime: body.eventTime,
         location: body.location,
         countryCode: body.country,
+        currency: body.country === "US" ? "USD" : body.country === "KE" ? "KES" : body.country === "IT" ? "EUR" : "GBP",
         guestCount: body.guestCount,
+        adultCount: body.adultCount,
+        childrenUnder10: body.childrenUnder10,
+        actualAttendeeCount: body.actualAttendeeCount,
+        billableGuestCount: body.billableGuestCount,
+        pricingGuestCount: body.pricingGuestCount,
+        serviceSpecificAnswers: JSON.stringify(body.serviceSpecificAnswers ?? {}),
+        pricingStatus: "LOCAL_DEMO",
+        budgetStatus: "LOCAL_DEMO",
         budget: body.budget,
         details: body.details ?? null,
         status: "OPEN",
@@ -55,6 +64,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Error && ["INVALID_SERVICE_TYPE", "SERVICE_COUNTRY_NOT_SUPPORTED"].includes(error.message)) {
       return NextResponse.json({ error: "Selected service is not supported for this country." }, { status: 422 })
+    }
+
+    if (error instanceof Error && error.message.startsWith("SERVICE_REQUIRED_QUESTIONS_MISSING:")) {
+      return NextResponse.json({ error: "Please complete the required questions for the selected service." }, { status: 422 })
     }
 
     if (error instanceof Error && error.message.startsWith("PRICING_GUEST_COUNT_BELOW_MIN:")) {

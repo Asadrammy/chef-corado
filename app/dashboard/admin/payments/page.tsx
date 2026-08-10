@@ -129,15 +129,29 @@ export default function AdminPaymentsPage() {
 
   const heldPayments = payments.filter((payment) => payment.status === "HELD" || payment.status === "PENDING")
   const releasedPayments = payments.filter((payment) => payment.status === "RELEASED" || payment.status === "COMPLETED")
-  const heldTotal = heldPayments.reduce((sum, payment) => sum + payment.totalAmount, 0)
-  const releasedTotal = releasedPayments.reduce((sum, payment) => sum + payment.totalAmount, 0)
-  const commissionTotal = payments.reduce((sum, payment) => sum + payment.commissionAmount, 0)
-  const totalVolume = payments.reduce((sum, payment) => sum + payment.totalAmount, 0)
+  const groupMoneyByCurrency = (rows: Payment[], selector: (payment: Payment) => number) => {
+    const totals = rows.reduce<Record<string, number>>((acc, payment) => {
+      const currency = payment.currency || "GBP"
+      acc[currency] = (acc[currency] ?? 0) + selector(payment)
+      return acc
+    }, {})
+
+    return Object.entries(totals).map(([currency, amount]) => ({ currency, amount }))
+  }
+  const formatCurrencySummary = (rows: { currency: string; amount: number }[]) => (
+    rows.length > 0
+      ? rows.slice(0, 3).map((row) => formatCurrency(row.amount, row.currency)).join(" / ")
+      : formatCurrency(0, "GBP")
+  )
+  const heldTotalByCurrency = groupMoneyByCurrency(heldPayments, (payment) => payment.totalAmount)
+  const releasedTotalByCurrency = groupMoneyByCurrency(releasedPayments, (payment) => payment.totalAmount)
+  const commissionTotalByCurrency = groupMoneyByCurrency(payments, (payment) => payment.commissionAmount)
+  const totalVolumeByCurrency = groupMoneyByCurrency(payments, (payment) => payment.totalAmount)
 
   const stats = [
     {
       title: "Funds on hold",
-      value: heldTotal,
+      value: formatCurrencySummary(heldTotalByCurrency),
       meta: `${heldPayments.length} payments awaiting release`,
       icon: Wallet,
       accent: "from-amber-500/15 via-orange-500/10 to-transparent",
@@ -146,7 +160,7 @@ export default function AdminPaymentsPage() {
     },
     {
       title: "Released payouts",
-      value: releasedTotal,
+      value: formatCurrencySummary(releasedTotalByCurrency),
       meta: `${releasedPayments.length} payments processed`,
       icon: Landmark,
       accent: "from-emerald-500/15 via-emerald-500/10 to-transparent",
@@ -155,7 +169,7 @@ export default function AdminPaymentsPage() {
     },
     {
       title: "Commission earned",
-      value: commissionTotal,
+      value: formatCurrencySummary(commissionTotalByCurrency),
       meta: `Across ${payments.length} total bookings`,
       icon: CreditCard,
       accent: "from-sky-500/15 via-indigo-500/10 to-transparent",
@@ -219,7 +233,7 @@ export default function AdminPaymentsPage() {
                 Total volume
               </div>
               <div className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
-                {formatCurrency(totalVolume, payments[0]?.currency ?? "GBP")}
+                {formatCurrencySummary(totalVolumeByCurrency)}
               </div>
               <div className="mt-1 text-sm text-muted-foreground">
                 Across {payments.length} tracked payment records
@@ -278,7 +292,7 @@ export default function AdminPaymentsPage() {
                       {stat.title}
                     </CardDescription>
                     <CardTitle className={cn("text-3xl font-semibold tracking-tight", stat.valueClassName)}>
-                      {formatCurrency(stat.value, payments[0]?.currency ?? "GBP")}
+                      {stat.value}
                     </CardTitle>
                   </div>
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/60 bg-background/80 shadow-sm shadow-black/5 transition-transform duration-300 group-hover:scale-105">

@@ -51,7 +51,7 @@ export function AuthExperience({ initialMode = "login" }: AuthExperienceProps) {
                   <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_12px_28px_rgba(255,117,24,0.35)]">
                     <Sparkles className="h-4 w-4" />
                   </div>
-                  <span className="text-sm font-medium tracking-[0.18em] text-white uppercase">Chef Marketplace</span>
+                  <span className="text-sm font-medium tracking-[0.18em] text-white uppercase">ChefaChef</span>
                 </div>
 
                 <div className="mt-8 space-y-4">

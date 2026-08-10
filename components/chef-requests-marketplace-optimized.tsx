@@ -24,6 +24,19 @@ export function OptimizedChefRequestsMarketplace({ requests }: OptimizedChefRequ
   const [searchQuery, setSearchQuery] = React.useState("")
   const [sortBy, setSortBy] = React.useState("newest") // Default to newest for speed
   const [selectedUrgency, setSelectedUrgency] = React.useState("all")
+  const averageBudgetByCurrency = React.useMemo(() => {
+    const totals = requests.reduce<Record<string, { total: number; count: number }>>((acc, request) => {
+      const currency = request.currency || "GBP"
+      acc[currency] ??= { total: 0, count: 0 }
+      acc[currency].total += request.budget
+      acc[currency].count += 1
+      return acc
+    }, {})
+
+    return Object.entries(totals)
+      .map(([currency, value]) => formatCurrency(Math.round(value.total / Math.max(value.count, 1)), currency))
+      .join(" / ") || formatCurrency(0, "GBP")
+  }, [requests])
 
   // Filter and sort requests with speed optimization
   const filteredRequests = React.useMemo(() => {
@@ -162,7 +175,7 @@ export function OptimizedChefRequestsMarketplace({ requests }: OptimizedChefRequ
                 <div>
                   <p className="text-sm text-green-600 font-medium">Avg Budget</p>
                   <p className="text-2xl font-bold text-green-900">
-                    {formatCurrency(requests.length > 0 ? Math.round(requests.reduce((sum, r) => sum + r.budget, 0) / requests.length) : 0, 'GBP')}
+                    {averageBudgetByCurrency}
                   </p>
                 </div>
                 <Wallet className="w-8 h-8 text-green-500" />
@@ -319,7 +332,7 @@ function OptimizedRequestCard({ request }: { request: OptimizedChefRequestRow })
           )}
         </div>
         <div className="text-right">
-          <div className="text-lg font-bold text-gray-900">{formatCurrency(request.budget, 'GBP')}</div>
+          <div className="text-lg font-bold text-gray-900">{formatCurrency(request.budget, request.currency || 'GBP')}</div>
           {isHighBudget && (
             <div className="text-xs text-green-600">Great budget!</div>
           )}

@@ -19,6 +19,8 @@ import { requireAdminPagePermission } from "@/lib/admin-rbac"
 import { isPrismaConnectionError, prisma, withPrismaReconnect } from "@/lib/prisma"
 
 const roleOptions = ADMIN_STAFF_ROLES.map((role) => ({ label: ADMIN_ROLE_LABELS[role], value: role }))
+const adminRoleLabel = (role?: string | null) =>
+  role && role in ADMIN_ROLE_LABELS ? ADMIN_ROLE_LABELS[role as keyof typeof ADMIN_ROLE_LABELS] : "Role not assigned"
 
 type AdminStaffRow = Prisma.UserGetPayload<{
   select: {
@@ -147,7 +149,7 @@ export default async function AdminStaffPage({
         emptyTitle="No admin staff found."
         columns={[
           { key: "person", label: "Staff member", render: (user) => <div><p className="font-medium">{user.name}</p><p className="text-xs text-muted-foreground">{user.email}</p></div> },
-          { key: "role", label: "Role", render: (user) => ADMIN_ROLE_LABELS[user.adminRole as keyof typeof ADMIN_ROLE_LABELS] ?? "Super Admin" },
+          { key: "role", label: "Role", render: (user) => adminRoleLabel(user.adminRole) },
           { key: "status", label: "Status", render: (user) => <AdminStatusBadge status={user.adminDisabledAt ? "DISABLED" : "ACTIVE"} /> },
           { key: "lastLogin", label: "Last login", render: () => "Not recorded" },
           { key: "created", label: "Created", render: (user) => formatAdminDate(user.createdAt) },
@@ -160,7 +162,7 @@ export default async function AdminStaffPage({
                   <AdminInfoGrid
                     items={[
                       { label: "Email", value: user.email },
-                      { label: "Current role", value: ADMIN_ROLE_LABELS[user.adminRole as keyof typeof ADMIN_ROLE_LABELS] ?? "Super Admin" },
+                      { label: "Current role", value: adminRoleLabel(user.adminRole) },
                       { label: "Access state", value: <AdminStatusBadge status={user.adminDisabledAt ? "DISABLED" : "ACTIVE"} /> },
                       { label: "Created", value: formatAdminDate(user.createdAt) },
                     ]}
@@ -173,7 +175,7 @@ export default async function AdminStaffPage({
                     submitLabel="Update staff access"
                     fields={[
                       { name: "userId", type: "hidden", defaultValue: user.id },
-                      { name: "adminRole", label: "Role", type: "select", defaultValue: user.adminRole ?? "SUPER_ADMIN", options: roleOptions },
+                      { name: "adminRole", label: "Role", type: "select", defaultValue: user.adminRole && user.adminRole in ADMIN_ROLE_LABELS ? user.adminRole : "CUSTOMER_SUPPORT_SPECIALIST", options: roleOptions },
                       { name: "disabled", label: "Disabled", type: "checkbox", defaultValue: Boolean(user.adminDisabledAt) },
                     ]}
                   />

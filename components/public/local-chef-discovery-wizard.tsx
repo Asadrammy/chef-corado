@@ -9,7 +9,8 @@ import { PublicChefCard, type PublicChefCardData } from "@/components/public/pub
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { COUNTRY_OPTIONS, CUISINE_TYPES, DIETARY_REQUIREMENTS, EVENT_TYPE_OPTIONS, SERVICE_TYPE_OPTIONS, calculateGuestComposition, getBudgetWarning, getPricingRule } from "@/lib/request-options"
+import { formatCurrency, getCurrencyConfig } from "@/lib/currency"
+import { COUNTRY_OPTIONS, CUISINE_TYPES, DIETARY_REQUIREMENTS, EVENT_TYPE_OPTIONS, SERVICE_TYPE_OPTIONS, CHILD_BILLING_RULE_COPY, calculateGuestComposition, resolvePricingState, validateServiceSpecificAnswers } from "@/lib/request-options"
 import { cn } from "@/lib/utils"
 
 type LocalChefDiscoveryWizardProps = {
@@ -23,10 +24,10 @@ const cuisines = CUISINE_TYPES
 const dietaryOptions = ["None", ...DIETARY_REQUIREMENTS]
 const calendarDaysToShow = 42
 
-function formatCurrencyRange(min?: number, max?: number) {
-  if (!min && !max) return "Custom quote"
-  if (min && max) return `GBP ${min}-${max} pp`
-  return `From GBP ${min ?? max} pp`
+function formatCurrencyRange(min: number | null | undefined, max: number | null | undefined, currency: string, locale: string) {
+  if (!min && !max) return "Local quote"
+  if (min && max) return `${formatCurrency(min, currency, locale)}-${formatCurrency(max, currency, locale)} pp`
+  return `From ${formatCurrency(min ?? max ?? 0, currency, locale)} pp`
 }
 
 function formatIsoDate(date: Date) {
@@ -80,6 +81,7 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
   const [eventType, setEventType] = useState("")
   const [serviceType, setServiceType] = useState("")
   const [pricingTier, setPricingTier] = useState("")
+  const [serviceSpecificAnswers, setServiceSpecificAnswers] = useState<Record<string, string>>({})
   const [budget, setBudget] = useState("")
   const [fullTimeDetails, setFullTimeDetails] = useState({
     desiredStartDate: "",
@@ -105,15 +107,20 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
     () => SERVICE_TYPE_OPTIONS.find((service) => service.id === serviceType) ?? null,
     [serviceType],
   )
-  const selectedPricingRule = serviceType ? getPricingRule(serviceType, country, pricingTier) : null
+  const currencyConfig = getCurrencyConfig(country)
+  const selectedPricingState = serviceType
+    ? resolvePricingState({ serviceType, countryCode: country, tier: pricingTier, budget: budget ? Number(budget) : null })
+    : null
+  const selectedPricingRule = selectedPricingState?.rule ?? null
+  const missingServiceAnswers = selectedService
+    ? validateServiceSpecificAnswers(selectedService.id, serviceSpecificAnswers)
+    : []
   const calendarDays = useMemo(() => buildCalendarDays(), [])
   const guestComposition = useMemo(
     () => calculateGuestComposition({ adultCount: adults, childrenUnder10, fallbackGuestCount: adults }),
     [adults, childrenUnder10],
   )
-  const budgetWarning = serviceType && budget
-    ? getBudgetWarning({ serviceType, countryCode: country, tier: pricingTier, budget: Number(budget) })
-    : null
+  const budgetWarning = selectedPricingState?.budgetWarning ?? null
 
   useEffect(() => {
     window.sessionStorage.setItem(`chefachef:request-draft:${draftId}`, JSON.stringify({
@@ -131,13 +138,14 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
       eventType,
       serviceType,
       serviceTier: pricingTier,
+      serviceSpecificAnswers,
       budget: budget.trim(),
       fullTimeDetails,
       cuisinePreferences: selectedCuisines,
       dietaryRequirements: dietary.filter((item) => item !== "None"),
       details: notes.trim(),
     }))
-  }, [budget, country, dietary, draftId, eventDate, eventTime, eventType, fullTimeDetails, guestComposition, location, multiDayDates, notes, pricingTier, selectedCuisines, serviceType])
+  }, [budget, country, dietary, draftId, eventDate, eventTime, eventType, fullTimeDetails, guestComposition, location, multiDayDates, notes, pricingTier, selectedCuisines, serviceSpecificAnswers, serviceType])
 
   const createRequestPath = eventType === "Multi-Day Chef Hire"
     ? `/dashboard/client/multi-day-chef-hire?draft=${encodeURIComponent(draftId)}`
@@ -165,7 +173,7 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
       return Boolean(eventType)
     }
     if (step === 5) return Boolean(serviceType)
-    if (step === 6) return Boolean(pricingTier && budget)
+    if (step === 6) return Boolean(pricingTier && budget) && missingServiceAnswers.length === 0
     if (step === 8) return dietary.length > 0
     return true
   })()
@@ -331,7 +339,7 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
           ) : null}
 
           {step === 3 ? (
-            <StepShell title="For how many?" description="Every two children under 10 equal one billable adult. Three children equal 1.5 adults and the calculation continues proportionally.">
+            <StepShell title="For how many?" description={CHILD_BILLING_RULE_COPY}>
               <div className="mx-auto grid max-w-2xl gap-4 md:grid-cols-2">
                 <Counter label="Adults" value={adults} min={0} onChange={setAdults} />
                 <Counter label="Children under 10" value={childrenUnder10} min={0} onChange={setChildrenUnder10} />
@@ -434,6 +442,7 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
                     onClick={() => {
                       setServiceType(service.id)
                       setPricingTier(service.serviceTiers[0] ?? "")
+                      setServiceSpecificAnswers({})
                     }}
                     className={cn(
                       "overflow-hidden rounded-2xl border text-left transition-colors",
@@ -441,7 +450,8 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
                     )}
                   >
                     {(() => {
-                      const rule = getPricingRule(service.id, country, service.serviceTiers[0])
+                      const pricingState = resolvePricingState({ serviceType: service.id, countryCode: country, tier: service.serviceTiers[0] })
+                      const rule = pricingState.rule
                       return (
                         <>
                     <div className="relative aspect-[16/9] overflow-hidden bg-muted">
@@ -457,11 +467,11 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
                     <span className="block p-4">
                       <span className="flex items-start justify-between gap-3">
                         <span className="block text-base font-semibold text-foreground">{service.label}</span>
-                        <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs font-semibold text-muted-foreground">{formatCurrencyRange(rule?.pricePerPersonMin, rule?.pricePerPersonMax)}</span>
+                        <span className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-xs font-semibold text-muted-foreground">{formatCurrencyRange(rule?.pricePerPersonMin, rule?.pricePerPersonMax, currencyConfig.currency, currencyConfig.locale)}</span>
                       </span>
                       <span className="mt-1 block text-sm leading-5 text-muted-foreground">{service.description}</span>
                       <span className="mt-3 flex flex-wrap gap-2 text-[11px] font-medium text-muted-foreground">
-                        <span className="rounded-full bg-muted px-2 py-1">Min spend GBP {rule?.minimumSpend ?? "TBC"}</span>
+                        <span className="rounded-full bg-muted px-2 py-1">{rule?.minimumSpend ? `Min spend ${formatCurrency(rule.minimumSpend, currencyConfig.currency, currencyConfig.locale)}` : "Local quote pending"}</span>
                         <span className="rounded-full bg-muted px-2 py-1">{service.minGuests ?? rule?.minGuests ?? 1}+ guests</span>
                       </span>
                     </span>
@@ -487,10 +497,43 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
                     </div>
                   </div>
                   <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                    <Metric label="Minimum spend" value={selectedPricingRule?.minimumSpend ? `GBP ${selectedPricingRule.minimumSpend}` : "Custom"} />
-                    <Metric label="Per person" value={formatCurrencyRange(selectedPricingRule?.pricePerPersonMin, selectedPricingRule?.pricePerPersonMax)} />
+                    <Metric label="Minimum spend" value={selectedPricingRule?.minimumSpend ? formatCurrency(selectedPricingRule.minimumSpend, currencyConfig.currency, currencyConfig.locale) : "Local quote pending"} />
+                    <Metric label="Per person" value={formatCurrencyRange(selectedPricingRule?.pricePerPersonMin, selectedPricingRule?.pricePerPersonMax, currencyConfig.currency, currencyConfig.locale)} />
                     <Metric label="Minimum guests" value={`${selectedPricingRule?.minGuests ?? selectedService?.minGuests ?? 1}`} />
                   </div>
+                  {selectedService ? (
+                    <div className="mt-5 grid gap-4 md:grid-cols-2">
+                      {selectedService.requiredQuestions
+                        .filter((question) => !["cuisinePreferences", "dietaryRequirements", "serviceTier"].includes(question.id))
+                        .map((question) => (
+                          <div key={question.id} className="space-y-2">
+                            <label className="text-sm font-semibold text-foreground" htmlFor={`guided-${question.id}`}>
+                              {question.label}{question.required ? " *" : ""}
+                            </label>
+                            {question.options?.length ? (
+                              <select
+                                id={`guided-${question.id}`}
+                                value={serviceSpecificAnswers[question.id] ?? ""}
+                                onChange={(event) => setServiceSpecificAnswers((current) => ({ ...current, [question.id]: event.target.value }))}
+                                className="h-12 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                              >
+                                <option value="">Choose an option</option>
+                                {question.options.map((option) => (
+                                  <option key={option} value={option}>{option}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <Textarea
+                                id={`guided-${question.id}`}
+                                value={serviceSpecificAnswers[question.id] ?? ""}
+                                onChange={(event) => setServiceSpecificAnswers((current) => ({ ...current, [question.id]: event.target.value }))}
+                                className="min-h-24 rounded-xl"
+                              />
+                            )}
+                          </div>
+                        ))}
+                    </div>
+                  ) : null}
                 </div>
                 <div className="rounded-[24px] border border-border/70 bg-background p-5">
                   <p className="text-sm font-semibold text-foreground">Service style</p>

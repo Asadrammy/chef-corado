@@ -32,6 +32,7 @@ interface CheckoutResponsePayload {
 interface BookingDetails {
   id: string;
   totalPrice: number;
+  currency?: string;
   status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
   createdAt: string;
   updatedAt: string;
@@ -56,12 +57,14 @@ interface BookingDetails {
   proposal?: {
     id: string;
     price: number;
+    currency?: string;
     message: string | null;
     menu?: {
       id: string;
       title: string;
       description: string | null;
       price: number;
+      currency?: string;
     } | null;
   } | null;
   payments?: {
@@ -69,6 +72,7 @@ interface BookingDetails {
     totalAmount: number;
     commissionAmount: number;
     chefAmount: number;
+    currency?: string;
     status: 'PENDING' | 'HELD' | 'RELEASED' | 'COMPLETED';
     stripePaymentIntentId?: string;
     createdAt: string;
@@ -212,6 +216,7 @@ export default function BookingDetailsPage() {
   const canLeaveReview = isClient && booking.status === 'COMPLETED' && !booking.review;
   const needsPayment = isClient && booking.status === 'PENDING' && !booking.payments;
   const hasUnpaidPayment = booking.payments && booking.payments.status !== 'COMPLETED';
+  const bookingCurrency = booking.payments?.currency || booking.proposal?.currency || booking.currency || 'GBP';
 
   const handlePayNow = async () => {
     try {
@@ -324,7 +329,7 @@ export default function BookingDetailsPage() {
                     )}
                     <div className="flex items-center gap-2">
                       <Wallet className="h-4 w-4" />
-                      <span className="font-medium">{formatCurrency(booking.proposal.menu.price, 'GBP')}</span>
+                      <span className="font-medium">{formatCurrency(booking.proposal.menu.price, booking.proposal.menu.currency || bookingCurrency)}</span>
                     </div>
                   </div>
                 )}
@@ -345,7 +350,7 @@ export default function BookingDetailsPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Wallet className="h-4 w-4" />
-                    <span className="font-medium">{formatCurrency(booking.proposal?.price || booking.totalPrice, 'GBP')}</span>
+                    <span className="font-medium">{formatCurrency(booking.proposal?.price || booking.totalPrice, booking.proposal?.currency || bookingCurrency)}</span>
                   </div>
                 </div>
               </CardContent>
@@ -375,14 +380,14 @@ export default function BookingDetailsPage() {
                   <p className="text-sm text-muted-foreground">No payment processed yet</p>
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                     <p className="text-sm font-medium text-blue-900">Total Amount Due</p>
-                    <p className="text-2xl font-bold text-blue-900 mt-1">{formatCurrency(booking.totalPrice, 'GBP')}</p>
+                    <p className="text-2xl font-bold text-blue-900 mt-1">{formatCurrency(booking.totalPrice, bookingCurrency)}</p>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div>
-                        <p className="font-medium">{formatCurrency(booking.payments.totalAmount || 0, 'GBP')}</p>
+                        <p className="font-medium">{formatCurrency(booking.payments.totalAmount || 0, booking.payments.currency || bookingCurrency)}</p>
                         <p className="text-xs text-muted-foreground">
                           {formatDistanceToNow(new Date(booking.payments.createdAt), { addSuffix: true })}
                         </p>
@@ -461,7 +466,7 @@ export default function BookingDetailsPage() {
               <CardContent className="space-y-3">
                 <div className="bg-white rounded p-3 border border-green-100">
                   <p className="text-sm text-gray-600">Amount Due</p>
-                  <p className="text-2xl font-bold text-green-900">${booking.totalPrice.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-green-900">{formatCurrency(booking.totalPrice, bookingCurrency)}</p>
                 </div>
                 <Button
                   onClick={handlePayNow}

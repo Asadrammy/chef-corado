@@ -4,9 +4,37 @@ import { logStateTransition } from "@/lib/utils/state-machine"
 import { generateIdempotencyKey } from "@/lib/utils/idempotency"
 import { logger } from "@/lib/logger"
 import { prisma } from "@/lib/prisma"
+import { PLATFORM_COMMISSION_PERCENT } from "@/lib/marketplace-rules"
 import type { Prisma } from "@prisma/client"
 
 type PayoutAction = "approve" | "process" | "pay" | "complete" | "fail" | "cancel" | "retry"
+type CurrencyBalance = {
+  currency: string
+  availableBalance: number
+  pendingEarnings: number
+  totalEarnings: number
+  totalPaidOut: number
+  totalPendingPayouts: number
+  completedBookings: number
+}
+
+type ChefPaymentSummary = {
+  bookingId: string
+  reference: string
+  title: string
+  serviceTypeLabel: string | null
+  requestMode: string | null
+  countryCode: string | null
+  eventDate: Date
+  transactionDate: Date
+  currency: string
+  customerPayment: number
+  platformCommission: number
+  commissionRatePercent: number
+  chefPayout: number
+  paymentStatus: string
+  payoutEligibilityStatus: string
+}
 
 type PayoutStatusUpdateInput = {
   action: PayoutAction
@@ -37,8 +65,27 @@ const PAYOUT_STATE_TRANSITIONS: Record<string, string[]> = {
   [PAYOUT_STATUS.FAILED]: [PAYOUT_STATUS.PENDING], // Can retry
 } as const
 
+const activePayoutStatuses = ["PENDING", "APPROVED", "PROCESSING", "FROZEN"]
+const paidPayoutStatuses = ["PAID", "COMPLETED"]
+
+function getEmptyBalance(currency: string): CurrencyBalance {
+  return {
+    currency,
+    availableBalance: 0,
+    pendingEarnings: 0,
+    totalEarnings: 0,
+    totalPaidOut: 0,
+    totalPendingPayouts: 0,
+    completedBookings: 0,
+  }
+}
+
+function roundMoney(value: number) {
+  return Number(value.toFixed(2))
+}
+
 export const payoutService = {
-  async createPayout(userId: string, amount: number) {
+  async createPayout(userId: string, amount: number, currency?: string) {
     const chefProfile = await payoutRepository.findChefProfile(userId)
 
     if (!chefProfile) {
@@ -49,23 +96,19 @@ export const payoutService = {
       throw new Error("CHEF_NOT_APPROVED")
     }
 
-    const completedBookings = await payoutRepository.getCompletedBookingsWithPayments(chefProfile.id)
-
-    const availableBalance = completedBookings.reduce((sum, booking) => {
-      const payment = booking.payments
-      if (payment) {
-        return sum + (payment.totalAmount - payment.commissionAmount)
-      }
-      return sum
-    }, 0)
+    const normalizedCurrency = (currency || chefProfile.preferredCurrency || "GBP").toUpperCase()
+    const balance = await this.getPayoutBalance(userId)
+    const selectedBalance = balance.balancesByCurrency.find((item: CurrencyBalance) => item.currency === normalizedCurrency)
+    const availableBalance = selectedBalance?.availableBalance ?? 0
 
     if (amount > availableBalance) {
-      throw new Error(`INSUFFICIENT_BALANCE:${availableBalance.toFixed(2)}`)
+      throw new Error(`INSUFFICIENT_BALANCE:${normalizedCurrency}:${availableBalance.toFixed(2)}`)
     }
 
     const existingActivePayout = await payoutRepository.listPayouts({
       chefId: chefProfile.id,
       amount,
+      currency: normalizedCurrency,
       status: { in: ["PENDING", "APPROVED", "PROCESSING", "FROZEN"] },
     })
 
@@ -73,8 +116,8 @@ export const payoutService = {
       throw new Error("DUPLICATE_ACTIVE_PAYOUT")
     }
 
-    const idempotencyKey = generateIdempotencyKey("MANUAL_PAYOUT_REQUEST", chefProfile.id, { amount })
-    return payoutRepository.createPayout(chefProfile.id, amount, idempotencyKey)
+    const idempotencyKey = generateIdempotencyKey("MANUAL_PAYOUT_REQUEST", chefProfile.id, { amount, currency: normalizedCurrency })
+    return payoutRepository.createPayout(chefProfile.id, amount, normalizedCurrency, idempotencyKey)
   },
 
   async getPayoutBalance(userId: string) {
@@ -84,47 +127,90 @@ export const payoutService = {
       throw new Error("CHEF_PROFILE_NOT_FOUND")
     }
 
+    const balances = new Map<string, CurrencyBalance>()
+    const ensureBalance = (currency?: string | null) => {
+      const normalizedCurrency = (currency || chefProfile.preferredCurrency || "GBP").toUpperCase()
+      if (!balances.has(normalizedCurrency)) {
+        balances.set(normalizedCurrency, getEmptyBalance(normalizedCurrency))
+      }
+      return balances.get(normalizedCurrency)!
+    }
+
     const completedBookings = await payoutRepository.getCompletedBookingsWithPayments(chefProfile.id)
 
-    const totalEarnings = completedBookings.reduce((sum, booking) => {
+    completedBookings.forEach((booking) => {
       const payment = booking.payments
-      if (payment && (payment.status === 'PAID' || payment.status === 'RELEASED')) {
-        return sum + (payment.totalAmount - payment.commissionAmount)
-      }
-      return sum
-    }, 0)
+      if (!payment || (payment.status !== "PAID" && payment.status !== "RELEASED")) return
+
+      const balance = ensureBalance(payment.currency)
+      balance.totalEarnings = roundMoney(balance.totalEarnings + payment.chefAmount)
+      balance.completedBookings += 1
+    })
 
     const paidPayouts = await payoutRepository.listPayouts({
       chefId: chefProfile.id,
-      status: { in: ["PAID", "COMPLETED"] },
+      status: { in: paidPayoutStatuses },
     })
 
-    const totalPaidOut = paidPayouts.reduce((sum, payout) => sum + payout.amount, 0)
+    paidPayouts.forEach((payout) => {
+      const balance = ensureBalance(payout.currency)
+      balance.totalPaidOut = roundMoney(balance.totalPaidOut + payout.amount)
+    })
 
     const pendingPayouts = await payoutRepository.listPayouts({
       chefId: chefProfile.id,
-      status: { in: ["PENDING", "APPROVED", "PROCESSING", "FROZEN"] },
+      status: { in: activePayoutStatuses },
     })
 
-    const totalPendingPayouts = pendingPayouts.reduce((sum, payout) => sum + payout.amount, 0)
+    pendingPayouts.forEach((payout) => {
+      const balance = ensureBalance(payout.currency)
+      balance.totalPendingPayouts = roundMoney(balance.totalPendingPayouts + payout.amount)
+    })
 
-    const availableBalance = totalEarnings - totalPaidOut - totalPendingPayouts
+    ensureBalance(chefProfile.preferredCurrency)
 
-    const activeBookings = await payoutRepository.getCompletedBookingsWithPayments(chefProfile.id)
+    const paymentSummaries: ChefPaymentSummary[] = (await payoutRepository.getPaidBookingPaymentSummaries(chefProfile.id))
+      .map((booking) => {
+        const payment = booking.payments
+        const currency = (payment?.currency || booking.currency || chefProfile.preferredCurrency || "GBP").toUpperCase()
+        const title = booking.proposal?.request?.title || booking.location || `Booking ${booking.id}`
+        const paymentStatus = payment?.status || "UNKNOWN"
 
-    const pendingEarnings = activeBookings.reduce((sum: number, booking: any) => {
-      const payment = booking.payments
-      if (payment && (payment.status === 'PAID' || payment.status === 'RELEASED')) {
-        return sum + (payment.totalAmount - payment.commissionAmount)
-      }
-      return sum
-    }, 0)
+        return {
+          bookingId: booking.id,
+          reference: booking.id,
+          title,
+          serviceTypeLabel: booking.serviceTypeLabel || booking.proposal?.request?.serviceTypeLabel || null,
+          requestMode: booking.proposal?.request?.requestMode || booking.bookingType || null,
+          countryCode: booking.proposal?.request?.countryCode || null,
+          eventDate: booking.eventDate,
+          transactionDate: payment?.createdAt || booking.createdAt,
+          currency,
+          customerPayment: roundMoney(payment?.totalAmount ?? booking.totalPrice ?? 0),
+          platformCommission: roundMoney(payment?.commissionAmount ?? 0),
+          commissionRatePercent: PLATFORM_COMMISSION_PERCENT,
+          chefPayout: roundMoney(payment?.chefAmount ?? 0),
+          paymentStatus,
+          payoutEligibilityStatus: paymentStatus === "RELEASED" ? "Released for payout" : "Paid / awaiting completion or payout release",
+        }
+      })
+
+    const balancesByCurrency = Array.from(balances.values()).map((balance) => ({
+      ...balance,
+      availableBalance: Math.max(0, roundMoney(balance.totalEarnings - balance.totalPaidOut - balance.totalPendingPayouts)),
+    }))
+    const primaryCurrency = (chefProfile.preferredCurrency || balancesByCurrency[0]?.currency || "GBP").toUpperCase()
+    const primaryBalance = balancesByCurrency.find((balance) => balance.currency === primaryCurrency) ?? balancesByCurrency[0] ?? getEmptyBalance(primaryCurrency)
 
     return {
-      availableBalance: Math.max(0, availableBalance),
-      pendingEarnings,
-      totalEarnings,
-      completedBookings: completedBookings.length,
+      currency: primaryBalance.currency,
+      availableBalance: primaryBalance.availableBalance,
+      pendingEarnings: primaryBalance.pendingEarnings,
+      totalEarnings: primaryBalance.totalEarnings,
+      completedBookings: primaryBalance.completedBookings,
+      balancesByCurrency,
+      paymentSummaries,
+      multiCurrencyNotice: "Balances are separated by currency and are not combined without an approved FX conversion source.",
     }
   },
 

@@ -9,12 +9,20 @@ import { Loader2, TrendingUp, Users, Wallet, Calendar, Star, ChefHat, AlertCircl
 import { useSession } from 'next-auth/react';
 import { formatCurrency } from '@/lib/currency';
 
+type CurrencyAmount = {
+  currency: string;
+  amount: number;
+};
+
 interface AnalyticsData {
   totalBookings?: number;
   completedBookings?: number;
   totalSpending?: number;
+  totalSpendingByCurrency?: CurrencyAmount[];
   totalEarnings?: number;
+  earningsByCurrency?: CurrencyAmount[];
   totalRevenue?: number;
+  revenueByCurrency?: CurrencyAmount[];
   averageRating?: number;
   totalReviews?: number;
   proposalsSent?: number;
@@ -82,6 +90,18 @@ export default function AnalyticsPage() {
     );
   }
 
+  const formatCurrencyBreakdown = (amounts?: CurrencyAmount[], fallbackAmount?: number) => {
+    if (amounts?.length) {
+      return amounts.map((item) => formatCurrency(item.amount, item.currency)).join(' / ');
+    }
+
+    if (fallbackAmount !== undefined) {
+      return formatCurrency(fallbackAmount, 'GBP');
+    }
+
+    return 'No financial activity';
+  };
+
   const renderClientAnalytics = () => (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -104,7 +124,7 @@ export default function AnalyticsPage() {
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(analytics.totalSpending || 0, 'GBP')}</div>
+            <div className="text-2xl font-bold">{formatCurrencyBreakdown(analytics.totalSpendingByCurrency, analytics.totalSpending)}</div>
             <p className="text-xs text-muted-foreground">
               Last {timeRange} days
             </p>
@@ -182,7 +202,7 @@ export default function AnalyticsPage() {
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(analytics.totalEarnings || 0, 'GBP')}</div>
+            <div className="text-2xl font-bold">{formatCurrencyBreakdown(analytics.earningsByCurrency, analytics.totalEarnings)}</div>
             <p className="text-xs text-muted-foreground">
               Last {timeRange} days
             </p>
@@ -286,7 +306,7 @@ export default function AnalyticsPage() {
             <Wallet className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(analytics.totalRevenue || 0, 'GBP')}</div>
+            <div className="text-2xl font-bold">{formatCurrencyBreakdown(analytics.revenueByCurrency, analytics.totalRevenue)}</div>
             <p className="text-xs text-muted-foreground">
               Last {timeRange} days
             </p>

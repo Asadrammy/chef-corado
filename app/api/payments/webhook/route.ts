@@ -82,7 +82,7 @@ export async function POST(request: Request) {
     const existingEvent = await webhookEventStore.getEvent(event.id)
     
     if (existingEvent) {
-      if (existingEvent.status === 'PROCESSED') {
+      if (existingEvent.status === 'COMPLETED' || existingEvent.status === 'PROCESSED') {
         logger.info('[WEBHOOK] Event already processed', { eventId: event.id })
         return apiSuccess({ received: true, alreadyProcessed: true })
       }

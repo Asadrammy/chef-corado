@@ -5,13 +5,14 @@ import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { format } from "date-fns"
 import { CalendarDays, Clock3, CheckCircle2, XCircle, WalletCards, MapPin, Eye, MessageSquare } from "lucide-react"
 import { BookingStatus } from "@/types"
+import { formatCurrency } from "@/lib/currency"
 
 export type ChefBookingPayload = {
   id: string
   totalPrice: string
+  currency?: string | null
   status: BookingStatus
   eventDate: string
   location: string
@@ -44,15 +45,6 @@ function formatDate(value: string) {
     day: "numeric",
     year: "numeric",
   })
-}
-
-function formatPrice(value: string) {
-  const parsed = Number(value)
-  if (Number.isNaN(parsed)) {
-    return value
-  }
-
-  return `$${parsed.toFixed(2)}`
 }
 
 function getStatusConfig(status: BookingStatus) {
@@ -124,7 +116,7 @@ export function ChefBookingCard({ booking }: ChefBookingCardProps) {
                 Job value
               </p>
               <p className="mt-2 text-lg font-semibold tracking-tight text-foreground sm:text-2xl">
-                {formatPrice(booking.totalPrice)}
+                {formatCurrency(booking.totalPrice, booking.currency || "GBP")}
               </p>
             </div>
           </div>

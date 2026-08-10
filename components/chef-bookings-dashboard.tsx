@@ -24,6 +24,7 @@ type InvitationPayload = {
     eventDate: string
     location: string
     budget: number
+    currency?: string
     details?: string | null
     client: {
       id: string
@@ -169,9 +170,16 @@ export function ChefBookingsDashboard() {
   const totalBookings = bookings.length
   const upcomingEvents = bookings.filter((booking) => booking.status === "PENDING" || booking.status === "CONFIRMED").length
   const completedEvents = bookings.filter((booking) => booking.status === "COMPLETED").length
-  const totalEarnings = bookings
-    .filter((booking) => booking.status === "COMPLETED")
-    .reduce((sum, booking) => sum + Number(booking.totalPrice || 0), 0)
+  const completedBookings = bookings.filter((booking) => booking.status === "COMPLETED")
+  const earningsByCurrency = completedBookings.reduce<Record<string, number>>((acc, booking) => {
+    const currency = booking.currency || "GBP"
+    acc[currency] = (acc[currency] ?? 0) + Number(booking.totalPrice || 0)
+    return acc
+  }, {})
+  const earningsSummary = Object.entries(earningsByCurrency)
+    .map(([currency, amount]) => formatCurrency(amount, currency))
+    .join(" / ") || formatCurrency(0, "GBP")
+  const hasEarnings = completedBookings.length > 0
 
   const incomingJobs = filteredBookings.filter((booking) => ["CONFIRMED", "IN_PROGRESS"].includes(booking.status))
   const pendingApprovalJobs = filteredBookings.filter((booking) => booking.status === "PENDING")
@@ -292,7 +300,7 @@ export function ChefBookingsDashboard() {
                 </div>
                 <div className="rounded-[26px] border border-white/60 bg-white/80 p-5 shadow-lg backdrop-blur dark:border-white/10 dark:bg-white/5">
                   <p className="text-muted-foreground text-xs font-medium uppercase tracking-[0.18em]">Revenue</p>
-                  <p className="text-foreground mt-2 text-3xl font-semibold tracking-tight">{formatCurrency(totalEarnings, 'GBP')}</p>
+                  <p className="text-foreground mt-2 text-3xl font-semibold tracking-tight">{earningsSummary}</p>
                   <p className="text-muted-foreground mt-1 text-xs">Completed booking value</p>
                 </div>
               </div>
@@ -325,10 +333,10 @@ export function ChefBookingsDashboard() {
         />
         <DashboardStatCard
           label="Earnings"
-          value={formatCurrency(totalEarnings, 'GBP')}
+          value={earningsSummary}
           description="Revenue represented by completed booking totals"
           icon={<Wallet className="h-5 w-5" />}
-          trend={totalEarnings > 0 ? "Completed bookings are translating into visible revenue." : "Complete bookings to unlock revenue momentum."}
+          trend={hasEarnings ? "Completed bookings are translating into visible revenue." : "Complete bookings to unlock revenue momentum."}
         />
       </div>
 
@@ -375,7 +383,7 @@ export function ChefBookingsDashboard() {
                     <div className="space-y-1 text-sm text-muted-foreground">
                       <p><span className="font-medium text-foreground">Client:</span> {invitation.request.client.name || "Client"}</p>
                       <p><span className="font-medium text-foreground">Event:</span> {new Date(invitation.request.eventDate).toLocaleDateString()}</p>
-                      <p><span className="font-medium text-foreground">Budget:</span> {formatCurrency(invitation.request.budget, 'GBP')}</p>
+                      <p><span className="font-medium text-foreground">Budget:</span> {formatCurrency(invitation.request.budget, invitation.request.currency || 'GBP')}</p>
                     </div>
                     <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">
                       {invitation.request.details || invitation.request.description || "Direct invitation from a client looking for a chef match."}

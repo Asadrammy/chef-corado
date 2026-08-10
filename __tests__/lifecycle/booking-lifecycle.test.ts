@@ -20,13 +20,16 @@ describe("Booking Lifecycle Tests", () => {
   let testClient: any
   let testExperience: any
   let testAvailability: any
+  let testRunId: string
 
   beforeAll(async () => {
+    testRunId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
     // Create test data
     testChef = await prisma.user.create({
       data: {
         name: "Test Chef",
-        email: "test-chef-lifecycle@example.com",
+        email: `test-chef-lifecycle-${testRunId}@example.test`,
         password: "hashed-password",
         role: "CHEF",
       },
@@ -67,7 +70,7 @@ describe("Booking Lifecycle Tests", () => {
     testClient = await prisma.user.create({
       data: {
         name: "Test Client",
-        email: "test-client-lifecycle@example.com",
+        email: `test-client-lifecycle-${testRunId}@example.test`,
         password: "hashed-password",
         role: "CLIENT",
       },
@@ -75,12 +78,16 @@ describe("Booking Lifecycle Tests", () => {
   })
 
   afterAll(async () => {
+    if (!testClient?.id || !testChef?.id) {
+      return
+    }
+
     // Cleanup test data
     await prisma.$transaction([
       prisma.booking.deleteMany({ where: { clientId: testClient.id } }),
       prisma.payment.deleteMany({ where: { booking: { clientId: testClient.id } } }),
-      prisma.availability.deleteMany({ where: { id: testAvailability.id } }),
-      prisma.experience.deleteMany({ where: { id: testExperience.id } }),
+      prisma.availability.deleteMany({ where: { id: testAvailability?.id ?? "__missing__" } }),
+      prisma.experience.deleteMany({ where: { id: testExperience?.id ?? "__missing__" } }),
       prisma.chefProfile.deleteMany({ where: { userId: testChef.id } }),
       prisma.user.deleteMany({ where: { id: { in: [testChef.id, testClient.id] } } }),
     ])

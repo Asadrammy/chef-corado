@@ -58,6 +58,7 @@ describe('Form Validation', () => {
         title: 'Birthday Dinner',
         eventType: 'Birthday',
         serviceType: 'FOUR_FIVE_COURSE_MEAL',
+        serviceTier: 'Casual dining',
         cuisinePreferences: ['Italian'],
         dietaryRequirements: [],
         description: 'Intimate birthday celebration',
@@ -101,6 +102,36 @@ describe('Form Validation', () => {
 
       const result = validateForm(requestSchema, invalidData);
       expect(result.valid).toBe(false);
+    });
+
+    it('should normalize legacy cuisine labels and enforce required service questions', () => {
+      const baseData = {
+        title: 'Sharing buffet',
+        eventType: 'Hen / Stag Do',
+        serviceType: 'SHARING_BUFFET',
+        serviceTier: 'Casual dining',
+        cuisinePreferences: ['Canap\u00e8 Party'],
+        dietaryRequirements: [],
+        eventDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        eventTime: '19:00',
+        location: 'London',
+        country: 'GB',
+        guestCount: 8,
+        adultCount: 8,
+        childrenUnder10: 0,
+        actualAttendeeCount: 8,
+        billableGuestCount: 8,
+        pricingGuestCount: 8,
+        budget: 600,
+      };
+
+      expect(validateForm(requestSchema, baseData).valid).toBe(false);
+      expect(validateForm(requestSchema, {
+        ...baseData,
+        serviceSpecificAnswers: {
+          setupDetails: 'Long buffet table with two hours of setup access.',
+        },
+      }).valid).toBe(true);
     });
   });
 

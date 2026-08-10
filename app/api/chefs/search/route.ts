@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     const location = searchParams.get('location') || '';
     const minPrice = searchParams.get('minPrice');
     const maxPrice = searchParams.get('maxPrice');
+    const eventDate = searchParams.get('eventDate');
     const minRating = searchParams.get('minRating');
     const maxRating = searchParams.get('maxRating');
     let userLat = searchParams.get('latitude');
@@ -280,6 +281,29 @@ export async function GET(request: NextRequest) {
             ...chef,
             distance: chefWithDistance?.distance || null,
           } as any;
+        });
+      }
+    }
+
+    if (eventDate && filteredChefs.length > 0) {
+      const requestedDate = new Date(eventDate);
+      if (!Number.isNaN(requestedDate.getTime())) {
+        const start = new Date(requestedDate);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(requestedDate);
+        end.setHours(23, 59, 59, 999);
+
+        const availability = await prisma.availability.findMany({
+          where: {
+            chefId: { in: filteredChefs.map((chef: any) => chef.id) },
+            date: { gte: start, lte: end },
+          },
+        });
+        const availabilityByChef = new Map(availability.map((slot) => [slot.chefId, slot]));
+
+        filteredChefs = filteredChefs.filter((chef: any) => {
+          const slot = availabilityByChef.get(chef.id);
+          return !slot || (slot.isAvailable && slot.currentBookings < slot.maxBookings);
         });
       }
     }

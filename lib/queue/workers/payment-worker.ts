@@ -183,7 +183,8 @@ export class PaymentWorker {
           updatedPayment.commissionAmount,
           updatedPayment.chefAmount,
           'SYSTEM',
-          { stripePaymentIntentId }
+          { stripePaymentIntentId },
+          updatedPayment.currency
         )
       } catch (ledgerError) {
         logger.error(`[PAYMENT_WORKER] Failed to record in ledger`, {

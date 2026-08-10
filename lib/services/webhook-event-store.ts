@@ -14,9 +14,9 @@ import Stripe from 'stripe'
  */
 
 export enum EventStatus {
-  RECEIVED = 'RECEIVED',
+  RECEIVED = 'PENDING',
   PROCESSING = 'PROCESSING',
-  PROCESSED = 'PROCESSED',
+  PROCESSED = 'COMPLETED',
   FAILED = 'FAILED',
   RETRYING = 'RETRYING',
 }
@@ -25,13 +25,15 @@ export interface StoredWebhookEvent {
   id: string
   stripeEventId: string
   eventType: string
-  apiVersion: string
+  apiVersion?: string
   payload: string
-  status: EventStatus
-  version: number
-  processedAt?: Date
-  failureReason?: string
+  status: string
+  version?: number
+  processedAt?: Date | null
+  failureReason?: string | null
+  errorMessage?: string | null
   retryCount: number
+  nextRetryAt?: Date | null
   createdAt: Date
   updatedAt: Date
 }
@@ -48,7 +50,7 @@ export class WebhookEventStore {
     })
 
     // Check if event already exists
-    const existing = await (prisma as any).webhookEvent.findUnique({
+    const existing = await prisma.webhookLog.findUnique({
       where: { stripeEventId: event.id },
     })
 
@@ -61,14 +63,12 @@ export class WebhookEventStore {
     }
 
     // Store new event
-    const stored = await (prisma as any).webhookEvent.create({
+    const stored = await prisma.webhookLog.create({
       data: {
         stripeEventId: event.id,
         eventType: event.type,
-        apiVersion: event.api_version || 'unknown',
         payload: JSON.stringify(event),
         status: EventStatus.RECEIVED,
-        version: 1,
         retryCount: 0,
       },
     })
@@ -85,11 +85,10 @@ export class WebhookEventStore {
    * Mark event as processing
    */
   async markProcessing(stripeEventId: string): Promise<void> {
-    await (prisma as any).webhookEvent.update({
+    await prisma.webhookLog.update({
       where: { stripeEventId },
       data: {
         status: EventStatus.PROCESSING,
-        version: { increment: 1 },
       },
     })
   }
@@ -98,12 +97,11 @@ export class WebhookEventStore {
    * Mark event as processed
    */
   async markProcessed(stripeEventId: string): Promise<void> {
-    await (prisma as any).webhookEvent.update({
+    await prisma.webhookLog.update({
       where: { stripeEventId },
       data: {
         status: EventStatus.PROCESSED,
         processedAt: new Date(),
-        version: { increment: 1 },
       },
     })
 
@@ -118,13 +116,12 @@ export class WebhookEventStore {
   async markFailed(stripeEventId: string, reason: string, retry: boolean = true): Promise<void> {
     const newStatus = retry ? EventStatus.RETRYING : EventStatus.FAILED
 
-    await (prisma as any).webhookEvent.update({
+    await prisma.webhookLog.update({
       where: { stripeEventId },
       data: {
         status: newStatus,
-        failureReason: reason,
+        errorMessage: reason,
         retryCount: { increment: 1 },
-        version: { increment: 1 },
       },
     })
 
@@ -139,7 +136,7 @@ export class WebhookEventStore {
    * Get event by Stripe event ID
    */
   async getEvent(stripeEventId: string): Promise<StoredWebhookEvent | null> {
-    return (prisma as any).webhookEvent.findUnique({
+    return prisma.webhookLog.findUnique({
       where: { stripeEventId },
     })
   }
@@ -148,7 +145,7 @@ export class WebhookEventStore {
    * Get all failed events for retry
    */
   async getFailedEvents(limit: number = 100): Promise<StoredWebhookEvent[]> {
-    return (prisma as any).webhookEvent.findMany({
+    return prisma.webhookLog.findMany({
       where: {
         status: { in: [EventStatus.FAILED, EventStatus.RETRYING] },
         retryCount: { lt: 5 }, // Max 5 retries
@@ -173,6 +170,13 @@ export class WebhookEventStore {
       type: stored.eventType,
     })
 
+    if (stored.status === EventStatus.PROCESSED || stored.status === 'PROCESSED') {
+      logger.info('[WEBHOOK_STORE] Event already completed, skipping replay', {
+        eventId: stripeEventId,
+      })
+      return
+    }
+
     try {
       await this.markProcessing(stripeEventId)
 
@@ -195,10 +199,18 @@ export class WebhookEventStore {
    * Get event processing history
    */
   async getEventHistory(stripeEventId: string): Promise<any[]> {
-    return (prisma as any).webhookEventHistory.findMany({
-      where: { stripeEventId },
-      orderBy: { createdAt: 'desc' },
-    })
+    const event = await this.getEvent(stripeEventId)
+    return event
+      ? [
+          {
+            stripeEventId,
+            status: event.status,
+            details: event.errorMessage,
+            createdAt: event.createdAt,
+            processedAt: event.processedAt,
+          },
+        ]
+      : []
   }
 
   /**
@@ -209,11 +221,11 @@ export class WebhookEventStore {
     status: 'success' | 'failure',
     details?: Record<string, any>
   ): Promise<void> {
-    await (prisma as any).webhookEventHistory.create({
+    await prisma.webhookLog.update({
+      where: { stripeEventId },
       data: {
-        stripeEventId,
-        status,
-        details: details ? (JSON.stringify(details) as any) : null,
+        retryCount: status === 'failure' ? { increment: 1 } : undefined,
+        errorMessage: details ? JSON.stringify(details) : undefined,
       },
     })
   }
@@ -229,7 +241,7 @@ export class WebhookEventStore {
     const created = new Date(event.created * 1000)
 
     // Get the last processed event
-    const lastProcessed = await (prisma as any).webhookEvent.findFirst({
+    const lastProcessed = await prisma.webhookLog.findFirst({
       where: { status: EventStatus.PROCESSED },
       orderBy: { createdAt: 'desc' },
     })
@@ -340,7 +352,7 @@ export class WebhookEventStore {
     pending: number
     avgProcessingTime: number
   }> {
-    const events = await (prisma as any).webhookEvent.findMany()
+    const events = await prisma.webhookLog.findMany()
 
     const processed = events.filter((e: any) => e.status === EventStatus.PROCESSED).length
     const failed = events.filter((e: any) => e.status === EventStatus.FAILED).length

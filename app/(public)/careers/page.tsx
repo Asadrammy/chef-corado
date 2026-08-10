@@ -4,7 +4,7 @@ import { buildPublicMetadata } from "@/lib/public-site";
 
 export const metadata = {
   ...buildPublicMetadata({
-  title: "Careers | Chef Marketplace",
+  title: "Careers | ChefaChef",
   description: "Careers and collaboration interest for people shaping premium private dining experiences.",
   path: "/careers",
   }),

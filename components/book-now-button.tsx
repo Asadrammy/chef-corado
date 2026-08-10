@@ -75,7 +75,7 @@ export function BookNowButton({ experience }: BookNowButtonProps) {
     setLoading(true)
 
     try {
-      const response = await fetch("/api/bookings/instant", {
+      const response = await fetch("/api/bookings/instant/payment-atomic", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -94,13 +94,14 @@ export function BookNowButton({ experience }: BookNowButtonProps) {
         throw new Error(error.error || "Failed to create booking")
       }
 
-      const booking = await response.json()
+      const payload = await response.json()
       
-      toast.success("Booking created successfully!")
-      setOpen(false)
-      
-      // Redirect to client bookings page
-      router.push("/dashboard/client/bookings")
+      if (!payload?.url) {
+        throw new Error("Payment checkout could not be started")
+      }
+
+      toast.success("Checkout created. Redirecting to payment...")
+      window.location.href = payload.url
       
     } catch (error) {
       console.error("Booking error:", error)
@@ -233,10 +234,10 @@ export function BookNowButton({ experience }: BookNowButtonProps) {
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creating Booking...
+                Creating Checkout...
               </>
             ) : (
-              `Complete Booking - ${formatCurrency(unitPrice * formData.guestCount, experience.currency || "GBP")}`
+              `Book & Pay - ${formatCurrency(unitPrice * formData.guestCount, experience.currency || "GBP")}`
             )}
           </Button>
         </form>

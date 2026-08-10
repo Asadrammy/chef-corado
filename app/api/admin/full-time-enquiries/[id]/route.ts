@@ -6,7 +6,7 @@ import { handleApiError } from "@/lib/error-handler"
 import { prisma } from "@/lib/prisma"
 
 const fullTimeActionSchema = z.object({
-  status: z.enum(["NEW", "QUALIFICATION", "SHORTLISTING", "CANDIDATE_CONTACT", "INTERVIEW", "OFFER_PLACEMENT", "WON", "LOST", "CLOSED"]).optional(),
+  status: z.enum(["NEW", "QUALIFYING", "MATCHING", "INTRODUCED", "IN_PROGRESS", "PLACED", "CLOSED"]).optional(),
   assignedTo: z.string().optional().nullable(),
   internalNotes: z.string().max(3000).optional().nullable(),
   closedReason: z.string().max(1000).optional().nullable(),
@@ -26,7 +26,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Full-time enquiry not found" }, { status: 404 })
     }
 
-    const terminal = payload.status === "WON" || payload.status === "LOST" || payload.status === "CLOSED"
+    const terminal = payload.status === "PLACED" || payload.status === "CLOSED"
     const updated = await prisma.$transaction(async (tx) => {
       const enquiry = await tx.fullTimeChefEnquiry.update({
         where: { id },
@@ -34,7 +34,7 @@ export async function PATCH(
           status: payload.status ?? existing.status,
           assignedTo: payload.assignedTo === undefined ? existing.assignedTo : payload.assignedTo,
           internalNotes: payload.internalNotes === undefined ? existing.internalNotes : payload.internalNotes,
-          qualifiedAt: payload.status === "QUALIFICATION" && !existing.qualifiedAt ? new Date() : existing.qualifiedAt,
+          qualifiedAt: payload.status === "QUALIFYING" && !existing.qualifiedAt ? new Date() : existing.qualifiedAt,
           closedAt: terminal ? new Date() : existing.closedAt,
           closedReason: payload.closedReason === undefined ? existing.closedReason : payload.closedReason,
         },
@@ -51,6 +51,16 @@ export async function PATCH(
           reason: payload.internalNotes ?? payload.closedReason ?? "Full-time placement workflow updated",
         },
       })
+
+      if (payload.status && payload.status !== existing.status) {
+        await tx.notification.create({
+          data: {
+            userId: existing.clientId,
+            type: "FULL_TIME_ENQUIRY_UPDATED",
+            message: `Your full-time chef enquiry moved to ${payload.status.replace(/_/g, " ")}.`,
+          },
+        })
+      }
 
       return enquiry
     })

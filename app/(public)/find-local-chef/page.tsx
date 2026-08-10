@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { buildPublicMetadata, fetchFromApp } from "@/lib/public-site";
 
 export const metadata = buildPublicMetadata({
-  title: "Find Local Chef | Chef Marketplace",
+  title: "Find Local Chef | ChefaChef",
   description: "Start chef discovery with city and location filters, then compare cuisines, travel radius, and review signals.",
   path: "/find-local-chef",
 });

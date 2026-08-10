@@ -6,8 +6,13 @@ import {
   DIETARY_REQUIREMENTS,
   EVENT_TYPES,
   LEGACY_EXPERIENCE_SERVICE_TYPES,
+  getServiceTypeOption,
+  normalizeCuisineType,
+  isCuisineType,
   REQUEST_SERVICE_TYPES,
   SERVICE_TYPES,
+  calculateGuestComposition,
+  validateServiceSpecificAnswers,
 } from '@/lib/request-options';
 
 // Common validation patterns
@@ -43,12 +48,15 @@ const serviceTypeValues = [...LEGACY_EXPERIENCE_SERVICE_TYPES] as [string, ...st
 const cookingClassTypeValues = [...COOKING_CLASS_TYPES] as [string, ...string[]];
 const cuisineTypeValues = [...CUISINE_TYPES] as [string, ...string[]];
 const dietaryRequirementValues = [...DIETARY_REQUIREMENTS] as [string, ...string[]];
+const cuisineTypeSchema = z.string()
+  .transform((value) => normalizeCuisineType(value))
+  .refine((value): value is typeof CUISINE_TYPES[number] => isCuisineType(value), 'Select a supported cuisine');
 
 const requestBaseSchema = z.object({
   title: z.string().max(100, 'Title cannot exceed 100 characters').optional(),
   eventType: z.enum(eventTypeValues),
   serviceType: z.enum(requestServiceTypeValues),
-  cuisinePreferences: z.array(z.enum(cuisineTypeValues)).min(1, 'Select at least one cuisine preference').max(3, 'Select up to 3 cuisine preferences'),
+  cuisinePreferences: z.array(cuisineTypeSchema).min(1, 'Select at least one cuisine preference').max(3, 'Select up to 3 cuisine preferences'),
   dietaryRequirements: z.array(z.enum(dietaryRequirementValues)).max(8, 'Select up to 8 dietary requirements').default([]),
   serviceSpecificAnswers: z.record(z.unknown()).optional(),
   serviceTier: z.string().max(100, 'Service tier cannot exceed 100 characters').optional(),
@@ -70,6 +78,69 @@ const requestBaseSchema = z.object({
 });
 
 export const requestSchema = requestBaseSchema.superRefine((data, context) => {
+  const serviceConfig = getServiceTypeOption(data.serviceType);
+  if (!serviceConfig?.enabled) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['serviceType'],
+      message: 'Select a supported service type',
+    });
+  }
+
+  if (serviceConfig?.serviceTiers.length && (!data.serviceTier || !serviceConfig.serviceTiers.includes(data.serviceTier))) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['serviceTier'],
+      message: 'Choose a supported service tier for this service',
+    });
+  }
+
+  const guestComposition = calculateGuestComposition({
+    adultCount: data.adultCount,
+    childrenUnder10: data.childrenUnder10,
+    fallbackGuestCount: data.guestCount,
+  });
+
+  if (data.actualAttendeeCount != null && data.actualAttendeeCount !== guestComposition.actualAttendeeCount) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['actualAttendeeCount'],
+      message: 'Actual attendee count must match the platform guest-count rule',
+    });
+  }
+
+  if (data.billableGuestCount != null && data.billableGuestCount !== guestComposition.billableGuestCount) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['billableGuestCount'],
+      message: 'Billable guest count must use the platform child billing rule',
+    });
+  }
+
+  if (serviceConfig?.minGuests != null && guestComposition.pricingGuestCount < serviceConfig.minGuests) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['guestCount'],
+      message: `${serviceConfig.label} requires at least ${serviceConfig.minGuests} billable guests`,
+    });
+  }
+
+  if (serviceConfig?.maxGuests != null && guestComposition.pricingGuestCount > serviceConfig.maxGuests) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['guestCount'],
+      message: `${serviceConfig.label} supports up to ${serviceConfig.maxGuests} billable guests`,
+    });
+  }
+
+  for (const question of validateServiceSpecificAnswers(data.serviceType, data.serviceSpecificAnswers)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['serviceSpecificAnswers', question.id],
+      message: `${question.label} is required for ${serviceConfig?.label ?? 'this service'}`,
+    });
+  }
+
   // Cooking class student count validation
   if (data.serviceType === 'COOKING_CLASS') {
     if (data.guestCount < 2) {
@@ -137,7 +208,7 @@ export const fullTimeChefEnquirySchema = z.object({
   adultCount: z.number().int().min(0).max(100).optional(),
   childrenUnder10: z.number().int().min(0).max(100).optional(),
   responsibilities: z.string().max(3000).optional(),
-  cuisinePreferences: z.array(z.enum(cuisineTypeValues)).max(3).default([]),
+  cuisinePreferences: z.array(cuisineTypeSchema).max(3).default([]),
   dietaryRequirements: z.array(z.enum(dietaryRequirementValues)).max(8).default([]),
   budgetAmount: priceSchema.optional(),
   budgetPeriod: z.enum(['Weekly', 'Monthly', 'Annual']).optional(),

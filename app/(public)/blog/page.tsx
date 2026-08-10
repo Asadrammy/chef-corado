@@ -3,7 +3,7 @@ import { buildPublicMetadata } from "@/lib/public-site";
 
 export const metadata = {
   ...buildPublicMetadata({
-  title: "Blog | Chef Marketplace",
+  title: "Blog | ChefaChef",
   description: "Hosting ideas, chef stories, cuisine inspiration, and private dining guidance.",
   path: "/blog",
   }),

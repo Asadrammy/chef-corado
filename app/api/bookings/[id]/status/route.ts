@@ -3,6 +3,7 @@ import { getRequiredSession, getSessionUserId } from '@/lib/auth-helpers';
 import { handleApiError, ApiError } from '@/lib/error-handler';
 import { prisma } from '@/lib/prisma';
 import { logger } from '@/lib/logger';
+import { requireAdminPermission } from '@/lib/admin-rbac';
 
 export async function GET(
   request: NextRequest,
@@ -147,5 +148,73 @@ export async function GET(
   } catch (error) {
     logger.error('[BOOKING_STATUS] Error retrieving status', error);
     return handleApiError(error, 'Booking Status');
+  }
+}
+
+const OPERATIONAL_STATUSES = [
+  "NOT_STARTED",
+  "EN_ROUTE",
+  "COOKING_SERVICE_IN_PROGRESS",
+  "COMPLETED",
+] as const;
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getRequiredSession();
+    const { id: bookingId } = await params;
+    const body = await request.json().catch(() => ({}));
+    const operationalStatus = String(body.operationalStatus || "");
+    const operationalNotes = typeof body.operationalNotes === "string" ? body.operationalNotes.slice(0, 1000) : null;
+
+    if (!bookingId) {
+      throw new ApiError(400, 'Booking ID is required');
+    }
+
+    if (!OPERATIONAL_STATUSES.includes(operationalStatus as typeof OPERATIONAL_STATUSES[number])) {
+      throw new ApiError(422, 'Unsupported operational status');
+    }
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: bookingId },
+      select: {
+        id: true,
+        chef: { select: { userId: true } },
+      },
+    });
+
+    if (!booking) {
+      throw new ApiError(404, 'Booking not found');
+    }
+
+    if (session.user.role === "ADMIN") {
+      await requireAdminPermission("bookings.modify");
+    } else if (session.user.role !== "CHEF" || booking.chef.userId !== getSessionUserId(session)) {
+      throw new ApiError(403, 'Forbidden');
+    }
+
+    const updated = await prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        operationalStatus,
+        operationalStatusUpdatedAt: new Date(),
+        operationalStatusUpdatedBy: getSessionUserId(session),
+        operationalNotes,
+      },
+      select: {
+        id: true,
+        status: true,
+        operationalStatus: true,
+        operationalStatusUpdatedAt: true,
+        operationalNotes: true,
+      },
+    });
+
+    return NextResponse.json({ booking: updated });
+  } catch (error) {
+    logger.error('[BOOKING_STATUS] Error updating operational status', error);
+    return handleApiError(error, 'Booking Operational Status');
   }
 }

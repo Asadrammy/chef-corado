@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     where: { id: payload.proposalId },
     include: { 
       chef: { include: { user: true } }, 
-      request: { include: { client: true } }
+      request: { include: { client: true, multiDayDates: true } }
     },
   })
 
@@ -134,19 +134,23 @@ export async function POST(request: Request) {
     }
     
     // 🔴 P0 FIX #2: CAPACITY CHECK BEFORE PAYMENT
-    const availability = await prisma.availability.findFirst({
+    const requestedDates = proposal.request.multiDayDates.length > 0
+      ? proposal.request.multiDayDates.map((item) => item.date)
+      : [proposal.request.eventDate]
+
+    const availabilitySlots = await prisma.availability.findMany({
       where: {
         chefId: proposal.chefId,
-        date: proposal.request.eventDate,
+        date: { in: requestedDates },
         isAvailable: true,
         currentBookings: { lt: prisma.availability.fields.maxBookings }
       }
     })
     
-    if (!availability) {
+    if (availabilitySlots.length !== requestedDates.length) {
       logger.warn('[PAYMENT_CHECKOUT] Slot no longer available', { 
         proposalId: payload.proposalId,
-        eventDate: proposal.request.eventDate,
+        eventDates: requestedDates.map((date) => date.toISOString().slice(0, 10)),
         chefId: proposal.chefId
       })
       return apiError("CONFLICT", "Slot no longer available", 409)
@@ -154,9 +158,7 @@ export async function POST(request: Request) {
     
     logger.info('[PAYMENT_CHECKOUT] Capacity check passed', { 
       proposalId: payload.proposalId,
-      availabilityId: availability.id,
-      currentBookings: availability.currentBookings,
-      maxBookings: availability.maxBookings
+      availabilityIds: availabilitySlots.map((slot) => slot.id),
     })
 
   const amount = Number(proposal.price)

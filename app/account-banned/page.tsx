@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth"
 import { AlertCircle, Mail } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { RoleAwareSignOutButton } from "@/components/auth/role-aware-sign-out-button"
+import { APPROVED_PUBLIC_CONTACT } from "@/lib/marketplace-rules"
 import Link from "next/link"
 
 export const metadata: Metadata = generateMeta({
@@ -46,7 +47,7 @@ export default async function AccountBannedPage() {
             <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-4 space-y-2">
               <div className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
                 <Mail className="w-4 h-4 shrink-0" />
-                <span>support@chefplatform.com</span>
+                <span>{APPROVED_PUBLIC_CONTACT.email}</span>
               </div>
             </div>
           </div>
@@ -65,7 +66,7 @@ export default async function AccountBannedPage() {
 
         {/* Footer */}
         <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-6">
-          © {new Date().getFullYear()} Chef Platform. All rights reserved.
+          Copyright {new Date().getFullYear()} ChefaChef. All rights reserved.
         </p>
       </div>
     </div>

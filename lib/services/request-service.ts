@@ -4,17 +4,71 @@ import {
   SERVICE_TYPE_REGISTRY_VERSION,
   calculateGuestComposition,
   getCurrencyForCountry,
+  getPricingRule,
   getServiceTypeOption,
   getServiceTypeLabel,
+  resolvePricingState,
+  validateServiceSpecificAnswers,
 } from "@/lib/request-options"
 import { assertPricingRuleMatchesRequest, findActivePricingRule } from "@/lib/services/pricing-rule-service"
 import { requestRepository } from "@/lib/repositories/request-repository"
 import { prisma } from "@/lib/prisma"
-import { formatCurrency } from "@/lib/currency"
 import { enforceUserModeration } from "@/lib/security/moderation-guard"
 import { enforceClientCompliance } from "@/lib/security/legal-compliance"
 import { validatePolicyFields } from "@/lib/security/communication-policy"
 import { Role } from "@/types"
+
+const toDateKey = (date: Date | string) => new Date(date).toISOString().slice(0, 10)
+
+async function filterChefsWithoutAvailabilityConflicts<T extends { id: string }>(chefs: T[], dates: Array<Date | string>) {
+  const uniqueDateKeys = [...new Set(dates.map(toDateKey))]
+  if (chefs.length === 0 || uniqueDateKeys.length === 0) return chefs
+
+  const availability = await prisma.availability.findMany({
+    where: {
+      chefId: { in: chefs.map((chef) => chef.id) },
+      date: { in: uniqueDateKeys.map((date) => new Date(date)) },
+    },
+    select: {
+      chefId: true,
+      date: true,
+      isAvailable: true,
+      currentBookings: true,
+      maxBookings: true,
+    },
+  })
+
+  const availabilityByChefDate = new Map(
+    availability.map((slot) => [`${slot.chefId}:${toDateKey(slot.date)}`, slot])
+  )
+
+  return chefs.filter((chef) =>
+    uniqueDateKeys.every((date) => {
+      const slot = availabilityByChefDate.get(`${chef.id}:${date}`)
+      return !slot || (slot.isAvailable && slot.currentBookings < slot.maxBookings)
+    })
+  )
+}
+
+async function requestHasAvailabilityConflictForChef(chefId: string, dates: Array<Date | string>) {
+  const uniqueDateKeys = [...new Set(dates.map(toDateKey))]
+  if (uniqueDateKeys.length === 0) return false
+
+  const availability = await prisma.availability.findMany({
+    where: {
+      chefId,
+      date: { in: uniqueDateKeys.map((date) => new Date(date)) },
+    },
+    select: {
+      date: true,
+      isAvailable: true,
+      currentBookings: true,
+      maxBookings: true,
+    },
+  })
+
+  return availability.some((slot) => !slot.isAvailable || slot.currentBookings >= slot.maxBookings)
+}
 
 const buildRequestTitle = (input: {
   title?: string
@@ -95,11 +149,25 @@ export const requestService = {
       throw new Error("SERVICE_COUNTRY_NOT_SUPPORTED")
     }
 
+    const missingServiceAnswers = validateServiceSpecificAnswers(input.serviceType, input.serviceSpecificAnswers)
+    if (missingServiceAnswers.length > 0) {
+      throw new Error(`SERVICE_REQUIRED_QUESTIONS_MISSING:${missingServiceAnswers.map((question) => question.id).join(",")}`)
+    }
+
     const currency = getCurrencyForCountry(input.country)
-    const pricingRule = await findActivePricingRule({
+    const dbPricingRule = await findActivePricingRule({
       serviceType: input.serviceType,
       countryCode: input.country,
       tier: input.serviceTier,
+    })
+    const registryPricingRule = getPricingRule(input.serviceType, input.country, input.serviceTier)
+    const pricingRule = dbPricingRule ?? registryPricingRule
+    const pricingState = resolvePricingState({
+      serviceType: input.serviceType,
+      countryCode: input.country,
+      tier: input.serviceTier,
+      budget: input.budget,
+      activeRule: pricingRule,
     })
 
     if (pricingRule) {
@@ -143,8 +211,11 @@ export const requestService = {
       cuisineTypes: JSON.stringify(input.cuisinePreferences),
       dietaryRequirements: JSON.stringify(input.dietaryRequirements),
       serviceSpecificAnswers: input.serviceSpecificAnswers ? JSON.stringify(input.serviceSpecificAnswers) : undefined,
-      pricingRuleVersion: pricingRule?.version ?? input.pricingRuleVersion,
-      pricingRuleId: pricingRule?.id,
+      pricingRuleVersion: pricingRule?.version ?? input.pricingRuleVersion ?? pricingState.pricingStatus,
+      pricingRuleId: dbPricingRule?.id,
+      pricingStatus: pricingState.pricingStatus,
+      budgetStatus: pricingState.budgetStatus,
+      budgetWarning: pricingState.budgetWarning,
       adultCount: guestComposition.adultCount,
       childrenUnder10: guestComposition.childrenUnder10,
       actualAttendeeCount: guestComposition.actualAttendeeCount,
@@ -174,6 +245,8 @@ export const requestService = {
     if (created.latitude != null && created.longitude != null) {
       const matchingChefs = await requestRepository.findApprovedChefsWithCoordinates()
 
+      const requestedCuisines = input.cuisinePreferences.map((value) => value.toLowerCase())
+      const requestedServiceType = input.serviceType
       const eligibleChefs = matchingChefs.filter((chef) => {
         if (chef.latitude == null || chef.longitude == null || chef.radius <= 0) {
           return false
@@ -186,11 +259,46 @@ export const requestService = {
           chef.longitude
         )
 
-        return distance <= chef.radius
+        if (distance > chef.radius) {
+          return false
+        }
+
+        const chefText = [
+          (chef as any).cuisineType,
+          (chef as any).cuisineTypes,
+          (chef as any).specialties,
+          (chef as any).bio,
+          ...((chef as any).menus ?? []).flatMap((menu: any) => [menu.cuisineType, menu.eventType]),
+          ...((chef as any).experiences ?? []).flatMap((experience: any) => [experience.serviceType, experience.cuisineType, experience.eventType]),
+        ].filter(Boolean).join(" ").toLowerCase()
+
+        const hasStructuredExperienceData = ((chef as any).experiences ?? []).length > 0
+        if (requestedServiceType && hasStructuredExperienceData) {
+          const serviceMatch = ((chef as any).experiences ?? []).some((experience: any) => experience.serviceType === requestedServiceType) ||
+            chefText.includes(requestedServiceType.toLowerCase().replaceAll("_", " "))
+          if (!serviceMatch) return false
+        }
+
+        if (requestedCuisines.length > 0 && chefText) {
+          const cuisineMatch = requestedCuisines.some((cuisine) => chefText.includes(cuisine))
+          if (!cuisineMatch) return false
+        }
+
+        const guestCapacityConflict = ((chef as any).experiences ?? []).some((experience: any) =>
+          experience.serviceType === requestedServiceType &&
+          ((experience.minGuests != null && guestComposition.pricingGuestCount < experience.minGuests) ||
+            (experience.maxGuests != null && guestComposition.pricingGuestCount > experience.maxGuests))
+        )
+
+        return !guestCapacityConflict
       })
+      const conflictCheckedChefs = await filterChefsWithoutAvailabilityConflicts(
+        eligibleChefs,
+        input.eventDates?.length ? input.eventDates : [input.eventDate]
+      )
 
       await Promise.allSettled(
-        eligibleChefs.map((chef) =>
+        conflictCheckedChefs.map((chef) =>
           sendPreferenceAwareEmail({
             userId: chef.userId,
             topic: "requests",
@@ -200,7 +308,8 @@ export const requestService = {
               chef.user.name,
               createdTitle,
               created.location,
-              Number(formatCurrency(created.budget, created.currency).replace(/[^[\d.,-]]/g, "")) || created.budget
+              created.budget,
+              created.currency
             ),
           })
         )
@@ -281,6 +390,9 @@ export const requestService = {
           serviceSpecificAnswers: JSON.stringify(serviceSpecificAnswers),
           pricingRuleVersion: "MULTI_DAY_CUSTOM_PRICING_REQUIRED",
           pricingRuleId: null,
+          pricingStatus: "CUSTOM_QUOTE_REQUIRED",
+          budgetStatus: "MULTI_DAY_CUSTOM_QUOTE",
+          budgetWarning: "Multi-Day Chef Hire requires a tailored quote across all selected service dates.",
           description: input.details ?? null,
           eventDate: new Date(firstDate),
           eventDates: JSON.stringify(sortedDates),
@@ -443,7 +555,18 @@ export const requestService = {
         })
         .filter((request) => request.distanceKm == null || request.distanceKm <= chefProfile.radius)
 
-      return { requests: filteredRequests }
+      const availabilityFilteredRequests = []
+      for (const request of filteredRequests) {
+        const requestDates = (request as any).multiDayDates?.length
+          ? (request as any).multiDayDates.map((date: { date: Date }) => date.date)
+          : [request.eventDate]
+
+        if (!(await requestHasAvailabilityConflictForChef(chefProfile.id, requestDates))) {
+          availabilityFilteredRequests.push(request)
+        }
+      }
+
+      return { requests: availabilityFilteredRequests }
     }
 
     return { requests: await requestRepository.listAllRequests() }

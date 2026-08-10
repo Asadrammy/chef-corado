@@ -4,7 +4,7 @@ import { buildPublicMetadata } from "@/lib/public-site";
 
 export const metadata = {
   ...buildPublicMetadata({
-  title: "Gift Cards | Chef Marketplace",
+  title: "Gift Cards | ChefaChef",
   description: "Gift memorable private chef dining experiences for birthdays, anniversaries, and special occasions.",
   path: "/gift-cards",
   }),

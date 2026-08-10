@@ -25,6 +25,24 @@ const REFUND_REASON = {
 type RefundStatus = typeof REFUND_STATUS[keyof typeof REFUND_STATUS]
 export type RefundReason = typeof REFUND_REASON[keyof typeof REFUND_REASON]
 
+async function notifyAdmins(tx: any, type: string, message: string) {
+  const admins = await tx.user.findMany({
+    where: { role: "ADMIN", adminDisabledAt: null, isBanned: false },
+    select: { id: true },
+    take: 25,
+  })
+
+  if (admins.length > 0) {
+    await tx.notification.createMany({
+      data: admins.map((admin: { id: string }) => ({
+        userId: admin.id,
+        type,
+        message,
+      })),
+    })
+  }
+}
+
 export const refundService = {
   async createRefundRequest(data: {
     paymentId: string
@@ -33,45 +51,52 @@ export const refundService = {
     description: string
     requestedBy: string
   }) {
-    // Validate payment exists and has sufficient amount
-    const payment = await prisma.payment.findUnique({
-      where: { id: data.paymentId },
-      include: {
-        booking: true,
-        refunds: {
-          where: { status: { in: ['PENDING', 'APPROVED', 'PROCESSED'] } }
+    const refund = await prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { id: data.paymentId },
+        include: {
+          booking: true,
+          refunds: {
+            where: { status: { in: ['PENDING', 'APPROVED', 'PROCESSED'] } }
+          }
         }
+      })
+
+      if (!payment) {
+        throw new Error("PAYMENT_NOT_FOUND")
       }
-    })
 
-    if (!payment) {
-      throw new Error("PAYMENT_NOT_FOUND")
-    }
+      if (payment.status !== 'PAID' && payment.status !== 'RELEASED') {
+        throw new Error("PAYMENT_NOT_ELIGIBLE_FOR_REFUND")
+      }
 
-    if (payment.status !== 'PAID' && payment.status !== 'RELEASED') {
-      throw new Error("PAYMENT_NOT_ELIGIBLE_FOR_REFUND")
-    }
+      const totalRefunded = payment.refunds.reduce((sum, refund) => sum + refund.amount, 0)
+      const availableForRefund = payment.totalAmount - totalRefunded
 
-    // Calculate total refunded amount
-    const totalRefunded = payment.refunds.reduce((sum, refund) => sum + refund.amount, 0)
-    const availableForRefund = payment.totalAmount - totalRefunded
+      if (data.amount > availableForRefund) {
+        throw new Error(`REFUND_AMOUNT_EXCEEDS_AVAILABLE:${availableForRefund}`)
+      }
 
-    if (data.amount > availableForRefund) {
-      throw new Error(`REFUND_AMOUNT_EXCEEDS_AVAILABLE:${availableForRefund}`)
-    }
+      const existingPendingRefund = payment.refunds.find(r => r.status === 'PENDING')
+      if (existingPendingRefund) {
+        throw new Error("REFUND_ALREADY_PENDING")
+      }
 
-    // Check for existing pending refund
-    const existingPendingRefund = payment.refunds.find(r => r.status === 'PENDING')
-    if (existingPendingRefund) {
-      throw new Error("REFUND_ALREADY_PENDING")
-    }
+      const lock = await tx.payment.updateMany({
+        where: {
+          id: data.paymentId,
+          version: payment.version,
+        },
+        data: {
+          version: { increment: 1 },
+        },
+      })
 
-    let refund = null
-    let paymentDetails = null
-    let bookingDetails = null
+      if (lock.count === 0) {
+        throw new Error("REFUND_CONCURRENT_MODIFICATION")
+      }
 
-    return prisma.$transaction(async (tx) => {
-      refund = await tx.refund.create({
+      const createdRefund = await tx.refund.create({
         data: {
           paymentId: data.paymentId,
           amount: data.amount,
@@ -93,9 +118,7 @@ export const refundService = {
         }
       })
 
-      // Store details for audit logging
-      paymentDetails = refund.payment
-      bookingDetails = refund.payment.booking
+      const bookingDetails = createdRefund.payment.booking
 
       // Freeze related payouts if any exist
       await tx.payout.updateMany({
@@ -108,33 +131,29 @@ export const refundService = {
         }
       })
 
-      // Create notification for admin
-      await tx.notification.create({
-        data: {
-          userId: 'ADMIN', // In real system, get admin IDs
-          type: 'REFUND_REQUESTED',
-          message: `Refund request of $${data.amount} for booking ${bookingDetails.id}`,
-        }
-      })
+      await notifyAdmins(
+        tx,
+        "REFUND_REQUESTED",
+        `Refund request of ${data.amount} ${createdRefund.payment.currency} for booking ${bookingDetails.id}`
+      )
 
-      return refund
+      return createdRefund
     })
 
-    // Audit log for refund creation (outside transaction)
-    if (paymentDetails && bookingDetails && refund) {
-      await auditService.logAction('REFUND_CREATED', {
-        userId: data.requestedBy,
-        paymentId: data.paymentId,
-        bookingId: bookingDetails.id,
-        refundId: refund.id,
-        amount: data.amount,
-        reason: data.reason,
-        metadata: {
-          clientId: bookingDetails.clientId,
-          chefId: bookingDetails.chefId
-        }
-      })
-    }
+    await auditService.logAction('REFUND_CREATED', {
+      userId: data.requestedBy,
+      paymentId: data.paymentId,
+      bookingId: refund.payment.booking.id,
+      refundId: refund.id,
+      amount: data.amount,
+      reason: data.reason,
+      metadata: {
+        clientId: refund.payment.booking.clientId,
+        chefId: refund.payment.booking.chefId
+      }
+    })
+
+    return refund
   },
 
   async approveRefund(refundId: string, approvedBy: string, stripeClient: Stripe) {
@@ -143,7 +162,11 @@ export const refundService = {
       include: {
         payment: {
           include: {
-            booking: true
+            booking: {
+              include: {
+                chef: { select: { userId: true } },
+              },
+            }
           }
         }
       }
@@ -249,7 +272,7 @@ export const refundService = {
               message: `Your refund of ${refund.amount} ${refund.payment.currency} has been processed`,
             },
             {
-              userId: refund.payment.booking.chefId,
+              userId: refund.payment.booking.chef.userId,
               type: 'REFUND_APPROVED',
               message: `A refund of ${refund.amount} ${refund.payment.currency} has been processed for booking ${refund.payment.booking.id}`,
             }

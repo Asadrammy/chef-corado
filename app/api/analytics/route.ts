@@ -5,6 +5,53 @@ import { isLocalDemoSessionUser } from '@/lib/auth';
 import { localDemoAdminAnalytics, localDemoChefAnalytics, localDemoClientAnalytics } from '@/lib/local-demo-data';
 import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 
+type CurrencyAmount = {
+  currency: string;
+  amount: number;
+};
+
+function normalizeCurrency(currency?: string | null) {
+  return (currency || 'GBP').toUpperCase();
+}
+
+function currencySums(
+  rows: Array<{ currency: string | null; _sum: Record<string, number | null> }>,
+  key: string
+): CurrencyAmount[] {
+  return rows
+    .map((row) => ({
+      currency: normalizeCurrency(row.currency),
+      amount: Number(row._sum?.[key] ?? 0),
+    }))
+    .filter((row) => row.amount > 0);
+}
+
+function singleCurrencyTotal(amounts: CurrencyAmount[]) {
+  return amounts.length === 1 ? amounts[0].amount : undefined;
+}
+
+function comparableTrend(current: CurrencyAmount[], previous: CurrencyAmount[]) {
+  if (current.length !== 1 || previous.length !== 1 || current[0].currency !== previous[0].currency) {
+    return undefined;
+  }
+
+  if (previous[0].amount <= 0) {
+    return 0;
+  }
+
+  return parseFloat((((current[0].amount - previous[0].amount) / previous[0].amount) * 100).toFixed(1));
+}
+
+function releasedPayment(booking: any) {
+  const payments = Array.isArray(booking.payments)
+    ? booking.payments
+    : booking.payments
+      ? [booking.payments]
+      : [];
+
+  return payments.find((payment: any) => payment.status === 'RELEASED' || payment.status === 'COMPLETED');
+}
+
 export async function GET(request: NextRequest) {
   let sessionRole: string | undefined
 
@@ -46,11 +93,11 @@ export async function GET(request: NextRequest) {
       // Client Analytics
       const [
         totalBookings,
-        totalSpending,
+        totalSpendingByCurrencyRows,
         bookingsByStatus,
         spendingTrends,
         previousPeriodBookings,
-        previousPeriodSpending,
+        previousPeriodSpendingByCurrencyRows,
       ] = await Promise.all([
         // Total bookings
         prisma.booking.count({
@@ -61,7 +108,8 @@ export async function GET(request: NextRequest) {
         }),
         
         // Total spending
-        prisma.booking.aggregate({
+        prisma.booking.groupBy({
+          by: ['currency'],
           where: {
             clientId: userId,
             createdAt: { gte: daysAgo },
@@ -88,6 +136,7 @@ export async function GET(request: NextRequest) {
           },
           select: {
             totalPrice: true,
+            currency: true,
             createdAt: true,
           },
           orderBy: { createdAt: 'asc' },
@@ -105,7 +154,8 @@ export async function GET(request: NextRequest) {
         }),
 
         // Previous period spending for trend calculation
-        prisma.booking.aggregate({
+        prisma.booking.groupBy({
+          by: ['currency'],
           where: {
             clientId: userId,
             createdAt: { 
@@ -122,13 +172,13 @@ export async function GET(request: NextRequest) {
         ? ((totalBookings - previousPeriodBookings) / previousPeriodBookings) * 100
         : 0;
       
-      const spendingTrend = (previousPeriodSpending._sum.totalPrice || 0) > 0
-        ? (((totalSpending._sum.totalPrice || 0) - (previousPeriodSpending._sum.totalPrice || 0)) / (previousPeriodSpending._sum.totalPrice || 0)) * 100
-        : 0;
+      const totalSpendingByCurrency = currencySums(totalSpendingByCurrencyRows as any, 'totalPrice');
+      const previousPeriodSpendingByCurrency = currencySums(previousPeriodSpendingByCurrencyRows as any, 'totalPrice');
 
       analytics = {
         totalBookings,
-        totalSpending: totalSpending._sum.totalPrice || 0,
+        totalSpending: singleCurrencyTotal(totalSpendingByCurrency),
+        totalSpendingByCurrency,
         bookingsByStatus: bookingsByStatus.reduce((acc: Record<string, number>, item: any) => {
           acc[item.status] = item._count;
           return acc;
@@ -136,10 +186,11 @@ export async function GET(request: NextRequest) {
         spendingTrends: spendingTrends.map((booking: any) => ({
           date: booking.createdAt.toISOString().split('T')[0],
           amount: booking.totalPrice,
+          currency: normalizeCurrency(booking.currency),
         })),
         trends: {
           bookingsChange: parseFloat(bookingsTrend.toFixed(1)),
-          spendingChange: parseFloat(spendingTrend.toFixed(1)),
+          spendingChange: comparableTrend(totalSpendingByCurrency, previousPeriodSpendingByCurrency),
         },
       };
     } else if (userRole === 'CHEF') {
@@ -181,30 +232,35 @@ export async function GET(request: NextRequest) {
       }) as any;
 
       const completedBookings = chefProfile.bookings.filter((b: any) => b.status === 'COMPLETED');
-      const totalEarnings = completedBookings.reduce((sum: number, booking: any) => {
-        const payment = booking.payments.find((p: any) => p.status === 'RELEASED' || p.status === 'COMPLETED');
-        return sum + (payment ? payment.chefAmount : 0);
-      }, 0);
+      const earningsByCurrencyMap = new Map<string, number>();
+      completedBookings.forEach((booking: any) => {
+        const payment = releasedPayment(booking);
+        if (!payment) return;
+        const currency = normalizeCurrency(payment.currency || booking.currency);
+        earningsByCurrencyMap.set(currency, (earningsByCurrencyMap.get(currency) || 0) + Number(payment.chefAmount || 0));
+      });
+      const earningsByCurrency = Array.from(earningsByCurrencyMap.entries()).map(([currency, amount]) => ({ currency, amount }));
 
       const previousCompletedBookings = previousPeriodProfile?.bookings?.filter((b: any) => b.status === 'COMPLETED') || [];
-      const previousEarnings = previousCompletedBookings.reduce((sum: number, booking: any) => {
-        const payment = booking.payments.find((p: any) => p.status === 'RELEASED' || p.status === 'COMPLETED');
-        return sum + (payment ? payment.chefAmount : 0);
-      }, 0);
-
-      const earningsTrend = previousEarnings > 0
-        ? ((totalEarnings - previousEarnings) / previousEarnings) * 100
-        : 0;
+      const previousEarningsByCurrencyMap = new Map<string, number>();
+      previousCompletedBookings.forEach((booking: any) => {
+        const payment = releasedPayment(booking);
+        if (!payment) return;
+        const currency = normalizeCurrency(payment.currency || booking.currency);
+        previousEarningsByCurrencyMap.set(currency, (previousEarningsByCurrencyMap.get(currency) || 0) + Number(payment.chefAmount || 0));
+      });
+      const previousEarningsByCurrency = Array.from(previousEarningsByCurrencyMap.entries()).map(([currency, amount]) => ({ currency, amount }));
 
       const bookingsTrend = previousCompletedBookings.length > 0
         ? ((completedBookings.length - previousCompletedBookings.length) / previousCompletedBookings.length) * 100
         : 0;
 
       const earningsTrends = completedBookings.map((booking: any) => {
-        const payment = booking.payments.find((p: any) => p.status === 'RELEASED' || p.status === 'COMPLETED');
+        const payment = releasedPayment(booking);
         return {
           date: booking.createdAt.toISOString().split('T')[0],
           amount: payment ? payment.chefAmount : 0,
+          currency: normalizeCurrency(payment?.currency || booking.currency),
         };
       });
 
@@ -220,14 +276,15 @@ export async function GET(request: NextRequest) {
       analytics = {
         totalBookings: chefProfile.bookings.length,
         completedBookings: completedBookings.length,
-        totalEarnings,
+        totalEarnings: singleCurrencyTotal(earningsByCurrency),
+        earningsByCurrency,
         averageRating: parseFloat(averageRating.toFixed(1)),
         totalReviews: chefProfile.reviews.length,
         proposalsSent: chefProfile.proposals.length,
         bookingsByStatus,
         earningsTrends,
         trends: {
-          earningsChange: parseFloat(earningsTrend.toFixed(1)),
+          earningsChange: comparableTrend(earningsByCurrency, previousEarningsByCurrency),
           bookingsChange: parseFloat(bookingsTrend.toFixed(1)),
         },
       };
@@ -238,12 +295,12 @@ export async function GET(request: NextRequest) {
         totalChefs,
         totalClients,
         totalBookings,
-        totalRevenue,
+        totalRevenueByCurrencyRows,
         activeBookings,
         pendingProposals,
         platformStats,
         previousPeriodUsers,
-        previousPeriodRevenue,
+        previousPeriodRevenueByCurrencyRows,
       ] = await Promise.all([
         // Total users
         prisma.user.count(),
@@ -268,7 +325,8 @@ export async function GET(request: NextRequest) {
         }),
         
         // Total revenue (platform commission)
-        prisma.payment.aggregate({
+        prisma.payment.groupBy({
+          by: ['currency'],
           where: {
             status: 'RELEASED',
             createdAt: { gte: daysAgo },
@@ -310,7 +368,8 @@ export async function GET(request: NextRequest) {
         }),
 
         // Previous period revenue for trend
-        prisma.payment.aggregate({
+        prisma.payment.groupBy({
+          by: ['currency'],
           where: {
             status: 'RELEASED',
             createdAt: {
@@ -326,16 +385,16 @@ export async function GET(request: NextRequest) {
         ? ((totalUsers - previousPeriodUsers) / previousPeriodUsers) * 100
         : 0;
 
-      const revenueTrend = (previousPeriodRevenue._sum?.commissionAmount || 0) > 0
-        ? (((totalRevenue._sum?.commissionAmount || 0) - (previousPeriodRevenue._sum?.commissionAmount || 0)) / (previousPeriodRevenue._sum?.commissionAmount || 0)) * 100
-        : 0;
+      const revenueByCurrency = currencySums(totalRevenueByCurrencyRows as any, 'commissionAmount');
+      const previousRevenueByCurrency = currencySums(previousPeriodRevenueByCurrencyRows as any, 'commissionAmount');
 
       analytics = {
         totalUsers,
         totalChefs,
         totalClients,
         totalBookings,
-        totalRevenue: totalRevenue._sum?.commissionAmount || 0,
+        totalRevenue: singleCurrencyTotal(revenueByCurrency),
+        revenueByCurrency,
         activeBookings,
         pendingProposals,
         platformStats: platformStats.reduce((acc: Record<string, number>, item: any) => {
@@ -344,7 +403,7 @@ export async function GET(request: NextRequest) {
         }, {} as Record<string, number>),
         trends: {
           usersChange: parseFloat(usersTrend.toFixed(1)),
-          revenueChange: parseFloat(revenueTrend.toFixed(1)),
+          revenueChange: comparableTrend(revenueByCurrency, previousRevenueByCurrency),
         },
       };
     }

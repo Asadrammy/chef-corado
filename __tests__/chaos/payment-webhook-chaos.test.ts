@@ -15,28 +15,35 @@ describe('Payment Webhook Chaos Tests', () => {
   let testPayment: any
   let testBooking: any
   let testProposal: any
+  let testRequest: any
+  let testClient: any
+  let testChef: any
+  let chefProfile: any
+  let testRunId: string
 
   beforeAll(async () => {
+    testRunId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
     // Setup test data
-    const testClient = await prisma.user.create({
+    testClient = await prisma.user.create({
       data: {
         name: 'Chaos Test Client',
-        email: 'chaos-client@example.com',
+        email: `chaos-client-${testRunId}@example.test`,
         password: 'hashed-password',
         role: 'CLIENT',
       },
     })
 
-    const testChef = await prisma.user.create({
+    testChef = await prisma.user.create({
       data: {
         name: 'Chaos Test Chef',
-        email: 'chaos-chef@example.com',
+        email: `chaos-chef-${testRunId}@example.test`,
         password: 'hashed-password',
         role: 'CHEF',
       },
     })
 
-    const chefProfile = await prisma.chefProfile.create({
+    chefProfile = await prisma.chefProfile.create({
       data: {
         userId: testChef.id,
         location: 'Test Location',
@@ -44,7 +51,7 @@ describe('Payment Webhook Chaos Tests', () => {
       },
     })
 
-    const testRequest = await prisma.request.create({
+    testRequest = await prisma.request.create({
       data: {
         clientId: testClient.id,
         title: 'Chaos Test Request',
@@ -68,18 +75,6 @@ describe('Payment Webhook Chaos Tests', () => {
       },
     })
 
-    // Create payment in HELD state
-    testPayment = await prisma.payment.create({
-      data: {
-        bookingId: 'test-booking-id',
-        stripePaymentIntentId: 'pi_test_chaos_123',
-        totalAmount: 300,
-        commissionAmount: 60,
-        chefAmount: 240,
-        status: 'HELD',
-      },
-    })
-
     testBooking = await prisma.booking.create({
       data: {
         clientId: testClient.id,
@@ -93,20 +88,43 @@ describe('Payment Webhook Chaos Tests', () => {
         guestCount: 2,
       } as any,
     })
+
+    // Create payment in HELD state
+    testPayment = await prisma.payment.create({
+      data: {
+        bookingId: testBooking.id,
+        stripePaymentIntentId: `pi_test_chaos_${testRunId}`,
+        totalAmount: 300,
+        commissionAmount: 60,
+        chefAmount: 240,
+        status: 'HELD',
+      },
+    })
   })
 
   afterAll(async () => {
+    if (!testRunId) {
+      return
+    }
+
     // Cleanup test data
     await prisma.$transaction([
-      prisma.payment.deleteMany({ where: { id: testPayment.id } }),
-      prisma.booking.deleteMany({ where: { id: testBooking.id } }),
-      prisma.proposal.deleteMany({ where: { id: testProposal.id } }),
+      prisma.webhookLog.deleteMany({ where: { stripeEventId: { contains: testRunId } } }),
+      prisma.ledger.deleteMany({ where: { paymentId: testPayment?.id ?? '__missing__' } }),
+      prisma.payment.deleteMany({ where: { id: testPayment?.id ?? '__missing__' } }),
+      prisma.booking.deleteMany({ where: { id: testBooking?.id ?? '__missing__' } }),
+      prisma.proposal.deleteMany({ where: { id: testProposal?.id ?? '__missing__' } }),
+      prisma.request.deleteMany({ where: { id: testRequest?.id ?? '__missing__' } }),
+      prisma.chefProfile.deleteMany({ where: { id: chefProfile?.id ?? '__missing__' } }),
+      prisma.user.deleteMany({
+        where: { id: { in: [testClient?.id, testChef?.id].filter(Boolean) } },
+      }),
     ])
   })
 
   describe('Duplicate Webhook Handling', () => {
     it('should reject duplicate webhook events', async () => {
-      const eventId = 'evt_chaos_duplicate_test'
+      const eventId = `evt_chaos_duplicate_${testRunId}`
       const mockSession = {
         id: 'cs_test_duplicate',
         object: 'checkout.session',
@@ -117,7 +135,7 @@ describe('Payment Webhook Chaos Tests', () => {
             id: 'cs_test_duplicate',
             payment_status: 'paid',
             status: 'complete',
-            payment_intent: 'pi_test_chaos_123',
+            payment_intent: `pi_test_chaos_${testRunId}`,
             amount_total: 30000,
             metadata: { proposalId: testProposal.id },
           },
@@ -138,7 +156,7 @@ describe('Payment Webhook Chaos Tests', () => {
         expect(result2.stripeEventId).toBe(eventId)
       }
 
-      // Since webhookEvent model doesn't exist, just verify the service calls worked
+      // Verify the WebhookLog-backed idempotency service calls worked.
       expect(result1).toBeDefined()
       expect(result2).toBeDefined()
     })
@@ -148,7 +166,7 @@ describe('Payment Webhook Chaos Tests', () => {
       
       // Create events with different timestamps
       const event1 = {
-        id: 'evt_chaos_order_1',
+        id: `evt_chaos_order_1_${testRunId}`,
         object: 'event',
         api_version: '2026-03-25.dahlia',
         created: now - 10, // 10 seconds ago
@@ -157,7 +175,7 @@ describe('Payment Webhook Chaos Tests', () => {
       }
 
       const event2 = {
-        id: 'evt_chaos_order_2',
+        id: `evt_chaos_order_2_${testRunId}`,
         object: 'event',
         api_version: '2026-03-25.dahlia',
         created: now, // Current time
@@ -168,6 +186,7 @@ describe('Payment Webhook Chaos Tests', () => {
       // Store later event first
       const result1 = await webhookEventStore.storeEvent(event2 as any)
       expect(result1).toBeDefined()
+      await webhookEventStore.markProcessed(event2.id)
 
       // Try to store earlier event
       const shouldProcess = await webhookEventStore.handleOutOfOrderEvent(event1 as any, 1)
@@ -206,7 +225,7 @@ describe('Payment Webhook Chaos Tests', () => {
   describe('Webhook Processing Under Load', () => {
     it('should handle concurrent webhook processing', async () => {
       const webhooks = Array.from({ length: 20 }, (_, i) => ({
-        id: `evt_chaos_concurrent_${i}`,
+        id: `evt_chaos_concurrent_${testRunId}_${i}`,
         object: 'event',
         api_version: '2026-03-25.dahlia',
         created: Math.floor(Date.now() / 1000),
@@ -226,7 +245,7 @@ describe('Payment Webhook Chaos Tests', () => {
       expect(successful.length).toBe(webhooks.length)
       expect(failed.length).toBe(0)
 
-      // Since webhookEvent model doesn't exist, just verify the service calls worked
+      // Verify all WebhookLog-backed store calls completed.
       expect(successful.length).toBe(webhooks.length)
       expect(failed.length).toBe(0)
     })
@@ -251,14 +270,14 @@ describe('Payment Webhook Chaos Tests', () => {
     })
 
     it('should maintain event statistics accurately', async () => {
-      // Since webhookEvent model doesn't exist, just proceed with test
+      // Stats are derived from the active WebhookLog table.
       logger.info('Clearing existing webhook events (mocked)')
 
       // Create events with different statuses
       const events = [
-        { id: 'evt_chaos_stats_1', type: 'payment_intent.created', status: 'PROCESSED' },
-        { id: 'evt_chaos_stats_2', type: 'payment_intent.succeeded', status: 'PROCESSED' },
-        { id: 'evt_chaos_stats_3', type: 'payment_intent.failed', status: 'FAILED' },
+        { id: `evt_chaos_stats_1_${testRunId}`, type: 'payment_intent.created', status: 'COMPLETED' },
+        { id: `evt_chaos_stats_2_${testRunId}`, type: 'payment_intent.succeeded', status: 'COMPLETED' },
+        { id: `evt_chaos_stats_3_${testRunId}`, type: 'payment_intent.failed', status: 'FAILED' },
       ]
 
       for (const event of events) {
@@ -269,6 +288,11 @@ describe('Payment Webhook Chaos Tests', () => {
           created: Math.floor(Date.now() / 1000),
           data: { object: {} },
         } as any)
+        if (event.status === 'COMPLETED') {
+          await webhookEventStore.markProcessed(event.id)
+        } else if (event.status === 'FAILED') {
+          await webhookEventStore.markFailed(event.id, 'Synthetic failed webhook', false)
+        }
       }
 
       const stats = await webhookEventStore.getEventStats()

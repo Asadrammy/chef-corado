@@ -10,6 +10,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { analytics } from '@/lib/analytics';
 import { formatCurrency } from '@/lib/currency';
+import { MARKETPLACE_PAYMENT_RULES, PLATFORM_COMMISSION_PERCENT } from '@/lib/marketplace-rules';
 
 // Prevent static generation
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,7 @@ export const dynamic = 'force-dynamic';
 interface Payout {
   id: string;
   amount: number;
+  currency: string;
   status: 'PENDING' | 'APPROVED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'FROZEN';
   externalReference?: string;
   failureReason?: string;
@@ -31,10 +33,38 @@ interface Payout {
 }
 
 interface BalanceInfo {
+  currency: string;
   availableBalance: number;
   pendingEarnings: number;
   totalEarnings: number;
   completedBookings: number;
+  balancesByCurrency?: {
+    currency: string;
+    availableBalance: number;
+    pendingEarnings: number;
+    totalEarnings: number;
+    totalPaidOut: number;
+    totalPendingPayouts: number;
+    completedBookings: number;
+  }[];
+  paymentSummaries?: {
+    bookingId: string;
+    reference: string;
+    title: string;
+    serviceTypeLabel?: string | null;
+    requestMode?: string | null;
+    countryCode?: string | null;
+    eventDate: string;
+    transactionDate: string;
+    currency: string;
+    customerPayment: number;
+    platformCommission: number;
+    commissionRatePercent: number;
+    chefPayout: number;
+    paymentStatus: string;
+    payoutEligibilityStatus: string;
+  }[];
+  multiCurrencyNotice?: string;
 }
 
 export default function PayoutsPage() {
@@ -43,6 +73,7 @@ export default function PayoutsPage() {
   const [loading, setLoading] = useState(true);
   const [requestingPayout, setRequestingPayout] = useState(false);
   const [payoutAmount, setPayoutAmount] = useState('');
+  const [selectedCurrency, setSelectedCurrency] = useState('GBP');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
@@ -65,6 +96,7 @@ export default function PayoutsPage() {
       if (balanceResponse.ok) {
         const balanceData = await balanceResponse.json();
         setBalanceInfo(balanceData);
+        setSelectedCurrency(balanceData.currency || balanceData.balancesByCurrency?.[0]?.currency || 'GBP');
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -82,8 +114,11 @@ export default function PayoutsPage() {
       return;
     }
 
-    if (!balanceInfo || amount > balanceInfo.availableBalance) {
-      setError(`Insufficient balance. You have ${formatCurrency(balanceInfo?.availableBalance || 0, 'GBP')} available.`);
+    const selectedBalance = balanceInfo?.balancesByCurrency?.find((item) => item.currency === selectedCurrency);
+    const availableBalance = selectedBalance?.availableBalance ?? balanceInfo?.availableBalance ?? 0;
+
+    if (!balanceInfo || amount > availableBalance) {
+      setError(`Insufficient balance. You have ${formatCurrency(availableBalance, selectedCurrency)} available.`);
       return;
     }
 
@@ -97,7 +132,7 @@ export default function PayoutsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ amount }),
+        body: JSON.stringify({ amount, currency: selectedCurrency }),
       });
 
       if (!response.ok) {
@@ -109,7 +144,7 @@ export default function PayoutsPage() {
       setPayouts(prev => [newPayout, ...prev]);
       setPayoutAmount('');
       setSuccess(true);
-      analytics.track('payout_requested', undefined, { amount });
+      analytics.track('payout_requested', undefined, { amount, currency: selectedCurrency });
       fetchData(); // Refresh balance
       setTimeout(() => setSuccess(false), 3000);
     } catch (error) {
@@ -119,6 +154,13 @@ export default function PayoutsPage() {
       setRequestingPayout(false);
     }
   };
+
+  const balancesByCurrency = balanceInfo?.balancesByCurrency?.length
+    ? balanceInfo.balancesByCurrency
+    : balanceInfo
+      ? [{ ...balanceInfo, currency: balanceInfo.currency || 'GBP', totalPaidOut: 0, totalPendingPayouts: 0 }]
+      : [];
+  const selectedBalance = balancesByCurrency.find((item) => item.currency === selectedCurrency) ?? balancesByCurrency[0];
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -170,7 +212,7 @@ export default function PayoutsPage() {
                       <Info className="h-3 w-3 text-green-600 cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent>
-                      Money ready to withdraw after platform commission (10%)
+                      Money ready to withdraw after the {PLATFORM_COMMISSION_PERCENT}% ChefaChef marketplace commission
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -178,7 +220,7 @@ export default function PayoutsPage() {
               <Wallet className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-900">{formatCurrency(balanceInfo.availableBalance, 'GBP')}</div>
+              <div className="text-2xl font-bold text-green-900">{formatCurrency(selectedBalance?.availableBalance ?? balanceInfo.availableBalance, selectedBalance?.currency ?? balanceInfo.currency)}</div>
               <p className="text-xs text-green-700">
                 Ready for withdrawal
               </p>
@@ -203,7 +245,7 @@ export default function PayoutsPage() {
               <TrendingUp className="h-4 w-4 text-yellow-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-yellow-900">{formatCurrency(balanceInfo.pendingEarnings, 'GBP')}</div>
+              <div className="text-2xl font-bold text-yellow-900">{formatCurrency(selectedBalance?.pendingEarnings ?? balanceInfo.pendingEarnings, selectedBalance?.currency ?? balanceInfo.currency)}</div>
               <p className="text-xs text-yellow-700">
                 From active bookings
               </p>
@@ -228,7 +270,7 @@ export default function PayoutsPage() {
               <Wallet className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(balanceInfo.totalEarnings, 'GBP')}</div>
+              <div className="text-2xl font-bold">{formatCurrency(selectedBalance?.totalEarnings ?? balanceInfo.totalEarnings, selectedBalance?.currency ?? balanceInfo.currency)}</div>
               <p className="text-xs text-muted-foreground">
                 All time earnings (after commission)
               </p>
@@ -241,7 +283,7 @@ export default function PayoutsPage() {
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{balanceInfo.completedBookings}</div>
+              <div className="text-2xl font-bold">{selectedBalance?.completedBookings ?? balanceInfo.completedBookings}</div>
               <p className="text-xs text-muted-foreground">
                 Successfully completed
               </p>
@@ -259,23 +301,40 @@ export default function PayoutsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex gap-4">
+            {balancesByCurrency.length > 1 && (
+              <div className="w-36">
+                <label htmlFor="currency" className="text-sm font-medium">
+                  Currency
+                </label>
+                <select
+                  id="currency"
+                  value={selectedCurrency}
+                  onChange={(event) => setSelectedCurrency(event.target.value)}
+                  className="w-full mt-1 px-3 py-2 border border-input rounded-md bg-background"
+                >
+                  {balancesByCurrency.map((balance) => (
+                    <option key={balance.currency} value={balance.currency}>{balance.currency}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="flex-1">
               <label htmlFor="amount" className="text-sm font-medium">
-                Amount ($)
+                Amount ({selectedCurrency})
               </label>
               <input
                 id="amount"
                 type="number"
                 step="0.01"
                 min="1"
-                max={balanceInfo?.availableBalance || 0}
+                max={selectedBalance?.availableBalance ?? balanceInfo?.availableBalance ?? 0}
                 value={payoutAmount}
                 onChange={(e) => setPayoutAmount(e.target.value)}
                 className="w-full mt-1 px-3 py-2 border border-input rounded-md"
                 placeholder="Enter amount"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Available: ${balanceInfo?.availableBalance.toFixed(2) || '0.00'}
+                Available: {formatCurrency(selectedBalance?.availableBalance ?? balanceInfo?.availableBalance ?? 0, selectedCurrency)}
               </p>
             </div>
             <Button
@@ -315,8 +374,75 @@ export default function PayoutsPage() {
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
               Payouts are reviewed and processed manually by the platform team. A payout is only marked paid after an administrator records the external payment reference.
+              {balanceInfo?.multiCurrencyNotice ? ` ${balanceInfo.multiCurrencyNotice}` : ''}
             </AlertDescription>
           </Alert>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment Summaries</CardTitle>
+          <CardDescription>
+            Customer payment, ChefaChef commission, and chef payout are shown from actual paid booking records.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              {MARKETPLACE_PAYMENT_RULES.chefInvoiceResponsibility} ChefaChef provides payment summaries and transfer breakdowns; it does not issue chef tax invoices on the chef&apos;s behalf.
+            </AlertDescription>
+          </Alert>
+
+          {!balanceInfo?.paymentSummaries?.length ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No paid booking payment summaries yet
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full min-w-[860px] text-sm">
+                <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">Booking</th>
+                    <th className="px-4 py-3 font-medium">Transaction</th>
+                    <th className="px-4 py-3 font-medium">Customer paid</th>
+                    <th className="px-4 py-3 font-medium">Commission</th>
+                    <th className="px-4 py-3 font-medium">Chef payout</th>
+                    <th className="px-4 py-3 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {balanceInfo.paymentSummaries.map((summary) => (
+                    <tr key={`${summary.bookingId}-${summary.transactionDate}`}>
+                      <td className="px-4 py-3">
+                        <p className="font-medium">{summary.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          Ref {summary.reference.slice(0, 10)} · {summary.serviceTypeLabel || summary.requestMode || 'Booking'} · {format(new Date(summary.eventDate), 'PP')}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p>{summary.currency}</p>
+                        <p className="text-xs text-muted-foreground">{format(new Date(summary.transactionDate), 'PP p')}</p>
+                      </td>
+                      <td className="px-4 py-3 font-medium">{formatCurrency(summary.customerPayment, summary.currency)}</td>
+                      <td className="px-4 py-3">
+                        <p>{formatCurrency(summary.platformCommission, summary.currency)}</p>
+                        <p className="text-xs text-muted-foreground">{summary.commissionRatePercent}% ChefaChef commission</p>
+                      </td>
+                      <td className="px-4 py-3 font-semibold">{formatCurrency(summary.chefPayout, summary.currency)}</td>
+                      <td className="px-4 py-3">
+                        <div className="space-y-1">
+                          <Badge variant="secondary">{summary.paymentStatus}</Badge>
+                          <p className="text-xs text-muted-foreground">{summary.payoutEligibilityStatus}</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -338,7 +464,7 @@ export default function PayoutsPage() {
                 <div key={payout.id} className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-semibold">${payout.amount.toFixed(2)}</span>
+                      <span className="font-semibold">{formatCurrency(payout.amount, payout.currency || 'GBP')}</span>
                       {getStatusBadge(payout.status)}
                     </div>
                     <div className="text-sm text-muted-foreground">

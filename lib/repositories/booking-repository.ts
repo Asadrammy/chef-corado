@@ -98,6 +98,7 @@ export const bookingRepository = {
                 title: true,
                 description: true,
                 price: true,
+                currency: true,
               },
             },
           },

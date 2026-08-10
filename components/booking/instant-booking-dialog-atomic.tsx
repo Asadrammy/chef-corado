@@ -21,6 +21,7 @@ interface Experience {
   title: string;
   description: string;
   price: number;
+  currency?: string;
   duration: number;
   minGuests?: number;
   maxGuests?: number;
@@ -175,6 +176,7 @@ export function InstantBookingDialogAtomic({
   };
 
   const totalPrice = experience.price * parseInt(guestCount);
+  const experienceCurrency = experience.currency || 'GBP';
   const canBook = selectedDate && location && availability?.canBook && paymentStatus !== 'processing';
 
   return (
@@ -236,7 +238,7 @@ export function InstantBookingDialogAtomic({
                     <Wallet className="h-4 w-4" />
                     <span>Price</span>
                   </div>
-                  <p className="font-semibold">{formatCurrency(experience.price, 'GBP')}</p>
+                  <p className="font-semibold">{formatCurrency(experience.price, experienceCurrency)}</p>
                   <p className="text-xs text-gray-500">per person</p>
                 </div>
                 
@@ -388,7 +390,7 @@ export function InstantBookingDialogAtomic({
                   <CardContent className="space-y-2">
                     <div className="flex justify-between">
                       <span>Price per person:</span>
-                      <span>{formatCurrency(experience.price, 'GBP')}</span>
+                      <span>{formatCurrency(experience.price, experienceCurrency)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Number of guests:</span>
@@ -397,7 +399,7 @@ export function InstantBookingDialogAtomic({
                     <div className="border-t pt-2">
                       <div className="flex justify-between font-semibold text-lg">
                         <span>Total:</span>
-                        <span>{formatCurrency(totalPrice, 'GBP')}</span>
+                        <span>{formatCurrency(totalPrice, experienceCurrency)}</span>
                       </div>
                     </div>
                   </CardContent>

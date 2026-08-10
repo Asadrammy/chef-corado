@@ -298,7 +298,7 @@ export class StripeReconciliationEngine {
     })
 
     // Check if we've already processed this event
-    const existingEvent = await (prisma as any).webhookEvent.findUnique({
+    const existingEvent = await prisma.webhookLog.findUnique({
       where: { stripeEventId: event.id },
     })
 
@@ -310,13 +310,13 @@ export class StripeReconciliationEngine {
     }
 
     // Store the event for replay
-    await (prisma as any).webhookEvent.create({
+    await prisma.webhookLog.create({
       data: {
         stripeEventId: event.id,
         eventType: event.type,
         payload: JSON.stringify(event),
         processedAt: new Date(),
-        status: 'PROCESSED',
+        status: 'COMPLETED',
       },
     })
 

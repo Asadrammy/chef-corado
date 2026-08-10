@@ -317,7 +317,7 @@ export const authOptions: AuthOptions = {
           token.isBanned = dbUser.isBanned
           token.needsTermsAcceptance = !dbUser.termsAcceptedAt || dbUser.termsVersion !== TERMS_VERSION || !dbUser.acceptedVia
           token.complianceStatus = null
-          token.adminRole = dbUser.adminRole ?? (dbUser.role === Role.ADMIN ? "SUPER_ADMIN" : null)
+          token.adminRole = dbUser.adminRole ?? null
           token.adminPermissions = dbUser.adminPermissions ?? null
           token.needsChefCompliance = dbUser.role === Role.CHEF
             ? !dbUser.chefProfile ||

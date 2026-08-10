@@ -1,4 +1,4 @@
-﻿import { cookies } from "next/headers"
+import { cookies } from "next/headers"
 import { notFound } from "next/navigation"
 import { CheckCircle2, MapPin, MessageCircle, ShieldCheck, Star } from "lucide-react"
 
@@ -44,7 +44,7 @@ export async function generateMetadata({ params }: ChefPublicProfilePageProps) {
     })
   } catch {
     return buildPublicMetadata({
-      title: "Private Chef Profile | Chef Marketplace",
+      title: "Private Chef Profile | ChefaChef",
       description: "Explore a private chef profile, menus, reviews, and service area.",
       path: `/chefs/${chefId}`,
     })

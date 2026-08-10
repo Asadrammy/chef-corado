@@ -133,7 +133,7 @@ export function SearchFilters({ onFiltersChange, initialFilters = {} }: SearchFi
 
             {/* Price range */}
             <div>
-              <Label>Price Range: £{filters.minPrice} - £{filters.maxPrice}</Label>
+              <Label>Price Range: {filters.minPrice} - {filters.maxPrice}</Label>
               <div className="px-2">
                 <Slider
                   value={[filters.minPrice, filters.maxPrice]}

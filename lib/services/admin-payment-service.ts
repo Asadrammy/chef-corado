@@ -101,7 +101,8 @@ export const adminPaymentService = {
         paymentWithRelations.booking.chefId,
         paymentWithRelations.chefAmount,
         releasedBy,
-        undefined // No stripe transfer ID yet
+        undefined, // No stripe transfer ID yet
+        paymentWithRelations.currency
       )
 
       // Audit log for payment release

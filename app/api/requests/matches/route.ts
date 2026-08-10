@@ -21,12 +21,24 @@ export async function GET(request: NextRequest) {
     // Get chef profile
     const chefProfile = await prisma.chefProfile.findUnique({
       where: { userId },
+      include: { user: { select: { isBanned: true } } },
     })
 
     if (!chefProfile) {
       return NextResponse.json(
         { error: "Chef profile not found" },
         { status: 404 }
+      )
+    }
+
+    if (
+      !chefProfile.isApproved ||
+      chefProfile.isBanned ||
+      chefProfile.user.isBanned
+    ) {
+      return NextResponse.json(
+        { error: "Chef profile is not eligible for matching" },
+        { status: 403 }
       )
     }
 
@@ -58,6 +70,9 @@ export async function GET(request: NextRequest) {
           },
         },
       },
+      include: {
+        multiDayDates: true,
+      },
       orderBy: { eventDate: "asc" },
       take: limit * 2, // Fetch more to filter by score
     })
@@ -76,11 +91,57 @@ export async function GET(request: NextRequest) {
       return distance <= chefProfile.radius
     })
 
+    const requestedDates = Array.from(new Set(nearbyRequests.flatMap((request) =>
+      request.multiDayDates.length > 0
+        ? request.multiDayDates.map((date) => date.date.toISOString().slice(0, 10))
+        : [request.eventDate.toISOString().slice(0, 10)]
+    )))
+
+    const knownAvailability = requestedDates.length > 0
+      ? await prisma.availability.findMany({
+          where: {
+            chefId: chefProfile.id,
+            date: { in: requestedDates.map((date) => new Date(date)) },
+          },
+        })
+      : []
+
+    const availabilityByDate = new Map(
+      knownAvailability.map((slot) => [slot.date.toISOString().slice(0, 10), slot])
+    )
+
+    const availableRequests = nearbyRequests.filter((request) => {
+      const dates = request.multiDayDates.length > 0
+        ? request.multiDayDates.map((date) => date.date.toISOString().slice(0, 10))
+        : [request.eventDate.toISOString().slice(0, 10)]
+
+      return dates.every((date) => {
+        const slot = availabilityByDate.get(date)
+        return !slot || (slot.isAvailable && slot.currentBookings < slot.maxBookings)
+      })
+    })
+
     // Calculate smart match scores
-    const requestData = nearbyRequests.map((r) => ({
+    const parseList = (value?: string | null) => {
+      if (!value) return []
+      try {
+        const parsed = JSON.parse(value)
+        return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string") : []
+      } catch {
+        return []
+      }
+    }
+
+    const requestData = availableRequests.map((r) => ({
       id: r.id,
       budget: r.budget,
       eventDate: r.eventDate,
+      requestDates: r.multiDayDates.length > 0 ? r.multiDayDates.map((date) => date.date) : [r.eventDate],
+      serviceType: r.serviceType,
+      eventType: r.eventType,
+      cuisineTypes: parseList(r.cuisineTypes),
+      dietaryRequirements: parseList(r.dietaryRequirements),
+      pricingGuestCount: r.pricingGuestCount,
       details: r.details,
       latitude: r.latitude,
       longitude: r.longitude,
@@ -101,9 +162,16 @@ export async function GET(request: NextRequest) {
       filteredMatches.map(async (match) => {
         const request = nearbyRequests.find((r) => r.id === match.requestId)
         if (!request) return null
+        const requestDates = request.multiDayDates.length > 0
+          ? request.multiDayDates.map((date) => date.date.toISOString().slice(0, 10))
+          : [request.eventDate.toISOString().slice(0, 10)]
 
         return {
           ...match,
+          availability: {
+            checkedDates: requestDates,
+            fallbackUsed: requestDates.some((date) => !availabilityByDate.has(date)),
+          },
           request: {
             id: request.id,
             title: request.title,
@@ -111,6 +179,15 @@ export async function GET(request: NextRequest) {
             eventDate: request.eventDate.toISOString(),
             location: request.location,
             budget: request.budget,
+            currency: request.currency,
+            serviceType: request.serviceType,
+            serviceTypeLabel: request.serviceTypeLabel,
+            eventType: request.eventType,
+            cuisineTypes: parseList(request.cuisineTypes),
+            dietaryRequirements: parseList(request.dietaryRequirements),
+            pricingStatus: request.pricingStatus,
+            budgetStatus: request.budgetStatus,
+            budgetWarning: request.budgetWarning,
             details: request.details,
             latitude: request.latitude,
             longitude: request.longitude,
@@ -124,7 +201,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       matches: validMatches,
-      total: nearbyRequests.length,
+      total: availableRequests.length,
       filtered: validMatches.length,
     })
   } catch (error) {

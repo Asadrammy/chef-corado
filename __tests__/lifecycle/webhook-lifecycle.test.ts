@@ -20,13 +20,16 @@ describe("Webhook Lifecycle Tests", () => {
   let testChef: any
   let testClient: any
   let testRequest: any
+  let testRunId: string
 
   beforeAll(async () => {
+    testRunId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
     // Create test data
     testChef = await prisma.user.create({
       data: {
         name: "Test Chef",
-        email: "test-chef-webhook@example.com",
+        email: `test-chef-webhook-${testRunId}@example.test`,
         password: "hashed-password",
         role: "CHEF",
       },
@@ -43,7 +46,7 @@ describe("Webhook Lifecycle Tests", () => {
     testClient = await prisma.user.create({
       data: {
         name: "Test Client",
-        email: "test-client-webhook@example.com",
+        email: `test-client-webhook-${testRunId}@example.test`,
         password: "hashed-password",
         role: "CLIENT",
       },
@@ -74,10 +77,15 @@ describe("Webhook Lifecycle Tests", () => {
   })
 
   afterAll(async () => {
+    if (!testChef?.id || !testClient?.id) {
+      return
+    }
+
     // Cleanup test data
     await prisma.$transaction([
-      prisma.proposal.deleteMany({ where: { id: testProposal.id } }),
-      prisma.request.deleteMany({ where: { id: testRequest.id } }),
+      prisma.webhookLog.deleteMany({ where: { stripeEventId: { contains: testRunId } } }),
+      prisma.proposal.deleteMany({ where: { id: testProposal?.id ?? "__missing__" } }),
+      prisma.request.deleteMany({ where: { id: testRequest?.id ?? "__missing__" } }),
       prisma.chefProfile.deleteMany({ where: { userId: testChef.id } }),
       prisma.user.deleteMany({ where: { id: { in: [testChef.id, testClient.id] } } }),
     ])
@@ -86,10 +94,10 @@ describe("Webhook Lifecycle Tests", () => {
   describe("Duplicate Webhook Handling", () => {
     it("should not process duplicate webhooks with same event ID", async () => {
       const mockSession = {
-        id: "cs_test_123",
+        id: `cs_test_${testRunId}`,
         payment_status: "paid",
         status: "complete",
-        payment_intent: "pi_test_123",
+        payment_intent: `pi_test_${testRunId}`,
         amount_total: 10000, // $100 in cents
         metadata: {
           proposalId: testProposal.id,
@@ -97,7 +105,7 @@ describe("Webhook Lifecycle Tests", () => {
       } as unknown as Stripe.Checkout.Session
 
       const mockEvent = {
-        id: "evt_test_duplicate_123",
+        id: `evt_test_duplicate_${testRunId}`,
         type: "checkout.session.completed",
         data: {
           object: mockSession,
@@ -162,7 +170,7 @@ describe("Webhook Lifecycle Tests", () => {
 
   describe("Webhook Idempotency", () => {
     it("should detect and reject already processed webhooks", async () => {
-      const stripeEventId = "evt_test_idempotent_123"
+      const stripeEventId = `evt_test_idempotent_${testRunId}`
 
       // Create webhook log as completed
       await prisma.webhookLog.create({

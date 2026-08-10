@@ -13,6 +13,7 @@ interface Request {
   title: string
   description: string
   budget: number
+  currency?: string | null
   createdAt: string
   clientName?: string
   location?: string
@@ -146,7 +147,7 @@ export function AvailableOpportunities({ requests, availableRequestsCount }: Ava
                       <div className="flex items-center gap-1">
                         <Wallet className="h-4 w-4 text-green-600" />
                         <span className="font-bold text-green-600 text-lg">
-                          {formatCurrency(request.budget, 'GBP')}
+                          {formatCurrency(request.budget, request.currency || 'GBP')}
                         </span>
                       </div>
                     </div>

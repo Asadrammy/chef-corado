@@ -168,7 +168,7 @@ export async function POST(request: NextRequest) {
         const proposal = {
           id: `local-proposal-${Date.now()}`,
           price: parsedQuote.data.price,
-          currency: 'GBP',
+          currency: 'USD',
           message: parsedQuote.data.message,
           status: 'PENDING',
           createdAt: now.toISOString(),
@@ -179,7 +179,7 @@ export async function POST(request: NextRequest) {
             eventDate: new Date(Date.now() + 9 * 24 * 60 * 60 * 1000).toISOString(),
             location: 'Downtown',
             budget: parsedQuote.data.price,
-            currency: 'GBP',
+            currency: 'USD',
             details: 'Local demo quote conversation.',
           },
         };
@@ -215,7 +215,7 @@ export async function POST(request: NextRequest) {
         const proposal = {
           id: parsedQuoteUpdate.data.proposalId,
           price: parsedQuoteUpdate.data.price,
-          currency: 'GBP',
+          currency: 'USD',
           message: parsedQuoteUpdate.data.message,
           status: 'PENDING',
           createdAt: now.toISOString(),
@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
             eventDate: new Date(Date.now() + 9 * 24 * 60 * 60 * 1000).toISOString(),
             location: 'Downtown',
             budget: parsedQuoteUpdate.data.price,
-            currency: 'GBP',
+            currency: 'USD',
             details: 'Local demo quote conversation.',
           },
         };

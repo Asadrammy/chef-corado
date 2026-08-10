@@ -30,7 +30,13 @@ export default async function AdminPayoutsPage({
   })
 
   const totals = new Map<string, number>()
-  payouts.forEach((payout) => totals.set("GBP", (totals.get("GBP") ?? 0) + payout.amount))
+  payouts.forEach((payout) => {
+    const currency = (payout.currency || "GBP").toUpperCase()
+    totals.set(currency, (totals.get(currency) ?? 0) + payout.amount)
+  })
+  const displayedTotal = Array.from(totals.entries())
+    .map(([currency, amount]) => formatCurrency(amount, currency))
+    .join(" / ") || formatCurrency(0, "GBP")
 
   return (
     <div className="space-y-5">
@@ -44,7 +50,7 @@ export default async function AdminPayoutsPage({
           { label: "Pending", value: payouts.filter((payout) => payout.status === "PENDING").length },
           { label: "Processing", value: payouts.filter((payout) => payout.status === "PROCESSING").length },
           { label: "Paid", value: payouts.filter((payout) => ["PAID", "COMPLETED"].includes(payout.status)).length },
-          { label: "Displayed total", value: formatCurrency(totals.get("GBP") ?? 0, "GBP"), helper: "Payout schema has no currency field; existing records are treated as platform default." },
+          { label: "Displayed total", value: displayedTotal, helper: "Currency-separated; no FX conversion is applied." },
         ]}
       />
       <AdminToolbar>
@@ -62,7 +68,7 @@ export default async function AdminPayoutsPage({
         emptyTitle="No payouts found."
         columns={[
           { key: "chef", label: "Chef", render: (payout) => <div><p className="font-medium">{payout.chef.user.name}</p><p className="text-xs text-muted-foreground">{maskEmailForAdmin(payout.chef.user.email, actor)}</p></div> },
-          { key: "amount", label: "Amount", render: (payout) => formatCurrency(payout.amount, "GBP") },
+          { key: "amount", label: "Amount", render: (payout) => formatCurrency(payout.amount, payout.currency || "GBP") },
           { key: "status", label: "Status", render: (payout) => <AdminStatusBadge status={payout.status} /> },
           { key: "reference", label: "Reference", render: (payout) => payout.externalReference ?? payout.stripeTransferId ?? "Not recorded" },
           { key: "timestamps", label: "Lifecycle", render: (payout) => <div><p>Created: {formatAdminDate(payout.createdAt)}</p><p className="text-xs text-muted-foreground">Approved: {formatAdminDate(payout.approvedAt)}</p><p className="text-xs text-muted-foreground">Processed: {formatAdminDate(payout.processedAt)}</p></div> },
@@ -77,7 +83,7 @@ export default async function AdminPayoutsPage({
                   <AdminInfoGrid
                     items={[
                       { label: "Chef", value: `${payout.chef.user.name} / ${maskEmailForAdmin(payout.chef.user.email, actor)}` },
-                      { label: "Amount", value: formatCurrency(payout.amount, "GBP") },
+                      { label: "Amount", value: formatCurrency(payout.amount, payout.currency || "GBP") },
                       { label: "Status", value: <AdminStatusBadge status={payout.status} /> },
                       { label: "Reference", value: payout.externalReference ?? payout.stripeTransferId ?? "Not recorded" },
                       { label: "Approved", value: formatAdminDate(payout.approvedAt) },

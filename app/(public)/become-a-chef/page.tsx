@@ -2,8 +2,8 @@ import { PublicContentPage } from "@/components/public/public-content-page";
 import { buildPublicMetadata } from "@/lib/public-site";
 
 export const metadata = buildPublicMetadata({
-  title: "Become a Chef | Chef Marketplace",
-  description: "Join Chef Marketplace as a private chef and showcase your cuisine to clients planning beautifully hosted dining.",
+  title: "Become a Chef | ChefaChef",
+  description: "Join ChefaChef as a private chef and showcase your cuisine to clients planning beautifully hosted dining.",
   path: "/become-a-chef",
 });
 

@@ -98,7 +98,8 @@ export const proposalService = {
         targetRequest.client.name,
         userName || "Chef",
         input.price,
-        requestTitle
+        requestTitle,
+        currency
       ),
     }).catch(() => undefined)
 
@@ -196,7 +197,7 @@ export const proposalService = {
           userId: updated.chef.userId,
           topic: "requests",
           email: chefUser.email,
-          subject: `Proposal Accepted! 🎉`,
+          subject: "Proposal accepted",
           html: emailTemplates.proposalAccepted(chefUser.name, clientName, updated.request.title),
         }).catch(() => undefined)
       }

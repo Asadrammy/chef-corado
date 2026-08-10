@@ -7,6 +7,12 @@ import { logger } from "@/lib/logger"
 // Define constants for dispute statuses and reasons
 const DISPUTE_STATUS = {
   OPEN: "OPEN",
+  UNDER_REVIEW: "UNDER_REVIEW",
+  WAITING_ON_CUSTOMER: "WAITING_ON_CUSTOMER",
+  PROPOSED_RESOLUTION: "PROPOSED_RESOLUTION",
+  RESOLVED: "RESOLVED",
+  REJECTED: "REJECTED",
+  ESCALATED: "ESCALATED",
   INVESTIGATING: "INVESTIGATING", 
   RESOLVED_CLIENT_FAVOR: "RESOLVED_CLIENT_FAVOR",
   RESOLVED_CHEF_FAVOR: "RESOLVED_CHEF_FAVOR",
@@ -23,6 +29,20 @@ const DISPUTE_REASON = {
 
 type DisputeStatus = typeof DISPUTE_STATUS[keyof typeof DISPUTE_STATUS]
 type DisputeReason = typeof DISPUTE_REASON[keyof typeof DISPUTE_REASON]
+
+async function notifyAdmins(tx: any, type: string, message: string) {
+  const admins = await tx.user.findMany({
+    where: { role: "ADMIN", adminDisabledAt: null, isBanned: false },
+    select: { id: true },
+    take: 25,
+  })
+
+  if (admins.length > 0) {
+    await tx.notification.createMany({
+      data: admins.map((admin: { id: string }) => ({ userId: admin.id, type, message })),
+    })
+  }
+}
 
 export const disputeService = {
   async createDispute(data: {
@@ -95,19 +115,14 @@ export const disputeService = {
         logger.info(`[DISPUTE] Will freeze ${pendingPayouts} payouts for chef ${bookingData.chefId}`)
       }
 
-      await tx.notification.createMany({
-        data: [
-          {
-            userId: 'ADMIN',
-            type: 'DISPUTE_CREATED',
-            message: `New dispute created for booking ${bookingData.id}`,
-          },
-          {
-            userId: data.initiatedBy === bookingData.clientId ? bookingData.chef.userId : bookingData.clientId,
-            type: 'DISPUTE_CREATED',
-            message: `A dispute has been created for booking ${bookingData.id}`,
-          }
-        ]
+      await notifyAdmins(tx, "DISPUTE_CREATED", `New dispute created for booking ${bookingData.id}`)
+
+      await tx.notification.create({
+        data: {
+          userId: data.initiatedBy === bookingData.clientId ? bookingData.chef.userId : bookingData.clientId,
+          type: 'DISPUTE_CREATED',
+          message: `A dispute has been created for booking ${bookingData.id}`,
+        }
       })
 
       return createdDispute
@@ -146,10 +161,16 @@ export const disputeService = {
     }
 
     const validTransitions: Record<string, string[]> = {
-      [DISPUTE_STATUS.OPEN]: [DISPUTE_STATUS.INVESTIGATING, DISPUTE_STATUS.RESOLVED_CLIENT_FAVOR, DISPUTE_STATUS.RESOLVED_CHEF_FAVOR, DISPUTE_STATUS.CLOSED],
-      [DISPUTE_STATUS.INVESTIGATING]: [DISPUTE_STATUS.RESOLVED_CLIENT_FAVOR, DISPUTE_STATUS.RESOLVED_CHEF_FAVOR, DISPUTE_STATUS.CLOSED],
+      [DISPUTE_STATUS.OPEN]: [DISPUTE_STATUS.UNDER_REVIEW, DISPUTE_STATUS.INVESTIGATING, DISPUTE_STATUS.ESCALATED, DISPUTE_STATUS.REJECTED, DISPUTE_STATUS.CLOSED],
+      [DISPUTE_STATUS.UNDER_REVIEW]: [DISPUTE_STATUS.WAITING_ON_CUSTOMER, DISPUTE_STATUS.PROPOSED_RESOLUTION, DISPUTE_STATUS.RESOLVED, DISPUTE_STATUS.REJECTED, DISPUTE_STATUS.ESCALATED, DISPUTE_STATUS.CLOSED],
+      [DISPUTE_STATUS.WAITING_ON_CUSTOMER]: [DISPUTE_STATUS.UNDER_REVIEW, DISPUTE_STATUS.PROPOSED_RESOLUTION, DISPUTE_STATUS.ESCALATED, DISPUTE_STATUS.CLOSED],
+      [DISPUTE_STATUS.PROPOSED_RESOLUTION]: [DISPUTE_STATUS.RESOLVED, DISPUTE_STATUS.REJECTED, DISPUTE_STATUS.ESCALATED, DISPUTE_STATUS.CLOSED],
+      [DISPUTE_STATUS.ESCALATED]: [DISPUTE_STATUS.UNDER_REVIEW, DISPUTE_STATUS.RESOLVED, DISPUTE_STATUS.REJECTED, DISPUTE_STATUS.CLOSED],
+      [DISPUTE_STATUS.INVESTIGATING]: [DISPUTE_STATUS.UNDER_REVIEW, DISPUTE_STATUS.RESOLVED_CLIENT_FAVOR, DISPUTE_STATUS.RESOLVED_CHEF_FAVOR, DISPUTE_STATUS.CLOSED],
       [DISPUTE_STATUS.RESOLVED_CLIENT_FAVOR]: [DISPUTE_STATUS.CLOSED],
       [DISPUTE_STATUS.RESOLVED_CHEF_FAVOR]: [DISPUTE_STATUS.CLOSED],
+      [DISPUTE_STATUS.RESOLVED]: [DISPUTE_STATUS.CLOSED],
+      [DISPUTE_STATUS.REJECTED]: [DISPUTE_STATUS.CLOSED],
       [DISPUTE_STATUS.CLOSED]: []
     }
 
@@ -163,7 +184,7 @@ export const disputeService = {
         data: {
           status,
           resolvedBy: resolvedBy || dispute.resolvedBy,
-          resolvedAt: ['RESOLVED_CLIENT_FAVOR', 'RESOLVED_CHEF_FAVOR', 'CLOSED'].includes(status) ? new Date() : dispute.resolvedAt,
+          resolvedAt: ['RESOLVED_CLIENT_FAVOR', 'RESOLVED_CHEF_FAVOR', 'RESOLVED', 'REJECTED', 'CLOSED'].includes(status) ? new Date() : dispute.resolvedAt,
           resolution: resolution || dispute.resolution
         },
         include: {
@@ -179,7 +200,7 @@ export const disputeService = {
 
       if (status === DISPUTE_STATUS.RESOLVED_CLIENT_FAVOR) {
         const payment = dispute.booking.payments
-        if (payment && (payment.status === 'COMPLETED' || payment.status === 'RELEASED')) {
+        if (payment && (payment.status === 'PAID' || payment.status === 'RELEASED')) {
           try {
             await refundService.createRefundRequest({
               paymentId: payment.id,
@@ -192,7 +213,7 @@ export const disputeService = {
             console.error('Failed to create automatic refund:', error)
           }
         }
-      } else if (status === DISPUTE_STATUS.RESOLVED_CHEF_FAVOR || status === DISPUTE_STATUS.CLOSED) {
+      } else if (new Set<string>([DISPUTE_STATUS.RESOLVED_CHEF_FAVOR, DISPUTE_STATUS.RESOLVED, DISPUTE_STATUS.REJECTED, DISPUTE_STATUS.CLOSED]).has(status)) {
         await tx.payout.updateMany({
           where: {
             chefId: dispute.booking.chefId,
@@ -204,7 +225,7 @@ export const disputeService = {
         })
       }
 
-      if (['INVESTIGATING', 'RESOLVED_CLIENT_FAVOR', 'RESOLVED_CHEF_FAVOR', 'CLOSED'].includes(status)) {
+      if (['UNDER_REVIEW', 'WAITING_ON_CUSTOMER', 'PROPOSED_RESOLUTION', 'RESOLVED', 'REJECTED', 'ESCALATED', 'INVESTIGATING', 'RESOLVED_CLIENT_FAVOR', 'RESOLVED_CHEF_FAVOR', 'CLOSED'].includes(status)) {
         await tx.notification.createMany({
           data: [
             {
@@ -234,7 +255,7 @@ export const disputeService = {
       throw new Error("DISPUTE_NOT_FOUND")
     }
 
-    if (dispute.status !== DISPUTE_STATUS.OPEN && dispute.status !== DISPUTE_STATUS.INVESTIGATING) {
+    if (![DISPUTE_STATUS.OPEN, DISPUTE_STATUS.UNDER_REVIEW, DISPUTE_STATUS.INVESTIGATING].includes(dispute.status)) {
       throw new Error("DISPUTE_NOT_ACCEPTING_EVIDENCE")
     }
 
@@ -315,8 +336,8 @@ export const disputeService = {
             client: { select: { id: true, name: true, email: true } },
             chef: { include: { user: { select: { id: true, name: true, email: true } } } },
             payments: true,
-            proposals: true,
-            reviews: true
+            proposal: true,
+            review: true
           }
         }
       }
@@ -333,10 +354,10 @@ export const disputeService = {
     ] = await Promise.all([
       (prisma as any).dispute.count(),
       (prisma as any).dispute.count({ where: { status: DISPUTE_STATUS.OPEN } }),
-      (prisma as any).dispute.count({ where: { status: DISPUTE_STATUS.INVESTIGATING } }),
+      (prisma as any).dispute.count({ where: { status: { in: [DISPUTE_STATUS.UNDER_REVIEW, DISPUTE_STATUS.INVESTIGATING] } } }),
       (prisma as any).dispute.count({ 
         where: { 
-          status: { in: [DISPUTE_STATUS.RESOLVED_CLIENT_FAVOR, DISPUTE_STATUS.RESOLVED_CHEF_FAVOR] }
+          status: { in: [DISPUTE_STATUS.RESOLVED, DISPUTE_STATUS.REJECTED, DISPUTE_STATUS.RESOLVED_CLIENT_FAVOR, DISPUTE_STATUS.RESOLVED_CHEF_FAVOR] }
         } 
       }),
       (prisma as any).dispute.groupBy({

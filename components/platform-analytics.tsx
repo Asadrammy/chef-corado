@@ -12,7 +12,9 @@ import { formatCurrency } from "@/lib/currency"
 
 interface RevenueData {
   date: string
-  revenue: number
+  revenue?: number
+  currency?: string
+  revenueByCurrency?: Record<string, number>
 }
 
 interface BookingsData {
@@ -29,13 +31,16 @@ interface AnalyticsResponse {
   data: RevenueData[] | BookingsData[] | UsersData[]
   summary: {
     totalRevenue?: number
+    totalRevenueByCurrency?: CurrencyAmount[]
     averageDailyRevenue?: number
+    averageDailyRevenueByCurrency?: CurrencyAmount[]
     daysWithRevenue?: number
     totalPayments?: number
     totalBookings?: number
     averageDailyBookings?: number
     daysWithBookings?: number
     totalBookingValue?: number
+    totalBookingValueByCurrency?: CurrencyAmount[]
     statusBreakdown?: Record<string, number>
     typeBreakdown?: Record<string, number>
     totalNewUsers?: number
@@ -45,6 +50,13 @@ interface AnalyticsResponse {
     totalPlatformUsers?: number
   }
 }
+
+type CurrencyAmount = {
+  currency: string
+  amount: number
+}
+
+const REVENUE_LINE_COLORS = ["#10b981", "#f97316", "#3b82f6", "#8b5cf6"]
 
 export function PlatformAnalytics() {
   const [revenueData, setRevenueData] = useState<RevenueData[]>([])
@@ -94,6 +106,27 @@ export function PlatformAnalytics() {
 
     fetchAnalytics()
   }, [])
+
+  const revenueCurrencies = React.useMemo(() => {
+    const currencies = new Set<string>()
+    revenueSummary.totalRevenueByCurrency?.forEach((item: CurrencyAmount) => currencies.add(item.currency))
+    revenueData.forEach((item) => {
+      Object.keys(item.revenueByCurrency || {}).forEach((currency) => currencies.add(currency))
+      if (item.currency) currencies.add(item.currency)
+      if (item.revenue !== undefined && !item.currency) currencies.add("GBP")
+    })
+    return Array.from(currencies)
+  }, [revenueData, revenueSummary.totalRevenueByCurrency])
+
+  const revenueChartData = React.useMemo(
+    () =>
+      revenueData.map((item) => ({
+        date: item.date,
+        ...(item.revenueByCurrency || {}),
+        ...(item.revenue !== undefined ? { [item.currency || "GBP"]: item.revenue } : {}),
+      })),
+    [revenueData]
+  )
 
   if (isLoading) {
     return (
@@ -146,6 +179,18 @@ export function PlatformAnalytics() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
   }
 
+  const formatCurrencyBreakdown = (amounts?: CurrencyAmount[], fallbackAmount?: number) => {
+    if (amounts?.length) {
+      return amounts.map((item) => formatCurrency(item.amount, item.currency)).join(" / ")
+    }
+
+    if (fallbackAmount !== undefined) {
+      return formatCurrency(fallbackAmount, "GBP")
+    }
+
+    return "No financial activity"
+  }
+
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -154,7 +199,9 @@ export function PlatformAnalytics() {
           <p className="text-sm font-medium text-gray-900">{formatDate(label)}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: {entry.name === 'Revenue' ? formatCurrency(entry.value, 'GBP') : entry.value}
+              {revenueCurrencies.includes(entry.name)
+                ? `${entry.name}: ${formatCurrency(entry.value, entry.name)}`
+                : `${entry.name}: ${entry.value}`}
             </p>
           ))}
         </div>
@@ -198,13 +245,13 @@ export function PlatformAnalytics() {
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
                 <p className="text-2xl font-bold text-green-600">
-                  {formatCurrency(revenueSummary.totalRevenue || 0, 'GBP')}
+                  {formatCurrencyBreakdown(revenueSummary.totalRevenueByCurrency, revenueSummary.totalRevenue)}
                 </p>
                 <p className="text-xs text-gray-500">Total Revenue</p>
               </div>
               <div className="text-center">
                 <p className="text-lg font-semibold text-gray-900">
-                  {formatCurrency(revenueSummary.averageDailyRevenue || 0, 'GBP')}
+                  {formatCurrencyBreakdown(revenueSummary.averageDailyRevenueByCurrency, revenueSummary.averageDailyRevenue)}
                 </p>
                 <p className="text-xs text-gray-500">Daily Average</p>
               </div>
@@ -217,7 +264,7 @@ export function PlatformAnalytics() {
             </div>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={revenueData}>
+                <LineChart data={revenueChartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
                   <XAxis 
                     dataKey="date" 
@@ -226,17 +273,21 @@ export function PlatformAnalytics() {
                   />
                   <YAxis 
                     className="text-xs text-gray-500 dark:text-gray-400"
-                    tickFormatter={(value) => formatCurrency(Number(value), 'GBP')}
+                    tickFormatter={(value) => Number(value).toLocaleString()}
                   />
                   <Tooltip content={<CustomTooltip />} />
-                  <Line
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={{ fill: "#10b981", strokeWidth: 2, r: 3 }}
-                    name="Revenue"
-                  />
+                  {revenueCurrencies.map((currency, index) => (
+                    <Line
+                      key={currency}
+                      type="monotone"
+                      dataKey={currency}
+                      stroke={REVENUE_LINE_COLORS[index % REVENUE_LINE_COLORS.length]}
+                      strokeWidth={2}
+                      dot={{ fill: REVENUE_LINE_COLORS[index % REVENUE_LINE_COLORS.length], strokeWidth: 2, r: 3 }}
+                      name={currency}
+                      connectNulls
+                    />
+                  ))}
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -258,7 +309,7 @@ export function PlatformAnalytics() {
               </div>
               <div className="text-center">
                 <p className="text-lg font-semibold text-gray-900">
-                  {formatCurrency(bookingsSummary.totalBookingValue || 0, 'GBP')}
+                  {formatCurrencyBreakdown(bookingsSummary.totalBookingValueByCurrency, bookingsSummary.totalBookingValue)}
                 </p>
                 <p className="text-xs text-gray-500">Total Value</p>
               </div>
