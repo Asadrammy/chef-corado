@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { publicChefEligibilityWhere } from '@/lib/public-chef-view';
 
 export async function GET(
   request: NextRequest,
@@ -9,16 +10,39 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
-    const experience = await prisma.experience.findUnique({
-      where: { id },
-      include: {
+    const experience = await prisma.experience.findFirst({
+      where: {
+        id,
+        isActive: true,
+        chef: publicChefEligibilityWhere,
+      },
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        price: true,
+        currency: true,
+        duration: true,
+        includedServices: true,
+        eventType: true,
+        cuisineType: true,
+        maxGuests: true,
+        minGuests: true,
+        difficulty: true,
+        tags: true,
+        experienceImage: true,
+        chefId: true,
         chef: {
-          include: {
+          select: {
+            id: true,
+            userId: true,
+            profileImage: true,
+            bio: true,
+            location: true,
+            radius: true,
             user: {
               select: {
                 name: true,
-                verified: true,
-                experienceLevel: true,
               },
             },
           },
@@ -32,13 +56,6 @@ export async function GET(
     });
 
     if (!experience) {
-      return NextResponse.json(
-        { error: 'Experience not found' },
-        { status: 404 }
-      );
-    }
-
-    if (!experience.isActive || experience.chef.isBanned) {
       return NextResponse.json(
         { error: 'Experience not found' },
         { status: 404 }
@@ -146,8 +163,6 @@ export async function PUT(
             user: {
               select: {
                 name: true,
-                verified: true,
-                experienceLevel: true,
               },
             },
           },

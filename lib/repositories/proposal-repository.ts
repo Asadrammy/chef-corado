@@ -21,6 +21,7 @@ export const proposalRepository = {
             email: true,
           },
         },
+        multiDayDates: { orderBy: { date: "asc" } },
       },
     })
   },
@@ -51,6 +52,14 @@ export const proposalRepository = {
     message: string
     menuId?: string | null
     expiresAt?: Date
+    lineItems?: Array<{
+      serviceDate?: Date | null
+      title: string
+      description?: string | null
+      price: number
+      currency: string
+      sortOrder: number
+    }>
   }) {
     return prisma.proposal.create({
       data: {
@@ -62,6 +71,16 @@ export const proposalRepository = {
         menuId: input.menuId ?? null,
         expiresAt: input.expiresAt,
         status: ProposalStatus.PENDING,
+        lineItems: input.lineItems?.length ? {
+          create: input.lineItems.map((item) => ({
+            serviceDate: item.serviceDate ?? null,
+            title: item.title,
+            description: item.description ?? null,
+            price: item.price,
+            currency: item.currency,
+            sortOrder: item.sortOrder,
+          })),
+        } : undefined,
       } as any,
     })
   },
@@ -74,6 +93,14 @@ export const proposalRepository = {
     message: string
     menuId?: string | null
     expiresAt?: Date
+    lineItems?: Array<{
+      serviceDate?: Date | null
+      title: string
+      description?: string | null
+      price: number
+      currency: string
+      sortOrder: number
+    }>
   }) {
     return prisma.$transaction(async (tx) => {
       const existingProposalCount = await tx.proposal.count({
@@ -94,6 +121,16 @@ export const proposalRepository = {
           menuId: input.menuId ?? null,
           expiresAt: input.expiresAt,
           status: ProposalStatus.PENDING,
+          lineItems: input.lineItems?.length ? {
+            create: input.lineItems.map((item) => ({
+              serviceDate: item.serviceDate ?? null,
+              title: item.title,
+              description: item.description ?? null,
+              price: item.price,
+              currency: item.currency,
+              sortOrder: item.sortOrder,
+            })),
+          } : undefined,
         } as any,
       })
     }, {
@@ -107,7 +144,37 @@ export const proposalRepository = {
       orderBy: { createdAt: "desc" },
       include: {
         menu: true,
-        request: true,
+        lineItems: { orderBy: { sortOrder: "asc" } },
+        request: {
+          include: {
+            multiDayDates: { orderBy: { sortOrder: "asc" } },
+          },
+        },
+        chef: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                id: true,
+              },
+            },
+          },
+        },
+      },
+    })
+  },
+
+  listProposalsForChefLegacy(chefId: string) {
+    return prisma.proposal.findMany({
+      where: { chefId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        menu: true,
+        request: {
+          include: {
+            multiDayDates: { orderBy: { sortOrder: "asc" } },
+          },
+        },
         chef: {
           include: {
             user: {
@@ -128,7 +195,42 @@ export const proposalRepository = {
       orderBy: { createdAt: "desc" },
       include: {
         menu: true,
-        request: true,
+        lineItems: { orderBy: { sortOrder: "asc" } },
+        request: {
+          include: {
+            multiDayDates: { orderBy: { sortOrder: "asc" } },
+          },
+        },
+        chef: {
+          include: {
+            user: {
+              select: {
+                name: true,
+                id: true,
+              },
+            },
+            reviews: {
+              select: {
+                rating: true,
+              },
+            },
+          },
+        },
+      },
+    })
+  },
+
+  listProposalsForClientLegacy(userId: string) {
+    return prisma.proposal.findMany({
+      where: { request: { clientId: userId } },
+      orderBy: { createdAt: "desc" },
+      include: {
+        menu: true,
+        request: {
+          include: {
+            multiDayDates: { orderBy: { sortOrder: "asc" } },
+          },
+        },
         chef: {
           include: {
             user: {
@@ -160,9 +262,11 @@ export const proposalRepository = {
                 name: true,
               },
             },
+            multiDayDates: { orderBy: { sortOrder: "asc" } },
           },
         },
         chef: true,
+        lineItems: { orderBy: { sortOrder: "asc" } },
       },
     })
   },
@@ -192,7 +296,11 @@ export const proposalRepository = {
     return prisma.proposal.update({
       where: { id: proposalId },
       data: { status: ProposalStatus.REJECTED },
-      include: { chef: { include: { user: true } }, request: true },
+      include: {
+        chef: { include: { user: true } },
+        request: { include: { multiDayDates: { orderBy: { sortOrder: "asc" } } } },
+        lineItems: { orderBy: { sortOrder: "asc" } },
+      },
     })
   },
 

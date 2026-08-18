@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { calculateMarketplaceFinancials } from '../lib/marketplace-rules';
 
 const prisma = new PrismaClient();
 
@@ -211,12 +212,25 @@ async function main() {
     },
   });
 
+  const paymentFinance = calculateMarketplaceFinancials({
+    grossAmount: booking1.totalPrice,
+    countryCode: 'GB',
+    currency: 'GBP',
+  });
+
   await prisma.payment.create({
     data: {
       bookingId: booking1.id,
       totalAmount: booking1.totalPrice,
-      commissionAmount: booking1.totalPrice * 0.2,
-      chefAmount: booking1.totalPrice * 0.8,
+      commissionAmount: paymentFinance.platformCommissionAmount,
+      chefAmount: paymentFinance.chefNetPayout,
+      platformCommissionRate: paymentFinance.platformCommissionRate,
+      serviceChargeTaxRate: paymentFinance.serviceChargeTaxRate,
+      serviceChargeTaxAmount: paymentFinance.serviceChargeTaxAmount,
+      serviceChargeTaxDeductionEnabled: paymentFinance.serviceChargeTaxDeductionEnabled,
+      totalPlatformDeduction: paymentFinance.totalPlatformDeduction,
+      taxJurisdiction: paymentFinance.taxJurisdiction,
+      serviceChargeTaxStatus: paymentFinance.serviceChargeTaxStatus,
       status: 'RELEASED',
     } as any,
   });

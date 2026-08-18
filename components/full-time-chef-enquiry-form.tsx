@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { COUNTRY_OPTIONS, CUISINE_TYPES, DIETARY_REQUIREMENTS, type CountryCode } from "@/lib/request-options"
+import { getInactiveMarketMessage, getMarketConfig } from "@/lib/marketplace-rules"
 
 export function FullTimeChefEnquiryForm({ initialDraftId }: { initialDraftId?: string }) {
   const router = useRouter()
@@ -37,6 +38,7 @@ export function FullTimeChefEnquiryForm({ initialDraftId }: { initialDraftId?: s
     legalWorkRequirements: "",
     notes: "",
   })
+  const marketConfig = getMarketConfig(country)
 
   const updateForm = (key: keyof typeof form, value: string) => setForm((current) => ({ ...current, [key]: value }))
   const toggleCuisine = (value: string) => {
@@ -148,7 +150,10 @@ export function FullTimeChefEnquiryForm({ initialDraftId }: { initialDraftId?: s
             <Field label="Country">
               <Select value={country} onValueChange={(value) => setCountry(value as CountryCode)}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{COUNTRY_OPTIONS.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{COUNTRY_OPTIONS.map((option) => {
+                  const market = getMarketConfig(option.value)
+                  return <SelectItem key={option.value} value={option.value}>{option.label}{market.bookingEnabled ? "" : " - launching soon"}</SelectItem>
+                })}</SelectContent>
               </Select>
             </Field>
             <Field label="Location">
@@ -211,7 +216,12 @@ export function FullTimeChefEnquiryForm({ initialDraftId }: { initialDraftId?: s
           <Field label="Additional notes">
             <Textarea value={form.notes} onChange={(event) => updateForm("notes", event.target.value)} />
           </Field>
-          <Button type="submit" disabled={loading}>{loading ? "Submitting..." : "Submit placement enquiry"}</Button>
+          {!marketConfig.bookingEnabled ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              {getInactiveMarketMessage(country)}
+            </div>
+          ) : null}
+          <Button type="submit" disabled={loading || !marketConfig.bookingEnabled}>{loading ? "Submitting..." : "Submit placement enquiry"}</Button>
         </CardContent>
       </Card>
       <Card className="h-fit rounded-2xl lg:sticky lg:top-24">

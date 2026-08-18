@@ -19,7 +19,7 @@ interface Payout {
   id: string;
   amount: number;
   currency: string;
-  status: 'PENDING' | 'APPROVED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'FROZEN';
+  status: 'PENDING' | 'APPROVED' | 'PROCESSING' | 'PAID' | 'FAILED' | 'CANCELLED' | 'FROZEN' | 'ONBOARDING_REQUIRED';
   externalReference?: string;
   failureReason?: string;
   processedAt?: string;
@@ -60,6 +60,12 @@ interface BalanceInfo {
     customerPayment: number;
     platformCommission: number;
     commissionRatePercent: number;
+    serviceChargeTaxRate?: number | null;
+    serviceChargeTaxAmount?: number;
+    serviceChargeTaxStatus?: string | null;
+    serviceChargeTaxDeductionEnabled?: boolean;
+    totalPlatformDeduction?: number;
+    taxJurisdiction?: string | null;
     chefPayout: number;
     paymentStatus: string;
     payoutEligibilityStatus: string;
@@ -178,6 +184,8 @@ export default function PayoutsPage() {
         return <Badge variant="secondary">Cancelled</Badge>;
       case 'FROZEN':
         return <Badge variant="secondary">On hold</Badge>;
+      case 'ONBOARDING_REQUIRED':
+        return <Badge variant="secondary">Stripe onboarding required</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -292,6 +300,18 @@ export default function PayoutsPage() {
         </div>
       )}
 
+      {payouts.some((payout) => payout.status === 'ONBOARDING_REQUIRED') && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <span>Complete Stripe onboarding to receive payout.</span>
+            <Button asChild size="sm" variant="outline">
+              <a href="/dashboard/chef/settings">Open payout settings</a>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Request Payout</CardTitle>
@@ -384,7 +404,7 @@ export default function PayoutsPage() {
         <CardHeader>
           <CardTitle>Payment Summaries</CardTitle>
           <CardDescription>
-            Customer payment, ChefaChef commission, and chef payout are shown from actual paid booking records.
+            Customer payment, ChefaChef platform fee, internal tax tracking, and chef payout are shown from actual paid booking records.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -401,13 +421,15 @@ export default function PayoutsPage() {
             </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full min-w-[860px] text-sm">
+              <table className="w-full min-w-[1120px] text-sm">
                 <thead className="bg-muted/60 text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <th className="px-4 py-3 font-medium">Booking</th>
                     <th className="px-4 py-3 font-medium">Transaction</th>
                     <th className="px-4 py-3 font-medium">Customer paid</th>
-                    <th className="px-4 py-3 font-medium">Commission</th>
+                    <th className="px-4 py-3 font-medium">Service charge</th>
+                    <th className="px-4 py-3 font-medium">Internal tax note</th>
+                    <th className="px-4 py-3 font-medium">Total deduction</th>
                     <th className="px-4 py-3 font-medium">Chef payout</th>
                     <th className="px-4 py-3 font-medium">Status</th>
                   </tr>
@@ -429,6 +451,18 @@ export default function PayoutsPage() {
                       <td className="px-4 py-3">
                         <p>{formatCurrency(summary.platformCommission, summary.currency)}</p>
                         <p className="text-xs text-muted-foreground">{summary.commissionRatePercent}% ChefaChef commission</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p>{formatCurrency(summary.serviceChargeTaxAmount ?? 0, summary.currency)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {summary.serviceChargeTaxRate != null ? `${Math.round(summary.serviceChargeTaxRate * 100)}%` : 'No configured rate'} · {summary.serviceChargeTaxStatus ? summary.serviceChargeTaxStatus.replace(/_/g, ' ') : 'Legacy / not captured'}
+                        </p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <p>{formatCurrency(summary.totalPlatformDeduction ?? summary.platformCommission, summary.currency)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {summary.serviceChargeTaxDeductionEnabled ? 'Includes configured extra deduction' : 'Included within platform fee; no extra chef deduction'}
+                        </p>
                       </td>
                       <td className="px-4 py-3 font-semibold">{formatCurrency(summary.chefPayout, summary.currency)}</td>
                       <td className="px-4 py-3">

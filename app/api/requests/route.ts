@@ -7,6 +7,7 @@ import { localDemoClientRequests } from "@/lib/local-demo-data"
 import { isPrismaConnectionError } from "@/lib/prisma"
 import { requestService } from "@/lib/services/request-service"
 import { requestSchema } from "@/lib/validation-schemas"
+import { marketConfigurationService } from "@/lib/services/market-configuration-service"
 import { Role } from "@/types"
 
 export async function POST(request: Request) {
@@ -30,6 +31,8 @@ export async function POST(request: Request) {
   }
 
   try {
+    await marketConfigurationService.assertBookingMarketEnabled(body.country)
+
     if (isLocalDemoSessionUser(session.user.id, session.user.email)) {
       return NextResponse.json({
         id: `local-demo-request-${Date.now()}`,
@@ -64,6 +67,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Error && ["INVALID_SERVICE_TYPE", "SERVICE_COUNTRY_NOT_SUPPORTED"].includes(error.message)) {
       return NextResponse.json({ error: "Selected service is not supported for this country." }, { status: 422 })
+    }
+
+    if (error instanceof Error && error.message.startsWith("MARKET_BOOKING_INACTIVE:")) {
+      return NextResponse.json({ error: "ChefaChef is preparing to launch bookings in this market. Online booking is not yet available." }, { status: 403 })
     }
 
     if (error instanceof Error && error.message.startsWith("SERVICE_REQUIRED_QUESTIONS_MISSING:")) {

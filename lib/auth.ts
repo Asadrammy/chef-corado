@@ -6,6 +6,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { isPrismaConnectionError, prisma, withPrismaReconnect } from "@/lib/prisma"
 import { TERMS_VERSION } from "@/lib/request-options"
 import { roleDashboardPath } from "@/lib/role-routes"
+import { requiresEmailVerification } from "@/lib/email-verification"
 import { Role } from "@/types"
 
 // Extend NextAuth types to include isBanned
@@ -16,6 +17,7 @@ declare module "next-auth" {
       role: Role
       isBanned?: boolean
       needsTermsAcceptance?: boolean
+      needsEmailVerification?: boolean
       complianceStatus?: string | null
       needsChefCompliance?: boolean
       adminRole?: string | null
@@ -29,6 +31,7 @@ declare module "next-auth" {
   interface User {
     isBanned?: boolean
     needsTermsAcceptance?: boolean
+    needsEmailVerification?: boolean
     complianceStatus?: string | null
     needsChefCompliance?: boolean
     adminRole?: string | null
@@ -42,6 +45,7 @@ declare module "next-auth/jwt" {
   interface JWT {
     isBanned?: boolean
     needsTermsAcceptance?: boolean
+    needsEmailVerification?: boolean
     complianceStatus?: string | null
     needsChefCompliance?: boolean
     adminRole?: string | null
@@ -60,6 +64,8 @@ type AuthUser = {
 
 export type SessionComplianceRecord = {
   isBanned: boolean
+  verified: boolean
+  createdAt: Date
   termsAcceptedAt: Date | null
   termsVersion: string | null
   acceptedVia: string | null
@@ -150,6 +156,8 @@ export function getLocalDemoSessionRecord(userId?: string | null, email?: string
 
   return {
     isBanned: false,
+    verified: true,
+    createdAt: new Date(),
     termsAcceptedAt: new Date(),
     termsVersion: TERMS_VERSION,
     acceptedVia: "local-demo",
@@ -211,6 +219,8 @@ export const authOptions: AuthOptions = {
                 password: true,
                 role: true,
                 isBanned: true,
+                verified: true,
+                createdAt: true,
               },
             }),
             2
@@ -242,6 +252,10 @@ export const authOptions: AuthOptions = {
 
         if (!isValidPassword) {
           return null
+        }
+
+        if (requiresEmailVerification({ role: user.role, verified: user.verified, createdAt: user.createdAt })) {
+          throw new Error("EMAIL_NOT_VERIFIED")
         }
 
         const authUser: AuthUser = {
@@ -283,6 +297,8 @@ export const authOptions: AuthOptions = {
                 where: { id: tokenUserId },
                 select: {
                   isBanned: true,
+                  verified: true,
+                  createdAt: true,
                   termsAcceptedAt: true,
                   termsVersion: true,
                   acceptedVia: true,
@@ -315,6 +331,7 @@ export const authOptions: AuthOptions = {
 
         if (dbUser) {
           token.isBanned = dbUser.isBanned
+          token.needsEmailVerification = requiresEmailVerification({ role: dbUser.role, verified: dbUser.verified, createdAt: dbUser.createdAt })
           token.needsTermsAcceptance = !dbUser.termsAcceptedAt || dbUser.termsVersion !== TERMS_VERSION || !dbUser.acceptedVia
           token.complianceStatus = null
           token.adminRole = dbUser.adminRole ?? null
@@ -347,6 +364,9 @@ export const authOptions: AuthOptions = {
       }
       if (token.needsTermsAcceptance !== undefined) {
         session.user.needsTermsAcceptance = token.needsTermsAcceptance
+      }
+      if (token.needsEmailVerification !== undefined) {
+        session.user.needsEmailVerification = token.needsEmailVerification
       }
       if (token.complianceStatus !== undefined) {
         session.user.complianceStatus = token.complianceStatus

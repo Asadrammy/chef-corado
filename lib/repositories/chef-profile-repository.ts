@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma"
 
 const userProfileSelect = {
   name: true,
+  firstName: true,
+  surname: true,
   email: true,
   phone: true,
   verified: true,
@@ -45,6 +47,8 @@ export const chefProfileRepository = {
     preferredCurrency?: string
     profileImage?: string
     chefType?: string
+    careerStage?: string | null
+    specialties?: string | null
     certifications?: string
     cuisineType?: string
     eventsPerMonth?: number
@@ -66,11 +70,22 @@ export const chefProfileRepository = {
     geocodingStatus?: string
   }) {
     return prisma.$transaction(async (tx) => {
-      if (data.phone !== undefined) {
+      if (data.phone !== undefined || data.firstName !== undefined || data.surname !== undefined) {
+        const existingUser = await tx.user.findUnique({
+          where: { id: userId },
+          select: { name: true, firstName: true, surname: true },
+        })
+        const firstName = data.firstName !== undefined ? data.firstName || null : existingUser?.firstName ?? null
+        const surname = data.surname !== undefined ? data.surname || null : existingUser?.surname ?? null
+        const displayName = [firstName, surname].filter(Boolean).join(" ") || existingUser?.name
+
         await tx.user.update({
           where: { id: userId },
           data: {
-            phone: data.phone || null,
+            ...(data.phone !== undefined ? { phone: data.phone || null } : {}),
+            ...(data.firstName !== undefined ? { firstName } : {}),
+            ...(data.surname !== undefined ? { surname } : {}),
+            ...(displayName && (data.firstName !== undefined || data.surname !== undefined) ? { name: displayName } : {}),
           },
         })
       }
@@ -85,6 +100,8 @@ export const chefProfileRepository = {
           preferredCurrency: data.preferredCurrency,
           profileImage: data.profileImage,
           chefType: data.chefType,
+          careerStage: data.careerStage,
+          specialties: data.specialties,
           certifications: data.certifications,
           cuisineType: data.cuisineType,
           eventsPerMonth: data.eventsPerMonth,
@@ -137,6 +154,8 @@ export const chefProfileRepository = {
     preferredCurrency?: string
     profileImage?: string
     chefType?: string
+    careerStage?: string | null
+    specialties?: string | null
     certifications?: string
     cuisineType?: string
     eventsPerMonth?: number
@@ -158,11 +177,22 @@ export const chefProfileRepository = {
     geocodingStatus?: string
   }) {
     return prisma.$transaction(async (tx) => {
-      if (data.phone !== undefined) {
+      if (data.phone !== undefined || data.firstName !== undefined || data.surname !== undefined) {
+        const existingUser = await tx.user.findUnique({
+          where: { id: userId },
+          select: { name: true, firstName: true, surname: true },
+        })
+        const firstName = data.firstName !== undefined ? data.firstName || null : existingUser?.firstName ?? null
+        const surname = data.surname !== undefined ? data.surname || null : existingUser?.surname ?? null
+        const displayName = [firstName, surname].filter(Boolean).join(" ") || existingUser?.name
+
         await tx.user.update({
           where: { id: userId },
           data: {
-            phone: data.phone || null,
+            ...(data.phone !== undefined ? { phone: data.phone || null } : {}),
+            ...(data.firstName !== undefined ? { firstName } : {}),
+            ...(data.surname !== undefined ? { surname } : {}),
+            ...(displayName && (data.firstName !== undefined || data.surname !== undefined) ? { name: displayName } : {}),
           },
         })
       }
@@ -178,6 +208,8 @@ export const chefProfileRepository = {
           preferredCurrency: data.preferredCurrency,
           profileImage: data.profileImage,
           chefType: data.chefType,
+          careerStage: data.careerStage,
+          specialties: data.specialties,
           certifications: data.certifications,
           cuisineType: data.cuisineType,
           eventsPerMonth: data.eventsPerMonth,

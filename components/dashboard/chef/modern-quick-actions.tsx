@@ -19,7 +19,7 @@ export function ModernQuickActions({ availableRequests, activeBookings }: Modern
       color: 'blue' as const
     },
     {
-      title: 'Manage Experiences',
+      title: 'Manage Bookable Services',
       description: 'Update your offerings',
       icon: <ChefHat className="h-5 w-5" />,
       href: '/dashboard/chef/experiences',

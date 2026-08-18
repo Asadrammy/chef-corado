@@ -8,6 +8,8 @@ export const adminRepository = {
           select: {
             id: true,
             name: true,
+            firstName: true,
+            surname: true,
             email: true,
             isBanned: true,
             banReason: true,
@@ -31,8 +33,10 @@ export const adminRepository = {
   listBookings() {
     return prisma.booking.findMany({
       include: {
+        serviceDates: { orderBy: { sortOrder: "asc" } },
         client: {
           select: {
+            id: true,
             name: true,
             email: true,
           },
@@ -41,6 +45,7 @@ export const adminRepository = {
           include: {
             user: {
               select: {
+                id: true,
                 name: true,
                 email: true,
               },
@@ -49,20 +54,31 @@ export const adminRepository = {
         },
         proposal: {
           include: {
+            lineItems: { orderBy: { sortOrder: "asc" } },
             menu: {
-          select: {
-            title: true,
-            price: true,
+              select: {
+                title: true,
+                price: true,
+              },
+            },
+            request: {
+              select: {
+                eventType: true,
+                requestMode: true,
+                serviceType: true,
+                serviceTypeLabel: true,
+                eventDate: true,
+                location: true,
+                guestCount: true,
+                budgetMode: true,
+                totalBudget: true,
+                defaultDailyBudget: true,
+                multiDayDates: {
+                  orderBy: { sortOrder: "asc" },
+                },
+              },
+            },
           },
-        },
-        request: {
-          select: {
-            eventType: true,
-            serviceType: true,
-            serviceTypeLabel: true,
-          },
-        },
-      },
         },
         payments: true,
       },

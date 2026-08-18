@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { DashboardStatCard } from "@/components/ui/dashboard-stat-card"
 import { formatCurrency } from "@/lib/currency"
+import { getStructuredServiceDates } from "@/lib/multi-day-display"
 
 type InvitationPayload = {
   id: string
@@ -123,8 +124,8 @@ export function ChefBookingsDashboard() {
         case "newest":
         default:
           // Use eventDate from booking or from proposal.request, fallback to createdAt
-          const dateA = a.eventDate || a.proposal?.request?.eventDate || a.createdAt
-          const dateB = b.eventDate || b.proposal?.request?.eventDate || b.createdAt
+          const dateA = getStructuredServiceDates(a)[0]?.date || a.eventDate || a.proposal?.request?.eventDate || a.createdAt
+          const dateB = getStructuredServiceDates(b)[0]?.date || b.eventDate || b.proposal?.request?.eventDate || b.createdAt
           return new Date(dateB).getTime() - new Date(dateA).getTime()
       }
     })
@@ -232,7 +233,7 @@ export function ChefBookingsDashboard() {
                 <p className="text-muted-foreground text-sm leading-6">{emptyBody}</p>
               </div>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Button className="h-11 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25" asChild>
+                <Button className="brand-gradient-button h-11 rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25" asChild>
                   <Link href="/dashboard/chef/requests">Send More Quotes</Link>
                 </Button>
                 <Button variant="outline" className="h-11 rounded-2xl border-white/70 bg-background/70 px-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-background dark:border-white/10 dark:bg-background/10 dark:hover:bg-background/15" asChild>

@@ -13,9 +13,11 @@ import {
 import { assertPricingRuleMatchesRequest, findActivePricingRule } from "@/lib/services/pricing-rule-service"
 import { requestRepository } from "@/lib/repositories/request-repository"
 import { prisma } from "@/lib/prisma"
+import { createNotification } from "@/lib/notifications"
 import { enforceUserModeration } from "@/lib/security/moderation-guard"
 import { enforceClientCompliance } from "@/lib/security/legal-compliance"
 import { validatePolicyFields } from "@/lib/security/communication-policy"
+import { marketConfigurationService } from "@/lib/services/market-configuration-service"
 import { Role } from "@/types"
 
 const toDateKey = (date: Date | string) => new Date(date).toISOString().slice(0, 10)
@@ -126,6 +128,7 @@ export const requestService = {
   }) {
     await enforceUserModeration(userId)
     await enforceClientCompliance(userId)
+    await marketConfigurationService.assertBookingMarketEnabled(input.country)
 
     validatePolicyFields({
       title: input.title,
@@ -334,14 +337,35 @@ export const requestService = {
     location: string
     country: string
     guestCount: number
-    budget: number
+    budget?: number
+    budgetMode: "PER_DAY" | "TOTAL_EVENT"
+    totalBudget?: number
+    defaultDailyBudget?: number
+    dateRequirements: Array<{
+      date: string
+      startTime: string
+      endTime?: string
+      serviceType: string
+      serviceTier?: string
+      cuisinePreferences: string[]
+      dietaryRequirements: string[]
+      serviceSpecificAnswers?: Record<string, unknown>
+      adultCount: number
+      childrenUnder10: number
+      actualAttendeeCount?: number
+      billableGuestCount?: number
+      pricingGuestCount?: number
+      budget?: number
+      notes?: string
+    }>
     details?: string
-    dailyServiceTimes: string
-    serviceNeedsPerDay: string
+    dailyServiceTimes?: string
+    serviceNeedsPerDay?: string
     accommodationTravel?: string
   }) {
     await enforceUserModeration(userId)
     await enforceClientCompliance(userId)
+    await marketConfigurationService.assertBookingMarketEnabled(input.country)
 
     validatePolicyFields({
       title: input.title,
@@ -351,6 +375,36 @@ export const requestService = {
 
     const sortedDates = [...new Set(input.eventDates)].sort()
     const firstDate = sortedDates[0]
+    const mergedDateRequirements = sortedDates.map((date) => {
+      const explicit = input.dateRequirements.find((day) => day.date === date)
+      if (!explicit) {
+        throw new Error("MULTI_DAY_DATE_REQUIREMENTS_MISSING")
+      }
+
+      const dayComposition = calculateGuestComposition({
+        adultCount: explicit.adultCount,
+        childrenUnder10: explicit.childrenUnder10,
+        fallbackGuestCount: explicit.adultCount,
+      })
+      const dayService = getServiceTypeOption(explicit.serviceType)
+      if (!dayService?.enabled) {
+        throw new Error("INVALID_SERVICE_TYPE")
+      }
+      if (!dayService.supportedCountries.includes(input.country as never)) {
+        throw new Error("SERVICE_COUNTRY_NOT_SUPPORTED")
+      }
+      for (const question of validateServiceSpecificAnswers(explicit.serviceType, explicit.serviceSpecificAnswers)) {
+        throw new Error(`SERVICE_SPECIFIC_ANSWER_REQUIRED:${question.id}`)
+      }
+
+      return {
+        ...explicit,
+        serviceTypeLabel: getServiceTypeLabel(explicit.serviceType),
+        budget: explicit.budget ?? input.defaultDailyBudget ?? null,
+        guestComposition: dayComposition,
+      }
+    })
+    const firstDay = mergedDateRequirements[0]
     const guestComposition = calculateGuestComposition({
       adultCount: input.adultCount,
       childrenUnder10: input.childrenUnder10,
@@ -367,14 +421,29 @@ export const requestService = {
       throw new Error("SERVICE_COUNTRY_NOT_SUPPORTED")
     }
 
-    const serviceSpecificAnswers = {
+    const estimatedTotalBudget = input.budgetMode === "TOTAL_EVENT"
+      ? input.totalBudget ?? input.budget ?? 0
+      : mergedDateRequirements.reduce((sum, day) => sum + Number(day.budget ?? 0), 0)
+    const requestBudget = input.budget ?? estimatedTotalBudget
+    const requestServiceSpecificAnswers = {
       ...(input.serviceSpecificAnswers ?? {}),
-      dailyServiceTimes: input.dailyServiceTimes,
-      serviceNeedsPerDay: input.serviceNeedsPerDay,
+      dailyServiceTimes: input.dailyServiceTimes ?? "",
+      serviceNeedsPerDay: input.serviceNeedsPerDay ?? "",
       accommodationTravel: input.accommodationTravel ?? "",
+      budgetMode: input.budgetMode,
+      defaultDailyRequirements: {
+        serviceType: input.serviceType,
+        serviceTier: input.serviceTier ?? "",
+        eventTime: input.eventTime,
+        cuisinePreferences: input.cuisinePreferences,
+        dietaryRequirements: input.dietaryRequirements,
+        adultCount: guestComposition.adultCount,
+        childrenUnder10: guestComposition.childrenUnder10,
+        budget: input.defaultDailyBudget ?? input.totalBudget ?? input.budget ?? null,
+      },
     }
 
-    return prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       const created = await tx.request.create({
         data: {
           clientId: userId,
@@ -387,25 +456,26 @@ export const requestService = {
           serviceTier: input.serviceTier ?? null,
           cuisineTypes: JSON.stringify(input.cuisinePreferences),
           dietaryRequirements: JSON.stringify(input.dietaryRequirements),
-          serviceSpecificAnswers: JSON.stringify(serviceSpecificAnswers),
           pricingRuleVersion: "MULTI_DAY_CUSTOM_PRICING_REQUIRED",
           pricingRuleId: null,
           pricingStatus: "CUSTOM_QUOTE_REQUIRED",
           budgetStatus: "MULTI_DAY_CUSTOM_QUOTE",
-          budgetWarning: "Multi-Day Chef Hire requires a tailored quote across all selected service dates.",
+          budgetWarning: input.budgetMode === "PER_DAY"
+            ? "Multi-Day Chef Hire uses daily client budget guidance and requires a tailored chef quote."
+            : "Multi-Day Chef Hire uses a total client budget for all selected service dates and requires a tailored chef quote.",
           description: input.details ?? null,
           eventDate: new Date(firstDate),
           eventDates: JSON.stringify(sortedDates),
-          eventTime: input.eventTime,
+          eventTime: firstDay.startTime || input.eventTime,
           location: input.location,
           countryCode: input.country,
           currency,
-          guestCount: guestComposition.actualAttendeeCount,
-          adultCount: guestComposition.adultCount,
-          childrenUnder10: guestComposition.childrenUnder10,
-          actualAttendeeCount: guestComposition.actualAttendeeCount,
-          billableGuestCount: guestComposition.billableGuestCount,
-          pricingGuestCount: guestComposition.pricingGuestCount,
+          guestCount: firstDay.guestComposition.actualAttendeeCount,
+          adultCount: firstDay.guestComposition.adultCount,
+          childrenUnder10: firstDay.guestComposition.childrenUnder10,
+          actualAttendeeCount: firstDay.guestComposition.actualAttendeeCount,
+          billableGuestCount: firstDay.guestComposition.billableGuestCount,
+          pricingGuestCount: firstDay.guestComposition.pricingGuestCount,
           latitude: coordinates?.latitude ?? null,
           longitude: coordinates?.longitude ?? null,
           locationCity: coordinates?.city ?? null,
@@ -413,21 +483,129 @@ export const requestService = {
           formattedAddress: coordinates?.formattedAddress ?? null,
           geocodingProvider: coordinates?.provider ?? null,
           geocodingStatus: coordinates ? "VERIFIED" : "UNAVAILABLE",
-          budget: input.budget,
+          budget: requestBudget,
+          budgetMode: input.budgetMode,
+          totalBudget: input.budgetMode === "TOTAL_EVENT" ? requestBudget : estimatedTotalBudget,
+          defaultDailyBudget: input.budgetMode === "PER_DAY" ? input.defaultDailyBudget ?? null : null,
           details: input.details ?? null,
+          serviceSpecificAnswers: JSON.stringify(requestServiceSpecificAnswers),
           multiDayDates: {
-            create: sortedDates.map((date) => ({
-              date: new Date(date),
-              startTime: null,
-              endTime: null,
-              serviceNeeds: input.serviceNeedsPerDay,
+            create: mergedDateRequirements.map((day, index) => ({
+              date: new Date(day.date),
+              startTime: day.startTime,
+              endTime: day.endTime || null,
+              serviceType: day.serviceType,
+              serviceTypeLabel: day.serviceTypeLabel,
+              serviceTier: day.serviceTier || null,
+              cuisineTypes: JSON.stringify(day.cuisinePreferences),
+              dietaryRequirements: JSON.stringify(day.dietaryRequirements),
+              serviceSpecificAnswers: JSON.stringify(day.serviceSpecificAnswers ?? {}),
+              adultCount: day.guestComposition.adultCount,
+              childrenUnder10: day.guestComposition.childrenUnder10,
+              actualAttendeeCount: day.guestComposition.actualAttendeeCount,
+              billableGuestCount: day.guestComposition.billableGuestCount,
+              pricingGuestCount: day.guestComposition.pricingGuestCount,
+              budget: day.budget,
+              notes: day.notes || null,
+              serviceNeeds: day.notes || input.serviceNeedsPerDay || null,
+              sortOrder: index,
             })),
           },
         } as any,
+        include: {
+          multiDayDates: { orderBy: { sortOrder: "asc" } },
+        },
       })
 
       return created
     })
+
+    if (created.latitude != null && created.longitude != null) {
+      const matchingChefs = await requestRepository.findApprovedChefsWithCoordinates()
+      const requestedCuisines = [
+        ...new Set(
+          mergedDateRequirements
+            .flatMap((day) => day.cuisinePreferences)
+            .map((value) => value.toLowerCase())
+        ),
+      ]
+      const requestedServiceTypes = [...new Set(mergedDateRequirements.map((day) => day.serviceType))]
+      const eligibleChefs = matchingChefs.filter((chef) => {
+        if (chef.latitude == null || chef.longitude == null || chef.radius <= 0) {
+          return false
+        }
+
+        const distance = calculateDistance(
+          created.latitude as number,
+          created.longitude as number,
+          chef.latitude,
+          chef.longitude
+        )
+
+        if (distance > chef.radius) {
+          return false
+        }
+
+        const chefText = [
+          (chef as any).cuisineType,
+          (chef as any).cuisineTypes,
+          (chef as any).specialties,
+          (chef as any).bio,
+          ...((chef as any).menus ?? []).flatMap((menu: any) => [menu.cuisineType, menu.eventType]),
+          ...((chef as any).experiences ?? []).flatMap((experience: any) => [experience.serviceType, experience.cuisineType, experience.eventType]),
+        ].filter(Boolean).join(" ").toLowerCase()
+
+        const chefExperiences = (chef as any).experiences ?? []
+        const hasStructuredExperienceData = chefExperiences.length > 0
+        if (hasStructuredExperienceData) {
+          const serviceMatch = requestedServiceTypes.every((serviceType) =>
+            chefExperiences.some((experience: any) => experience.serviceType === serviceType) ||
+            chefText.includes(serviceType.toLowerCase().replaceAll("_", " "))
+          )
+          if (!serviceMatch) return false
+        }
+
+        if (requestedCuisines.length > 0 && chefText) {
+          const cuisineMatch = requestedCuisines.some((cuisine) => chefText.includes(cuisine))
+          if (!cuisineMatch) return false
+        }
+
+        return true
+      })
+
+      const conflictCheckedChefs = await filterChefsWithoutAvailabilityConflicts(eligibleChefs, sortedDates)
+
+      await Promise.allSettled(
+        conflictCheckedChefs.map(async (chef) => {
+          await Promise.allSettled([
+            sendPreferenceAwareEmail({
+              userId: chef.userId,
+              topic: "requests",
+              email: chef.user.email,
+              subject: `New Multi-Day Chef Hire Request: ${created.title}`,
+            html: emailTemplates.newMultiDayRequest(
+                chef.user.name ?? "Chef",
+                created.title ?? "Multi-Day Chef Hire",
+                created.location,
+                created.budget,
+                created.currency,
+                {
+                  serviceDates: created.multiDayDates,
+                  budgetMode: created.budgetMode,
+                }
+              ),
+            }),
+            createNotification(
+              chef.userId,
+              "NEW_REQUEST_ALERT",
+              `New Multi-Day Chef Hire request in ${created.location}: ${created.multiDayDates.length} selected service days.`
+            ),
+          ])
+        })
+      )
+    }
+
+    return created
   },
 
   async createFullTimeChefEnquiry(userId: string, input: {
@@ -453,6 +631,7 @@ export const requestService = {
   }) {
     await enforceUserModeration(userId)
     await enforceClientCompliance(userId)
+    await marketConfigurationService.assertBookingMarketEnabled(input.country)
 
     validatePolicyFields({
       location: input.location,

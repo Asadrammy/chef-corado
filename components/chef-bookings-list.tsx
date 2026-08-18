@@ -5,6 +5,11 @@ import * as React from "react"
 import { Badge } from "@/components/ui/badge"
 import { Spinner } from "@/components/ui/spinner"
 import { Table, TableBody, TableCell, TableHeader, TableHead, TableRow } from "@/components/ui/table"
+import {
+  formatServiceDateSummary,
+  getStructuredServiceDates,
+  type MultiDayDateLike,
+} from "@/lib/multi-day-display"
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED"
 
@@ -12,12 +17,16 @@ type ChefBookingPayload = {
   id: string
   totalPrice: string
   status: BookingStatus
+  eventDate?: string
+  serviceDates?: MultiDayDateLike[]
   client: {
     name: string | null
   }
   proposal: {
     request: {
+      requestMode?: string | null
       eventDate: string
+      multiDayDates?: MultiDayDateLike[]
       details: string | null
       location: string
     }
@@ -129,24 +138,37 @@ export function ChefBookingsList() {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {bookings.map((booking) => (
-            <TableRow key={booking.id}>
-              <TableCell className="font-medium">{booking.client?.name ?? "Client"}</TableCell>
-              <TableCell>
-                <p className="font-medium">{booking.proposal.request.location}</p>
-                <p className="text-xs text-muted-foreground">{formatDate(booking.proposal.request.eventDate)}</p>
-                {booking.proposal.request.details && (
-                  <p className="text-xs text-muted-foreground">{booking.proposal.request.details}</p>
-                )}
-              </TableCell>
-              <TableCell>{formatPrice(booking.totalPrice)}</TableCell>
-              <TableCell>
-                <Badge className={bookingStatusClasses[booking.status]}>
-                  {booking.status[0] + booking.status.slice(1).toLowerCase()}
-                </Badge>
-              </TableCell>
-            </TableRow>
-          ))}
+          {bookings.map((booking) => {
+            const serviceDates = getStructuredServiceDates(booking)
+            const isMultiDay = booking.proposal.request.requestMode === "MULTI_DAY" || serviceDates.length > 1
+            return (
+                <TableRow key={booking.id}>
+                  <TableCell className="font-medium">{booking.client?.name ?? "Client"}</TableCell>
+                  <TableCell>
+                    <p className="font-medium">{booking.proposal.request.location}</p>
+                    {isMultiDay ? (
+                      <Badge variant="outline" className="mt-1 border-orange-200 bg-orange-50 text-orange-700">
+                        Multi-Day Chef Hire
+                      </Badge>
+                    ) : null}
+                    <p className="text-xs text-muted-foreground">
+                      {isMultiDay
+                        ? formatServiceDateSummary(serviceDates, booking.proposal.request.eventDate)
+                        : formatDate(booking.proposal.request.eventDate)}
+                    </p>
+                    {booking.proposal.request.details && (
+                      <p className="text-xs text-muted-foreground">{booking.proposal.request.details}</p>
+                    )}
+                  </TableCell>
+                  <TableCell>{formatPrice(booking.totalPrice)}</TableCell>
+                  <TableCell>
+                    <Badge className={bookingStatusClasses[booking.status]}>
+                      {booking.status[0] + booking.status.slice(1).toLowerCase()}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+            )
+          })}
         </TableBody>
       </Table>
     </div>

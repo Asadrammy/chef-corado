@@ -50,7 +50,7 @@ export function ChefStats({
         value={quotesSentToday}
         description="Marketplace proposals sent today"
         icon={<FileText className="h-5 w-5" />}
-        trend="Activity summary only — not a daily limit"
+        trend="Activity summary only - not a daily limit"
       />
       <DashboardStatCard
         label="Menus published"

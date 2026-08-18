@@ -24,11 +24,9 @@ export class StripeService {
 
   private ensureInitialized() {
     if (!this.stripe) {
-      if (!process.env.STRIPE_SECRET_KEY) {
-        throw new Error('STRIPE_SECRET_KEY not configured')
-      }
+      StripeService.validateConfigured()
 
-      this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+      this.stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
         apiVersion: '2026-03-25.dahlia' as Stripe.LatestApiVersion,
         // Add timeout to prevent hanging requests
         timeout: 30000, // 30 seconds

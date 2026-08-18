@@ -61,6 +61,7 @@ export default async function RequestDetailsPage({
           },
           proposals: {
             include: {
+              lineItems: { orderBy: { sortOrder: "asc" } },
               chef: {
                 include: {
                   user: {
@@ -74,6 +75,7 @@ export default async function RequestDetailsPage({
             },
             orderBy: { createdAt: "desc" },
           },
+          multiDayDates: { orderBy: { sortOrder: "asc" } },
         },
       })
     } catch (error) {
@@ -95,6 +97,9 @@ export default async function RequestDetailsPage({
   const requestServiceTypeLabel = "serviceTypeLabel" in request ? request.serviceTypeLabel : null
   const serviceTypeLabel = getServiceTypeLabel(requestServiceType, requestServiceTypeLabel)
   const attendeeLabel = requestServiceType === "COOKING_CLASS" ? "students" : "guests"
+  const requestAny = request as any
+  const multiDayDates = Array.isArray(requestAny.multiDayDates) ? requestAny.multiDayDates : []
+  const isMultiDay = requestAny.requestMode === "MULTI_DAY" && multiDayDates.length > 0
 
   return (
     <div className="space-y-6 lg:space-y-7">
@@ -131,8 +136,8 @@ export default async function RequestDetailsPage({
               <div className="flex items-start gap-3">
                 <Calendar className="h-5 w-5 text-primary mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-muted-foreground">Event Date</p>
-                  <p className="font-semibold">{format(new Date(request.eventDate), "PPP")}</p>
+                  <p className="text-sm font-medium text-muted-foreground">{isMultiDay ? "Service Dates" : "Event Date"}</p>
+                  <p className="font-semibold">{isMultiDay ? `${multiDayDates.length} dates from ${format(new Date(multiDayDates[0].date), "PPP")}` : format(new Date(request.eventDate), "PPP")}</p>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -161,6 +166,28 @@ export default async function RequestDetailsPage({
                 <p className="text-sm leading-relaxed">{request.details}</p>
               </div>
             )}
+
+            {isMultiDay ? (
+              <div>
+                <p className="text-sm font-medium text-muted-foreground mb-3">Daily Requirements</p>
+                <div className="space-y-3">
+                  {multiDayDates.map((date: any) => (
+                    <div key={date.id} className="rounded-xl border border-border/60 bg-muted/20 p-3 text-sm">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="font-semibold">{format(new Date(date.date), "EEEE, MMM d, yyyy")}</p>
+                        <Badge variant="outline" className="w-fit rounded-xl">{getServiceTypeLabel(date.serviceType, date.serviceTypeLabel)}</Badge>
+                      </div>
+                      <p className="text-muted-foreground">{date.startTime ?? "Time pending"}{date.endTime ? `-${date.endTime}` : ""}</p>
+                      <p className="mt-2">{parseJsonList(date.cuisineTypes).join(", ") || "Cuisine not specified"}</p>
+                      <p className="text-muted-foreground">{parseJsonList(date.dietaryRequirements).join(", ") || "No dietary requirements selected"}</p>
+                      <p className="text-muted-foreground">{date.actualAttendeeCount ?? request.guestCount} attendees{date.billableGuestCount ? ` - ${date.billableGuestCount} billable` : ""}</p>
+                      {date.budget ? <p className="mt-1 font-medium">{formatCurrency(date.budget, request.currency)} daily budget</p> : null}
+                      {date.notes ? <p className="mt-2 text-muted-foreground">{date.notes}</p> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
 
@@ -242,6 +269,9 @@ export default async function RequestDetailsPage({
                       <p className="text-sm text-muted-foreground">
                         {formatCurrency(proposal.price, proposal.currency)}
                       </p>
+                      {(proposal as any).lineItems?.length ? (
+                        <p className="text-xs text-muted-foreground">{(proposal as any).lineItems.length} daily line items</p>
+                      ) : null}
                     </div>
                   </div>
                   <Badge
@@ -271,4 +301,15 @@ export default async function RequestDetailsPage({
       )}
     </div>
   )
+}
+
+function parseJsonList(value?: string | null) {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean)
+  } catch {
+    return value.split(",").map((item) => item.trim()).filter(Boolean)
+  }
+  return []
 }

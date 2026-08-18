@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import axios from "axios";
-import { Filter, Search, Star, X } from "lucide-react";
+import { Filter, Search, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { ExperienceCard } from "@/components/experiences/experience-card";
@@ -10,7 +10,6 @@ import { PublicPageHero } from "@/components/public/public-page-hero";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 
@@ -33,7 +32,6 @@ interface Experience {
     id: string;
     user: {
       name: string;
-      verified: boolean;
       experienceLevel: string;
     };
     location?: string;
@@ -58,7 +56,6 @@ export default function ExperiencesPage() {
     eventType: "",
     difficulty: "",
     location: "",
-    verifiedOnly: false,
     priceRange: [0, 500] as [number, number],
     minGuests: "",
     maxGuests: "",
@@ -89,7 +86,6 @@ export default function ExperiencesPage() {
         ...(filters.eventType && { eventType: filters.eventType }),
         ...(filters.difficulty && { difficulty: filters.difficulty }),
         ...(filters.location && { location: filters.location }),
-        ...(filters.verifiedOnly && { verifiedOnly: "true" }),
         ...(filters.priceRange[0] > 0 && { minPrice: filters.priceRange[0].toString() }),
         ...(filters.priceRange[1] < 500 && { maxPrice: filters.priceRange[1].toString() }),
         ...(filters.minGuests && { minGuests: filters.minGuests }),
@@ -122,7 +118,6 @@ export default function ExperiencesPage() {
       eventType: "",
       difficulty: "",
       location: "",
-      verifiedOnly: false,
       priceRange: [0, 500],
       minGuests: "",
       maxGuests: "",
@@ -137,7 +132,6 @@ export default function ExperiencesPage() {
     filters.eventType,
     filters.difficulty,
     filters.location,
-    filters.verifiedOnly ? "verified" : "",
     filters.priceRange[0] > 0 || filters.priceRange[1] < 500 ? "price" : "",
     filters.minGuests,
     filters.maxGuests,
@@ -225,19 +219,12 @@ export default function ExperiencesPage() {
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
+              <div className="mt-6">
                 <div>
                   <label className="mb-3 block text-sm font-medium text-foreground">
                     Price range: ${filters.priceRange[0]} - ${filters.priceRange[1]}
                   </label>
                   <Slider value={filters.priceRange} onValueChange={(value) => setFilters({ ...filters, priceRange: value as [number, number] })} max={500} min={0} step={10} />
-                </div>
-                <div className="flex items-center gap-2 rounded-2xl border border-border/60 bg-background px-4 py-3">
-                  <Checkbox id="verified" checked={filters.verifiedOnly} onCheckedChange={(checked) => setFilters({ ...filters, verifiedOnly: checked as boolean })} />
-                  <label htmlFor="verified" className="flex items-center gap-1 text-sm font-medium text-foreground">
-                    <Star className="h-4 w-4" />
-                    Verified chefs only
-                  </label>
                 </div>
               </div>
             </div>

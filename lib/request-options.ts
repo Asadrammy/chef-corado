@@ -5,7 +5,7 @@ export const PLATFORM_DEFAULT_CURRENCY = "GBP";
 export const PLATFORM_DEFAULT_LOCALE = "en-GB";
 export const COMMUNICATION_POLICY = "Keep all communication, booking coordination, and payments inside the platform. Sharing personal contact details or arranging active bookings outside the site is not allowed under the platform terms.";
 export const COMMUNICATION_POLICY_EXTENDED = "All communication, booking coordination, proposals, and payment arrangements for active transactions must remain inside the platform. Sharing personal contact details, moving bookings off-platform, or attempting to bypass platform checkout is not allowed under the platform terms.";
-export const CHEF_LEGAL_ACKNOWLEDGEMENT = "Chefs must confirm their legal right to work in the UK, confirm Level 2 Food Hygiene & Safety, and keep their legal acknowledgements current before offering services. Platform insurance is handled after approval by the website owner and is not uploaded by chefs in the dashboard.";
+export const CHEF_LEGAL_ACKNOWLEDGEMENT = "Chefs must confirm their legal right to work in the UK, confirm Level 2 Food Hygiene & Safety, and keep their legal acknowledgements current before offering services. ChefaChef maintains platform-level public liability coverage for qualifying official platform bookings; private or off-platform work is not covered by that booking policy.";
 export const FUTURE_CALLING_PROVIDER = "Twilio Voice";
 
 export {
@@ -26,11 +26,25 @@ export {
   validateServiceSpecificAnswers,
 } from "@/lib/service-engine";
 
+export {
+  CUISINE_ALIASES,
+  CUISINE_OPTIONS,
+  CUISINE_REGISTRY,
+  CUISINE_REGISTRY_VERSION,
+  CUISINE_TYPES,
+  getCuisineOptionsForContext,
+  isCuisineType,
+  normalizeCuisineType,
+} from "@/lib/cuisine-registry";
+
 import {
   COUNTRY_OPTIONS,
   EVENT_TYPE_OPTIONS,
   SERVICE_TYPE_CONFIG,
 } from "@/lib/service-engine";
+import { CUISINE_TYPES } from "@/lib/cuisine-registry";
+
+// Canonical cuisine labels now live in lib/cuisine-registry.ts and include Canap\u00e9 Party, British, Pan Asian, and Afternoon Tea.
 
 export const EVENT_TYPES = EVENT_TYPE_OPTIONS.map((option) => option.label) as [
   typeof EVENT_TYPE_OPTIONS[number]["label"],
@@ -58,78 +72,6 @@ export const COOKING_CLASS_TYPES = [
   "Other",
 ] as const;
 
-export const CUISINE_TYPES = [
-  "Italian",
-  "Indian",
-  "BBQ",
-  "British",
-  "Pan Asian",
-  "Fine Dining",
-  "Japanese",
-  "Mexican",
-  "Middle Eastern",
-  "Chinese",
-  "Mediterranean",
-  "Thai",
-  "Spanish",
-  "Greek",
-  "Caribbean",
-  "Modern European",
-  "Meal Prep - Lunch & Dinner",
-  "French",
-  "Canap\u00e9 Party",
-  "Fusion",
-  "Turkish",
-  "Korean",
-  "Meal Prep",
-  "Malaysian",
-  "Brunch",
-  "Christmas",
-  "Afternoon Tea",
-  "Vietnamese",
-  "Sri Lankan",
-  "Brazilian",
-  "Portuguese",
-  "Cooking Class",
-  "Peruvian",
-  "American",
-  "Lebanese",
-  "Vegetarian",
-  "Vegan",
-  "Latin American",
-  "Scottish",
-  "Polish",
-  "Micro Biotic",
-  "Nigerian",
-  "Creole",
-  "Russian",
-  "Iraqi",
-  "Moroccan",
-  "Scandinavian",
-  "Iranian",
-  "German",
-  "African",
-  "Tapas",
-  "Kids",
-  "Group Experiences",
-  "Filipino",
-  "Argentinian",
-  "Afghan",
-  "Pakistani",
-  "Georgian",
-] as const;
-
-export const CUISINE_ALIASES: Record<string, typeof CUISINE_TYPES[number]> = {
-  "Meal Prep-Lunch and Dinner": "Meal Prep - Lunch & Dinner",
-  "Meal Prep Lunch & Dinner": "Meal Prep - Lunch & Dinner",
-  "Canap\u00e8 Party": "Canap\u00e9 Party",
-  "Canape Party": "Canap\u00e9 Party",
-  "Canap\\u00c3\\u00a9 Party": "Canap\u00e9 Party",
-  "Latin America": "Latin American",
-  "Morocco": "Moroccan",
-  "Macro Biotic": "Micro Biotic",
-};
-
 export const DIETARY_REQUIREMENTS = [
   "Vegetarian",
   "Vegan",
@@ -151,15 +93,6 @@ export type ServiceType = typeof REQUEST_SERVICE_TYPES[number];
 export type CookingClassType = typeof COOKING_CLASS_TYPES[number];
 export type CuisineType = typeof CUISINE_TYPES[number];
 export type DietaryRequirement = typeof DIETARY_REQUIREMENTS[number];
-
-export function normalizeCuisineType(value: string) {
-  const trimmed = value.trim();
-  return CUISINE_ALIASES[trimmed] ?? trimmed;
-}
-
-export function isCuisineType(value: string): value is CuisineType {
-  return (CUISINE_TYPES as readonly string[]).includes(value);
-}
 
 export function isCurrentTermsVersion(version?: string | null) {
   return version === TERMS_VERSION;

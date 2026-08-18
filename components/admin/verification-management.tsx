@@ -231,7 +231,7 @@ export function VerificationManagement({ onVerificationUpdate }: VerificationMan
           <div>
             <div className="flex items-center justify-center gap-1 text-sm text-gray-600 mb-1">
               <Award className="h-4 w-4" />
-              <span>Experiences</span>
+              <span>Bookable services</span>
             </div>
             <p className="font-semibold">{chef._count.experiences}</p>
           </div>

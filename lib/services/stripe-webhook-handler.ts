@@ -8,10 +8,11 @@ import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { paymentService } from '@/lib/services/payment-service'
 import { redisLocks } from '@/lib/redis'
-import { getProposalBookingCounts } from '@/lib/booking-counts'
-import { assertProposalMeetsActivePricingRule } from '@/lib/services/pricing-rule-service'
-import { calculateChefPayout, calculatePlatformCommission } from '@/lib/marketplace-rules'
-import { PaymentStatus, BookingStatus, ProposalStatus } from '@/types'
+import { paymentGuarantee } from '@/lib/services/payment-guarantee'
+import { releaseProposalCheckoutLocks } from '@/lib/services/proposal-checkout-locks'
+import { ProposalStatus } from '@/types'
+import { paymentPlanService } from '@/lib/services/payment-plan-service'
+import { bookingGuestAmendmentService } from '@/lib/services/booking-guest-amendment-service'
 
 export class StripeWebhookHandler {
   private stripe: Stripe
@@ -57,6 +58,9 @@ export class StripeWebhookHandler {
         
         case 'payment_intent.payment_failed':
           return await this.handlePaymentIntentFailed(object as Stripe.PaymentIntent)
+
+        case 'setup_intent.succeeded':
+          return await this.handleSetupIntentSucceeded(object as Stripe.SetupIntent)
         
         case 'payment_intent.canceled':
           return await this.handlePaymentIntentCanceled(object as Stripe.PaymentIntent)
@@ -93,6 +97,15 @@ export class StripeWebhookHandler {
   }
 
   private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<{ processed: boolean; error?: string }> {
+    const amendmentProcessed = await bookingGuestAmendmentService.processAddGuestCheckoutSessionCompleted(session)
+    if (amendmentProcessed) {
+      logger.info('[WEBHOOK] Guest-amendment checkout session processed successfully', {
+        sessionId: session.id,
+        amendmentId: session.metadata?.amendmentId,
+      })
+      return { processed: true }
+    }
+
     const proposalId = session.metadata?.proposalId
     
     if (!proposalId) {
@@ -111,6 +124,21 @@ export class StripeWebhookHandler {
 
     // Process the payment
     try {
+      if (session.metadata?.paymentPlanId && typeof session.payment_intent === "string") {
+        const stripe = this.ensureInitialized()
+        const paymentIntent = await stripe.paymentIntents.retrieve(session.payment_intent)
+        await paymentPlanService.rememberPlanPaymentMethod(paymentIntent)
+      }
+      const planProcessed = await paymentPlanService.processCheckoutSessionCompleted(session)
+      if (planProcessed) {
+        logger.info('[WEBHOOK] Payment-plan checkout session processed successfully', {
+          proposalId,
+          sessionId: session.id,
+          paymentPlanId: session.metadata?.paymentPlanId,
+        })
+        return { processed: true }
+      }
+
       await paymentService.processSuccessfulProposalCheckout(proposalId, session)
       logger.info('[WEBHOOK] Checkout session processed successfully', { proposalId, sessionId: session.id })
       return { processed: true }
@@ -122,6 +150,16 @@ export class StripeWebhookHandler {
 
   private async handlePaymentIntentSucceeded(paymentIntent: Stripe.PaymentIntent): Promise<{ processed: boolean; error?: string }> {
     const proposalId = paymentIntent.metadata?.proposalId
+    if (paymentIntent.metadata?.paymentPlanId) {
+      const processed = await paymentPlanService.processPlanPaymentIntentSucceeded(paymentIntent)
+      logger.info('[WEBHOOK] Payment-plan payment_intent.succeeded processed', {
+        paymentIntentId: paymentIntent.id,
+        paymentPlanId: paymentIntent.metadata.paymentPlanId,
+        installmentId: paymentIntent.metadata.installmentId,
+        processed,
+      })
+      return { processed: true }
+    }
     
     if (!proposalId) {
       logger.warn('[WEBHOOK] No proposal ID in payment intent', { paymentIntentId: paymentIntent.id })
@@ -152,77 +190,31 @@ export class StripeWebhookHandler {
         return { processed: false, error: 'Proposal not found' }
       }
 
-      // Create booking and payment atomically
       const result = await prisma.$transaction(async (tx) => {
         const amount = paymentIntent.amount / 100
         if (Math.round(amount * 100) !== Math.round(proposal.price * 100)) {
           throw new Error('Payment amount does not match proposal price')
         }
 
-        await assertProposalMeetsActivePricingRule({
-          request: proposal.request,
-          proposalPrice: proposal.price,
-        })
+        const guaranteed = await paymentGuarantee.guaranteePaymentToBooking(
+          proposalId,
+          null,
+          paymentIntent.id,
+          amount,
+          tx
+        )
 
-        const commissionAmount = calculatePlatformCommission(amount)
-        const chefAmount = calculateChefPayout(amount)
-        const bookingCounts = getProposalBookingCounts(proposal.request)
-        const currency = proposal.request.currency || 'GBP'
+        if (!guaranteed.guaranteed) {
+          throw new Error(`Payment guarantee failed: ${guaranteed.error}`)
+        }
 
-        // Create booking
-        const booking = await tx.booking.create({
-          data: {
-            clientId: proposal.request.clientId,
-            chefId: proposal.chefId,
-            proposalId: proposal.id,
-            totalPrice: amount,
-            currency,
-            status: BookingStatus.CONFIRMED,
-            eventDate: proposal.request.eventDate,
-            location: proposal.request.location,
-            latitude: proposal.request.latitude,
-            longitude: proposal.request.longitude,
-            guestCount: bookingCounts.guestCount,
-            adultCount: bookingCounts.adultCount,
-            childrenUnder10: bookingCounts.childrenUnder10,
-            actualAttendeeCount: bookingCounts.actualAttendeeCount,
-            billableGuestCount: bookingCounts.billableGuestCount,
-            pricingGuestCount: bookingCounts.pricingGuestCount,
-            studentCount: bookingCounts.studentCount,
-            bookingType: 'PROPOSAL',
-            serviceType: bookingCounts.serviceType,
-            serviceTypeLabel: bookingCounts.serviceTypeLabel,
-            pricingRuleVersion: bookingCounts.pricingRuleVersion,
-          },
-        })
-
-        // Create payment
-        const payment = await tx.payment.create({
-          data: {
-            bookingId: booking.id,
-            totalAmount: amount,
-            commissionAmount,
-            chefAmount,
-            currency,
-            status: PaymentStatus.PAID,
-            stripePaymentIntentId: paymentIntent.id,
-            stripeChargeId: paymentIntent.latest_charge as string,
-          },
-        })
-
-        // Update proposal
-        await tx.proposal.update({
-          where: { id: proposalId },
-          data: { status: ProposalStatus.BOOKED },
-        })
-
-        return { booking, payment }
+        return guaranteed
       })
 
       logger.info('[WEBHOOK] Direct payment intent processed', { 
         proposalId, 
         paymentIntentId: paymentIntent.id,
-        bookingId: result.booking.id 
+        bookingId: result.bookingId 
       })
 
       return { processed: true }
@@ -236,14 +228,38 @@ export class StripeWebhookHandler {
     }
   }
 
+  private async handleSetupIntentSucceeded(setupIntent: Stripe.SetupIntent): Promise<{ processed: boolean; error?: string }> {
+    if (!setupIntent.metadata?.paymentPlanId) {
+      return { processed: false }
+    }
+
+    const processed = await paymentPlanService.processSetupIntentSucceeded(setupIntent)
+    logger.info('[WEBHOOK] setup_intent.succeeded processed', {
+      setupIntentId: setupIntent.id,
+      paymentPlanId: setupIntent.metadata.paymentPlanId,
+      processed,
+    })
+    return { processed: true }
+  }
+
   private async handlePaymentIntentFailed(paymentIntent: Stripe.PaymentIntent): Promise<{ processed: boolean; error?: string }> {
     const proposalId = paymentIntent.metadata?.proposalId
+    const amendmentFailureRecorded = await bookingGuestAmendmentService.markAmendmentPaymentFailed(
+      paymentIntent.id,
+      paymentIntent.metadata?.amendmentId
+    )
+    const planFailureRecorded = await paymentPlanService.markInstallmentFailed({
+      stripePaymentIntentId: paymentIntent.id,
+      failureCode: paymentIntent.last_payment_error?.code,
+      failureMessage: paymentIntent.last_payment_error?.message,
+    })
     
     if (proposalId) {
       // Release payment lock
       const lockKey = `payment_lock_${proposalId}`
       try {
         await redisLocks.releaseLock(lockKey)
+        await releaseProposalCheckoutLocks(proposalId)
         logger.info('[WEBHOOK] Payment lock released on payment failure', { proposalId })
       } catch (error) {
         logger.error('[WEBHOOK] Failed to release payment lock on failure', { proposalId, error })
@@ -261,7 +277,7 @@ export class StripeWebhookHandler {
       }
     }
 
-    logger.info('[WEBHOOK] Payment intent failed', { paymentIntentId: paymentIntent.id })
+    logger.info('[WEBHOOK] Payment intent failed', { paymentIntentId: paymentIntent.id, planFailureRecorded, amendmentFailureRecorded })
     return { processed: true }
   }
 
@@ -273,6 +289,7 @@ export class StripeWebhookHandler {
       const lockKey = `payment_lock_${proposalId}`
       try {
         await redisLocks.releaseLock(lockKey)
+        await releaseProposalCheckoutLocks(proposalId)
         logger.info('[WEBHOOK] Payment lock released on payment cancellation', { proposalId })
       } catch (error) {
         logger.error('[WEBHOOK] Failed to release payment lock on cancellation', { proposalId, error })
@@ -302,6 +319,7 @@ export class StripeWebhookHandler {
       const lockKey = `payment_lock_${proposalId}`
       try {
         await redisLocks.releaseLock(lockKey)
+        await releaseProposalCheckoutLocks(proposalId)
         logger.info('[WEBHOOK] Payment lock released on session expiration', { proposalId })
       } catch (error) {
         logger.error('[WEBHOOK] Failed to release payment lock on expiration', { proposalId, error })

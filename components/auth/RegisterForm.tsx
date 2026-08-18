@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
-import { AlertCircle, ArrowRight, Code, LockKeyhole, Sparkles } from "lucide-react"
+import { AlertCircle, ArrowRight, Code, LockKeyhole, MailCheck, RefreshCw, Sparkles } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,13 @@ import { Role } from "@/types"
 
 type RegisterFormProps = {
   onToggleMode?: () => void
+}
+
+function maskEmail(email: string) {
+  const [localPart, domain] = email.split("@")
+  if (!localPart || !domain) return email
+  const visible = localPart.length <= 2 ? localPart[0] : `${localPart[0]}${localPart.slice(-1)}`
+  return `${visible}${"*".repeat(Math.max(1, localPart.length - visible.length))}@${domain}`
 }
 
 export function RegisterForm({ onToggleMode }: RegisterFormProps) {
@@ -50,7 +57,13 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
   const loginHref = `/login?${loginParams.toString()}`
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [success, setSuccess] = useState(false)
+  const [pendingVerification, setPendingVerification] = useState<{
+    email: string
+    role: Role
+    emailDelivery: "SENT" | "CONFIGURATION_REQUIRED"
+  } | null>(null)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendMessage, setResendMessage] = useState("")
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -93,7 +106,7 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, callbackUrl: safeCallbackUrl }),
       })
 
       const data = await response.json()
@@ -107,20 +120,11 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
         return
       }
 
-      setSuccess(true)
-      setTimeout(() => {
-        const params = new URLSearchParams({ role: formData.role })
-        if (safeCallbackUrl) {
-          params.set("callbackUrl", safeCallbackUrl)
-        }
-
-        if (onToggleMode) {
-          router.replace(`/login?${params.toString()}`)
-          onToggleMode()
-        } else {
-          router.push(`/login?${params.toString()}`)
-        }
-      }, 2000)
+      setPendingVerification({
+        email: data?.user?.email ?? formData.email.trim(),
+        role: formData.role,
+        emailDelivery: data?.emailDelivery === "SENT" ? "SENT" : "CONFIGURATION_REQUIRED",
+      })
     } catch {
       setError("Network error. Please try again.")
     } finally {
@@ -128,7 +132,40 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
     }
   }
 
-  if (success) {
+  const handleResendVerification = async () => {
+    if (!pendingVerification) return
+    setResendLoading(true)
+    setResendMessage("")
+
+    try {
+      await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: pendingVerification.email,
+          role: pendingVerification.role,
+          callbackUrl: safeCallbackUrl,
+        }),
+      })
+      setResendMessage("If the account is still awaiting verification, a new link will be sent.")
+    } catch {
+      setResendMessage("We could not request a new link right now. Please try again.")
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
+  const handlePendingLogin = () => {
+    if (onToggleMode) {
+      router.replace(loginHref)
+      onToggleMode()
+      return
+    }
+
+    router.push(loginHref)
+  }
+
+  if (pendingVerification) {
     return (
       <div className="brand-auth-surface relative w-full overflow-hidden rounded-[32px] p-4 md:p-5">
         <div className="brand-auth-divider absolute inset-x-8 top-0 h-px" />
@@ -139,17 +176,17 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
             <div className="space-y-3">
               <div className="brand-auth-chip inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em]">
                 <LockKeyhole className="h-3.5 w-3.5 text-primary" />
-                Secure access
+                Verification required
               </div>
               <div className="space-y-2">
-                <h1 className="text-[1.85rem] font-semibold tracking-[-0.07em] text-[#0f172a] md:text-[2.35rem] md:leading-[0.96]">Create account</h1>
+                <h1 className="text-[1.85rem] font-semibold tracking-[-0.07em] text-[#0f172a] md:text-[2.35rem] md:leading-[0.96]">Account created</h1>
                 <p className="max-w-sm text-sm leading-5 text-[#667085] md:text-[15px]">
-                  Create a new account to access your workspace with a cleaner, more focused control surface.
+                  Please check your email to verify your ChefaChef account before signing in.
                 </p>
               </div>
             </div>
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[linear-gradient(145deg,#1849be_0%,#6854d2_100%)] text-white shadow-[0_14px_28px_rgba(36,74,184,0.24)]">
-              <Sparkles className="h-4.5 w-4.5" />
+            <div className="brand-gradient-button flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
+              <MailCheck className="h-4.5 w-4.5" />
             </div>
           </div>
         </div>
@@ -158,9 +195,29 @@ export function RegisterForm({ onToggleMode }: RegisterFormProps) {
           <Alert className="items-start rounded-2xl border-green-600/20 bg-green-50/90 text-green-800 shadow-none">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription className="text-green-800">
-                Registration successful! Redirecting to login...
+              Account created successfully for {maskEmail(pendingVerification.email)}.
+              {pendingVerification.emailDelivery === "SENT"
+                ? " A verification email has been sent."
+                : " Email delivery is temporarily unavailable, so please use resend later or contact support if you need help."}
             </AlertDescription>
           </Alert>
+          <div className="grid gap-3">
+            <Button
+              type="button"
+              className="brand-gradient-button h-11 rounded-[16px] border-0"
+              onClick={handleResendVerification}
+              disabled={resendLoading}
+            >
+              <RefreshCw className="mr-2 h-4 w-4" />
+              {resendLoading ? "Requesting..." : "Resend verification email"}
+            </Button>
+            <Button type="button" variant="outline" className="h-11 rounded-[16px]" onClick={handlePendingLogin}>
+              Return to sign in
+            </Button>
+          </div>
+          {resendMessage ? (
+            <p className="text-sm leading-5 text-muted-foreground">{resendMessage}</p>
+          ) : null}
         </div>
       </div>
     )

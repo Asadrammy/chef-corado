@@ -11,6 +11,8 @@ datasource db {
 model User {
   id                          String                  @id @default(cuid())
   name                        String
+  firstName                   String?
+  surname                     String?
   email                       String                  @unique
   password                    String
   phone                       String?
@@ -45,6 +47,8 @@ model User {
   reviews                     Review[]                @relation("ClientReviews")
   accounts                    Account[]
   sessions                    Session[]
+  legalAcceptances            UserLegalAcceptance[]
+  requestedGuestAmendments    BookingGuestAmendment[] @relation("GuestAmendmentRequester")
 
   @@index([adminRole])
 }
@@ -85,8 +89,8 @@ model VerificationToken {
 }
 
 model ChefProfile {
-  id                                 String              @id @default(cuid())
-  userId                             String              @unique
+  id                                 String                     @id @default(cuid())
+  userId                             String                     @unique
   location                           String?
   latitude                           Float?
   longitude                          Float?
@@ -94,22 +98,23 @@ model ChefProfile {
   locationRegion                     String?
   formattedAddress                   String?
   geocodingProvider                  String?
-  geocodingStatus                    String              @default("UNVERIFIED")
-  radius                             Float               @default(50)
-  baseCountryCode                    String              @default("GB")
-  preferredCurrency                  String              @default("GBP")
+  geocodingStatus                    String                     @default("UNVERIFIED")
+  radius                             Float                      @default(50)
+  baseCountryCode                    String                     @default("GB")
+  preferredCurrency                  String                     @default("GBP")
   bio                                String?
   specialties                        String?
+  careerStage                        String?
   cuisineTypes                       String?
   priceRange                         String?
-  isApproved                         Boolean             @default(false)
-  isBanned                           Boolean             @default(false)
+  isApproved                         Boolean                    @default(false)
+  isBanned                           Boolean                    @default(false)
   banReason                          String?
   banAdminNotes                      String?
   bannedAt                           DateTime?
   bannedBy                           String?
-  profileCompletion                  Int                 @default(0)
-  verificationStatus                 String              @default("PENDING")
+  profileCompletion                  Int                        @default(0)
+  verificationStatus                 String                     @default("PENDING")
   certifications                     String?
   chefType                           String?
   cuisineType                        String?
@@ -119,9 +124,9 @@ model ChefProfile {
   profileImage                       String?
   stripeAccountId                    String?
   stripeOnboardingComplete           Boolean?
-  verified                           Boolean             @default(false)
-  rightToWorkUkConfirmed             Boolean             @default(false)
-  foodHygieneLevel2Confirmed         Boolean             @default(false)
+  verified                           Boolean                    @default(false)
+  rightToWorkUkConfirmed             Boolean                    @default(false)
+  foodHygieneLevel2Confirmed         Boolean                    @default(false)
   foodHygieneCertificateUrl          String?
   foodHygieneCertificateUploadedAt   DateTime?
   foodHygieneCertificateReviewedAt   DateTime?
@@ -129,19 +134,22 @@ model ChefProfile {
   foodHygieneCertificateReviewStatus String?
   approvedAt                         DateTime?
   approvedBy                         String?
+  reviewedAt                         DateTime?
+  reviewedBy                         String?
+  reviewNotes                        String?
   insuranceAcknowledgedAt            DateTime?
   insuranceVersion                   String?
-  insuranceStatus                    String              @default("pending")
+  insuranceStatus                    String                     @default("pending")
   insuranceDocumentUrl               String?
   insuranceExpiryDate                DateTime?
   insuranceVerifiedAt                DateTime?
   insuranceVerifiedBy                String?
-  createdAt                          DateTime            @default(now())
-  updatedAt                          DateTime            @updatedAt
+  createdAt                          DateTime                   @default(now())
+  updatedAt                          DateTime                   @updatedAt
   availability                       Availability[]
-  bookings                           Booking[]           @relation("ChefBookings")
+  bookings                           Booking[]                  @relation("ChefBookings")
   chefKpiSnapshots                   ChefKpiSnapshot[]
-  user                               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                               User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
   experiences                        Experience[]
   menus                              Menu[]
   payouts                            Payout[]
@@ -149,6 +157,7 @@ model ChefProfile {
   requestInvitations                 RequestInvitation[]
   reviews                            Review[]
   backgroundChecks                   BackgroundCheck[]
+  bookingInsuranceCoverages          BookingInsuranceCoverage[]
 
   @@index([latitude, longitude])
   @@index([isApproved])
@@ -273,6 +282,9 @@ model Request {
   geocodingProvider      String?
   geocodingStatus        String                @default("UNVERIFIED")
   budget                 Float
+  budgetMode             String?
+  totalBudget            Float?
+  defaultDailyBudget     Float?
   details                String?
   createdAt              DateTime              @default(now())
   pricingRule            ServicePricingRule?   @relation(fields: [pricingRuleId], references: [id])
@@ -326,6 +338,70 @@ model ServicePricingRule {
   @@index([version])
 }
 
+model MarketConfiguration {
+  id                               String   @id @default(cuid())
+  countryCode                      String   @unique
+  countryName                      String
+  currency                         String
+  supported                        Boolean  @default(true)
+  active                           Boolean  @default(false)
+  bookingEnabled                   Boolean  @default(false)
+  paymentsEnabled                  Boolean  @default(false)
+  legalEnabled                     Boolean  @default(false)
+  platformCommissionRate           Float    @default(0.2)
+  serviceChargeTaxRate             Float?
+  serviceChargeTaxStatus           String   @default("NOT_CONFIGURED")
+  serviceChargeTaxDeductionEnabled Boolean  @default(false)
+  activationPrerequisites          String?
+  internalNotes                    String?
+  updatedBy                        String?
+  createdAt                        DateTime @default(now())
+  updatedAt                        DateTime @updatedAt
+
+  @@index([active])
+  @@index([bookingEnabled])
+  @@index([paymentsEnabled])
+}
+
+model LegalDocumentVersion {
+  id            String                @id @default(cuid())
+  documentType  String
+  countryCode   String?
+  version       String
+  status        String                @default("DRAFT")
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  sourceName    String?
+  checksum      String?
+  notes         String?
+  createdBy     String?
+  updatedBy     String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  acceptances   UserLegalAcceptance[]
+
+  @@unique([documentType, countryCode, version])
+  @@index([documentType, countryCode, status])
+}
+
+model UserLegalAcceptance {
+  id                String               @id @default(cuid())
+  userId            String
+  documentVersionId String
+  role              String
+  countryCode       String?
+  acceptedVia       String
+  acceptedAt        DateTime             @default(now())
+  ipAddress         String?
+  userAgent         String?
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentVersion   LegalDocumentVersion @relation(fields: [documentVersionId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, documentVersionId])
+  @@index([userId, role, countryCode])
+  @@index([documentVersionId])
+}
+
 model ServiceAsset {
   id               String   @id @default(cuid())
   serviceType      String
@@ -351,17 +427,32 @@ model ServiceAsset {
 }
 
 model MultiDayRequestDate {
-  id           String   @id @default(cuid())
-  requestId    String
-  date         DateTime
-  startTime    String?
-  endTime      String?
-  serviceNeeds String?
-  createdAt    DateTime @default(now())
-  request      Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  id                     String   @id @default(cuid())
+  requestId              String
+  date                   DateTime
+  startTime              String?
+  endTime                String?
+  serviceType            String?
+  serviceTypeLabel       String?
+  serviceTier            String?
+  cuisineTypes           String?
+  dietaryRequirements    String?
+  serviceSpecificAnswers String?
+  adultCount             Int?
+  childrenUnder10        Int?
+  actualAttendeeCount    Int?
+  billableGuestCount     Float?
+  pricingGuestCount      Float?
+  budget                 Float?
+  notes                  String?
+  serviceNeeds           String?
+  sortOrder              Int      @default(0)
+  createdAt              DateTime @default(now())
+  request                Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@unique([requestId, date])
   @@index([date])
+  @@index([requestId, sortOrder])
 }
 
 model RequestInvitation {
@@ -378,30 +469,48 @@ model RequestInvitation {
 }
 
 model Proposal {
-  id        String      @id @default(cuid())
-  requestId String
-  chefId    String
-  menuId    String?
-  price     Float
-  currency  String      @default("GBP")
-  message   String?
-  status    String      @default("PENDING")
-  expiresAt DateTime?
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-  booking   Booking?
-  chef      ChefProfile @relation(fields: [chefId], references: [id])
-  menu      Menu?       @relation(fields: [menuId], references: [id])
-  request   Request     @relation(fields: [requestId], references: [id])
+  id          String             @id @default(cuid())
+  requestId   String
+  chefId      String
+  menuId      String?
+  price       Float
+  currency    String             @default("GBP")
+  message     String?
+  status      String             @default("PENDING")
+  expiresAt   DateTime?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  booking     Booking?
+  paymentPlan PaymentPlan?
+  chef        ChefProfile        @relation(fields: [chefId], references: [id])
+  lineItems   ProposalLineItem[]
+  menu        Menu?              @relation(fields: [menuId], references: [id])
+  request     Request            @relation(fields: [requestId], references: [id])
 
   @@unique([chefId, requestId])
 }
 
+model ProposalLineItem {
+  id          String    @id @default(cuid())
+  proposalId  String
+  serviceDate DateTime?
+  title       String
+  description String?
+  price       Float
+  currency    String    @default("GBP")
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  proposal    Proposal  @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId, sortOrder])
+  @@index([serviceDate])
+}
+
 model Booking {
-  id                         String      @id @default(cuid())
+  id                         String                    @id @default(cuid())
   clientId                   String
   chefId                     String
-  proposalId                 String?     @unique
+  proposalId                 String?                   @unique
   experienceId               String?
   eventDate                  DateTime
   location                   String
@@ -415,29 +524,34 @@ model Booking {
   pricingGuestCount          Float?
   studentCount               Int?
   totalPrice                 Float
-  currency                   String      @default("GBP")
-  bookingType                String      @default("PROPOSAL")
+  currency                   String                    @default("GBP")
+  bookingType                String                    @default("PROPOSAL")
   serviceType                String?
   serviceTypeLabel           String?
   pricingRuleVersion         String?
-  status                     String      @default("PENDING")
-  operationalStatus          String      @default("NOT_STARTED")
+  status                     String                    @default("PENDING")
+  operationalStatus          String                    @default("NOT_STARTED")
   operationalStatusUpdatedAt DateTime?
   operationalStatusUpdatedBy String?
   operationalNotes           String?
   specialRequests            String?
-  idempotencyKey             String?     @unique
-  version                    Int         @default(1)
-  createdAt                  DateTime    @default(now())
-  updatedAt                  DateTime    @updatedAt
-  chef                       ChefProfile @relation("ChefBookings", fields: [chefId], references: [id])
-  client                     User        @relation("ClientBookings", fields: [clientId], references: [id])
-  experience                 Experience? @relation(fields: [experienceId], references: [id])
-  proposal                   Proposal?   @relation(fields: [proposalId], references: [id])
+  idempotencyKey             String?                   @unique
+  version                    Int                       @default(1)
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
+  chef                       ChefProfile               @relation("ChefBookings", fields: [chefId], references: [id])
+  client                     User                      @relation("ClientBookings", fields: [clientId], references: [id])
+  experience                 Experience?               @relation(fields: [experienceId], references: [id])
+  proposal                   Proposal?                 @relation(fields: [proposalId], references: [id])
   disputes                   Dispute[]
   ledgerEntries              Ledger[]
   payments                   Payment?
+  paymentPlan                PaymentPlan?
+  pricingSnapshot            AcceptedPricingSnapshot?
+  guestAmendments            BookingGuestAmendment[]
   review                     Review?
+  serviceDates               BookingServiceDate[]
+  insuranceCoverage          BookingInsuranceCoverage?
 
   @@index([status])
   @@index([operationalStatus])
@@ -445,6 +559,76 @@ model Booking {
   @@index([chefId, status])
   @@index([eventDate])
   @@index([idempotencyKey])
+}
+
+model BookingServiceDate {
+  id                  String   @id @default(cuid())
+  bookingId           String
+  date                DateTime
+  startTime           String?
+  endTime             String?
+  serviceType         String?
+  serviceTypeLabel    String?
+  cuisineTypes        String?
+  dietaryRequirements String?
+  adultCount          Int?
+  childrenUnder10     Int?
+  actualAttendeeCount Int?
+  billableGuestCount  Float?
+  pricingGuestCount   Float?
+  notes               String?
+  sortOrder           Int      @default(0)
+  createdAt           DateTime @default(now())
+  booking             Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, date])
+  @@index([date])
+  @@index([bookingId, sortOrder])
+}
+
+model PlatformInsurancePolicy {
+  id                 String                     @id @default(cuid())
+  policyVersion      String                     @unique
+  coverageType       String                     @default("PUBLIC_LIABILITY")
+  coverageLimitMinor Int
+  currency           String                     @default("GBP")
+  effectiveFrom      DateTime?
+  effectiveTo        DateTime?
+  status             String                     @default("ACTIVE")
+  internalReference  String?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  bookingCoverages   BookingInsuranceCoverage[]
+
+  @@index([status])
+  @@index([coverageType, status])
+}
+
+model BookingInsuranceCoverage {
+  id                  String                   @id @default(cuid())
+  bookingId           String                   @unique
+  chefId              String
+  platformPolicyId    String?
+  policyVersion       String
+  coverageType        String                   @default("PUBLIC_LIABILITY")
+  coverageLimitMinor  Int
+  currency            String                   @default("GBP")
+  coverageStatus      String                   @default("QUALIFIED")
+  coverageStartAt     DateTime
+  coverageEndAt       DateTime
+  qualifiedAt         DateTime                 @default(now())
+  qualificationBasis  String
+  serviceDateSnapshot Json?
+  createdAt           DateTime                 @default(now())
+  updatedAt           DateTime                 @updatedAt
+  booking             Booking                  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  chef                ChefProfile              @relation(fields: [chefId], references: [id], onDelete: Restrict)
+  platformPolicy      PlatformInsurancePolicy? @relation(fields: [platformPolicyId], references: [id], onDelete: SetNull)
+
+  @@index([chefId])
+  @@index([coverageStatus])
+  @@index([coverageStartAt])
+  @@index([platformPolicyId])
 }
 
 model FullTimeChefEnquiry {
@@ -583,29 +767,219 @@ model Invoice {
 }
 
 model Payment {
-  id                      String    @id @default(cuid())
-  bookingId               String    @unique
-  totalAmount             Float     @default(0)
-  commissionAmount        Float     @default(0)
-  chefAmount              Float     @default(0)
-  currency                String    @default("GBP")
-  status                  String    @default("HELD")
-  stripePaymentIntentId   String?   @unique
-  stripeChargeId          String?   @unique
-  stripeCheckoutSessionId String?   @unique
-  idempotencyKey          String?   @unique
-  releasedAt              DateTime?
-  releasedBy              String?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-  version                 Int       @default(1)
-  ledgerEntries           Ledger[]
-  booking                 Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  refunds                 Refund[]
+  id                               String    @id @default(cuid())
+  bookingId                        String    @unique
+  totalAmount                      Float     @default(0)
+  commissionAmount                 Float     @default(0)
+  chefAmount                       Float     @default(0)
+  platformCommissionRate           Float?
+  serviceChargeTaxRate             Float?
+  serviceChargeTaxAmount           Float     @default(0)
+  serviceChargeTaxDeductionEnabled Boolean   @default(false)
+  totalPlatformDeduction           Float?
+  taxJurisdiction                  String?
+  serviceChargeTaxStatus           String?
+  currency                         String    @default("GBP")
+  status                           String    @default("HELD")
+  stripePaymentIntentId            String?   @unique
+  stripeChargeId                   String?   @unique
+  stripeCheckoutSessionId          String?   @unique
+  idempotencyKey                   String?   @unique
+  releasedAt                       DateTime?
+  releasedBy                       String?
+  createdAt                        DateTime  @default(now())
+  updatedAt                        DateTime  @updatedAt
+  version                          Int       @default(1)
+  ledgerEntries                    Ledger[]
+  booking                          Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  refunds                          Refund[]
 
   @@index([status])
   @@index([stripePaymentIntentId])
   @@index([idempotencyKey])
+}
+
+model PaymentPlan {
+  id                     String                  @id @default(cuid())
+  proposalId             String                  @unique
+  bookingId              String?                 @unique
+  planType               String
+  status                 String                  @default("PENDING")
+  totalAmountMinor       Int
+  paidAmountMinor        Int                     @default(0)
+  outstandingAmountMinor Int
+  currency               String                  @default("GBP")
+  eventAnchorDate        DateTime
+  deadlineAt             DateTime?
+  balanceDueAt           DateTime?
+  stripeCustomerId       String?
+  defaultPaymentMethodId String?
+  futureUseConsentAt     DateTime?
+  depositBasisPoints     Int?
+  guarantorUserId        String?
+  guarantorAcceptedAt    DateTime?
+  recoveryStatus         String?
+  recoveryStartedAt      DateTime?
+  supportEscalatedAt     DateTime?
+  nextRetryAt            DateTime?
+  graceEndsAt            DateTime?
+  shortfallAmountMinor   Int                     @default(0)
+  shortfallChargedAt     DateTime?
+  shortfallFailedAt      DateTime?
+  lastFailureCode        String?
+  lastFailureMessage     String?
+  createdBy              String
+  idempotencyKey         String?                 @unique
+  metadata               Json?
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  booking                Booking?                @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  proposal               Proposal                @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  installments           PaymentInstallment[]
+  splitShares            SplitBillShare[]
+  guestAmendments        BookingGuestAmendment[]
+
+  @@index([planType])
+  @@index([status])
+  @@index([eventAnchorDate])
+  @@index([balanceDueAt])
+  @@index([deadlineAt])
+  @@index([guarantorUserId])
+  @@index([recoveryStatus])
+}
+
+model PaymentInstallment {
+  id                      String          @id @default(cuid())
+  paymentPlanId           String
+  kind                    String
+  status                  String          @default("PENDING")
+  amountMinor             Int
+  currency                String          @default("GBP")
+  dueAt                   DateTime?
+  paidAt                  DateTime?
+  failedAt                DateTime?
+  stripeCheckoutSessionId String?         @unique
+  stripePaymentIntentId   String?         @unique
+  stripeSetupIntentId     String?
+  attemptCount            Int             @default(0)
+  lastAttemptAt           DateTime?
+  nextAttemptAt           DateTime?
+  failureCode             String?
+  failureMessage          String?
+  idempotencyKey          String          @unique
+  metadata                Json?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  paymentPlan             PaymentPlan     @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+  splitShare              SplitBillShare?
+
+  @@index([paymentPlanId, kind])
+  @@index([status])
+  @@index([dueAt])
+  @@index([nextAttemptAt])
+  @@index([stripePaymentIntentId])
+}
+
+model SplitBillShare {
+  id                      String              @id @default(cuid())
+  paymentPlanId           String
+  installmentId           String?             @unique
+  payerName               String?
+  payerEmail              String?
+  tokenHash               String              @unique
+  tokenExpiresAt          DateTime
+  status                  String              @default("PENDING")
+  amountMinor             Int
+  currency                String              @default("GBP")
+  deadlineAt              DateTime
+  paidAt                  DateTime?
+  stripeCheckoutSessionId String?             @unique
+  stripePaymentIntentId   String?             @unique
+  refundState             String?
+  idempotencyKey          String              @unique
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  installment             PaymentInstallment? @relation(fields: [installmentId], references: [id], onDelete: SetNull)
+  paymentPlan             PaymentPlan         @relation(fields: [paymentPlanId], references: [id], onDelete: Cascade)
+
+  @@index([paymentPlanId, status])
+  @@index([deadlineAt])
+  @@index([payerEmail])
+}
+
+model AcceptedPricingSnapshot {
+  id                          String   @id @default(cuid())
+  bookingId                   String   @unique
+  proposalId                  String
+  requestId                   String
+  originalAdultCount          Int?
+  originalChildrenUnder10     Int?
+  originalGuestCount          Int
+  originalActualAttendeeCount Int?
+  originalBillableGuestCount  Float?
+  originalPricingGuestCount   Float?
+  acceptedTotalMinor          Int
+  currency                    String   @default("GBP")
+  minimumSpendMinor           Int?
+  perPersonAmountMinor        Int?
+  pricingBasis                String
+  pricingRuleVersion          String?
+  commissionRate              Float
+  serviceContext              Json?
+  serviceDates                Json?
+  createdAt                   DateTime @default(now())
+  booking                     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId])
+  @@index([requestId])
+  @@index([pricingBasis])
+}
+
+model BookingGuestAmendment {
+  id                       String       @id @default(cuid())
+  bookingId                String
+  paymentPlanId            String?
+  requesterId              String
+  requesterRole            String
+  amendmentType            String
+  previousAdultCount       Int?
+  previousChildrenUnder10  Int?
+  previousGuestCount       Int
+  requestedAdultCount      Int?
+  requestedChildrenUnder10 Int?
+  requestedGuestCount      Int
+  addedAdultCount          Int          @default(0)
+  addedChildrenUnder10     Int          @default(0)
+  removedAdultCount        Int          @default(0)
+  removedChildrenUnder10   Int          @default(0)
+  reductionPercent         Float?
+  pricingBasis             String?
+  incrementalAmountMinor   Int          @default(0)
+  refundAmountMinor        Int?
+  currency                 String       @default("GBP")
+  status                   String       @default("REQUESTED")
+  stripeCheckoutSessionId  String?      @unique
+  stripePaymentIntentId    String?      @unique
+  refundId                 String?
+  idempotencyKey           String       @unique
+  adminNotes               String?
+  chefReviewNotes          String?
+  chefDecisionAt           DateTime?
+  chefDecisionBy           String?
+  clientAcceptedAt         DateTime?
+  requestedAt              DateTime     @default(now())
+  finalizedAt              DateTime?
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+  booking                  Booking      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  paymentPlan              PaymentPlan? @relation(fields: [paymentPlanId], references: [id], onDelete: SetNull)
+  requester                User         @relation("GuestAmendmentRequester", fields: [requesterId], references: [id])
+
+  @@index([bookingId, status])
+  @@index([paymentPlanId])
+  @@index([requesterId])
+  @@index([amendmentType])
+  @@index([stripePaymentIntentId])
 }
 
 model Review {
@@ -722,20 +1096,27 @@ model Payout {
 }
 
 model Refund {
-  id             String    @id @default(cuid())
-  paymentId      String
-  amount         Float
-  reason         String
-  description    String
-  status         String    @default("PENDING")
-  processedBy    String?
-  stripeRefundId String?   @unique
-  createdAt      DateTime  @default(now())
-  processedAt    DateTime?
-  failureReason  String?
-  idempotencyKey String?   @unique
-  ledgerEntries  Ledger[]
-  payment        Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  id                             String    @id @default(cuid())
+  paymentId                      String
+  amount                         Float
+  currency                       String?
+  reason                         String
+  description                    String
+  status                         String    @default("PENDING")
+  processedBy                    String?
+  stripeRefundId                 String?   @unique
+  originalGrossAmount            Float?
+  originalCommissionAmount       Float?
+  originalServiceChargeTaxAmount Float?
+  originalTotalPlatformDeduction Float?
+  originalChefAmount             Float?
+  originalServiceChargeTaxStatus String?
+  createdAt                      DateTime  @default(now())
+  processedAt                    DateTime?
+  failureReason                  String?
+  idempotencyKey                 String?   @unique
+  ledgerEntries                  Ledger[]
+  payment                        Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
 
   @@index([paymentId])
   @@index([status])

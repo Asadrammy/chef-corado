@@ -32,8 +32,6 @@ interface Experience {
     id: string;
     user: {
       name: string;
-      verified: boolean;
-      experienceLevel: string;
     };
     location?: string;
   };
@@ -93,14 +91,6 @@ export function ExperienceCard({ experience, onBookNow, showBookButton = true }:
           <Badge className={getDifficultyColor(experience.difficulty)}>{experience.difficulty}</Badge>
           {experience.eventType ? <Badge variant="secondary">{formatLabel(experience.eventType)}</Badge> : null}
         </div>
-        {experience.chef.user.verified ? (
-          <div className="absolute right-3 top-3">
-            <Badge className="flex items-center gap-1 bg-emerald-600 text-white">
-              <Star className="h-3 w-3 fill-current" />
-              Verified
-            </Badge>
-          </div>
-        ) : null}
       </div>
 
       <CardHeader className="pb-3">
@@ -123,11 +113,6 @@ export function ExperienceCard({ experience, onBookNow, showBookButton = true }:
               </div>
             </div>
           </div>
-          {experience.chef.user.experienceLevel ? (
-            <Badge variant="outline" className="shrink-0">
-              {formatLabel(experience.chef.user.experienceLevel)}
-            </Badge>
-          ) : null}
         </div>
       </CardHeader>
 

@@ -261,29 +261,38 @@ export class SmartMatchingService {
     chef: ChefData
   ): Promise<number> {
     try {
-      // Check if chef has availability for the event date
-      const availability = await prisma.availability.findFirst({
-        where: {
-          chefId: chef.id,
-          date: {
-            gte: new Date(request.eventDate.setHours(0, 0, 0, 0)),
-            lt: new Date(request.eventDate.setHours(23, 59, 59, 999)),
-          },
-          isAvailable: true,
-          currentBookings: {
-            lt: prisma.availability.fields.maxBookings,
-          },
-        },
-      })
+      const dates = request.requestDates?.length ? request.requestDates : [request.eventDate]
+      const scores = []
 
-      if (availability) {
-        // Calculate how booked they are
-        const bookingRatio = availability.currentBookings / availability.maxBookings
-        return Math.round(100 - bookingRatio * 30) // 100 if empty, 70 if full
+      for (const date of dates) {
+        const dayStart = new Date(date)
+        dayStart.setHours(0, 0, 0, 0)
+        const dayEnd = new Date(date)
+        dayEnd.setHours(23, 59, 59, 999)
+
+        const availability = await prisma.availability.findFirst({
+          where: {
+            chefId: chef.id,
+            date: {
+              gte: dayStart,
+              lt: dayEnd,
+            },
+            isAvailable: true,
+            currentBookings: {
+              lt: prisma.availability.fields.maxBookings,
+            },
+          },
+        })
+
+        if (availability) {
+          const bookingRatio = availability.currentBookings / availability.maxBookings
+          scores.push(Math.round(100 - bookingRatio * 30))
+        } else {
+          scores.push(50)
+        }
       }
 
-      // No availability set - neutral score
-      return 50
+      return Math.min(...scores)
     } catch {
       return 50
     }
@@ -413,7 +422,7 @@ export class SmartMatchingService {
     }
 
     if (factors.availability >= 80) {
-      reasons.push("Available for this date")
+      reasons.push("Available for the requested date window")
     }
 
     if (factors.quality >= 80) {

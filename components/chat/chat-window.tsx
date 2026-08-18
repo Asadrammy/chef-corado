@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useRef } from 'react';
-import { Send, ArrowLeft } from 'lucide-react';
+import { Send, ArrowLeft, Plus, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { ChatMessage } from '@/components/chat/types';
+import { APPROVED_PUBLIC_CONTACT } from '@/lib/marketplace-rules';
 
 interface ChatWindowProps {
   currentUserId: string;
@@ -44,6 +45,16 @@ interface ConversationPayload {
   messages: ChatMessage[];
 }
 
+type LatestBookingContext = {
+  id: string;
+  clientId: string;
+  status: string;
+  eventDate: string;
+  guestCount: number;
+  adultCount?: number | null;
+  childrenUnder10?: number | null;
+} | null;
+
 export function ChatWindow({
   currentUserId,
   currentUserName,
@@ -58,6 +69,11 @@ export function ChatWindow({
   const [sending, setSending] = useState(false);
   const [connectionState, setConnectionState] = useState<'connecting' | 'open' | 'error'>('connecting');
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [latestBooking, setLatestBooking] = useState<LatestBookingContext>(null);
+  const [showAddGuests, setShowAddGuests] = useState(false);
+  const [addedAdults, setAddedAdults] = useState(1);
+  const [addedChildren, setAddedChildren] = useState(0);
+  const [amendmentLoading, setAmendmentLoading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -109,6 +125,7 @@ export function ChatWindow({
       }
 
       const payload = (await response.json()) as ApiEnvelope<ConversationPayload>;
+      setLatestBooking((payload.data?.context?.latestBooking as LatestBookingContext) ?? null);
       const data = payload.data?.messages ?? [];
       const sorted = [...data].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
       const windowed = sorted.slice(-200);
@@ -180,7 +197,7 @@ export function ChatWindow({
         clearTimeout(reconnectTimerRef.current);
       }
     };
-  }, [currentUserId, otherUserId]);
+  }, [currentUserId, handleIncomingMessage, onMessageReceived, otherUserId]);
 
   useEffect(() => {
     // Scroll to bottom when new messages arrive
@@ -256,6 +273,42 @@ export function ChatWindow({
     }
   };
 
+  const canAddGuests = latestBooking
+    && latestBooking.clientId === currentUserId
+    && latestBooking.status === 'CONFIRMED'
+    && new Date(latestBooking.eventDate).getTime() > Date.now();
+
+  const handleAddGuests = async () => {
+    if (!latestBooking || amendmentLoading) return;
+    setAmendmentLoading(true);
+    try {
+      const response = await fetch(`/api/bookings/${latestBooking.id}/guest-amendments/add`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          addedAdultCount: addedAdults,
+          addedChildrenUnder10: addedChildren,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || payload?.error || 'Unable to add guests');
+      }
+      const data = payload?.data ?? payload;
+      if (data?.url) {
+        window.location.href = data.url;
+        return;
+      }
+      toast.info(data?.message || 'Support will help price this guest change.');
+      setShowAddGuests(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to add guests');
+    } finally {
+      setAmendmentLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card className="h-[600px]">
@@ -294,10 +347,52 @@ export function ChatWindow({
           <AvatarImage src={undefined} />
           <AvatarFallback>{(otherUserName || '?').charAt(0).toUpperCase()}</AvatarFallback>
         </Avatar>
-        <CardTitle className="text-lg">{otherUserName}</CardTitle>
+        <div className="min-w-0 flex-1">
+          <CardTitle className="truncate text-lg">{otherUserName}</CardTitle>
+          {latestBooking ? (
+            <p className="text-xs text-muted-foreground">{latestBooking.guestCount} guests booked</p>
+          ) : null}
+        </div>
+        {canAddGuests ? (
+          <Button type="button" size="sm" variant="outline" onClick={() => setShowAddGuests((value) => !value)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Guests
+          </Button>
+        ) : null}
       </CardHeader>
 
       <CardContent className="flex-1 flex flex-col p-0">
+        {canAddGuests && showAddGuests ? (
+          <div className="border-y bg-muted/30 p-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-24">
+                <label className="text-xs font-medium text-muted-foreground">Adults</label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={200}
+                  value={addedAdults}
+                  onChange={(event) => setAddedAdults(Number(event.target.value))}
+                />
+              </div>
+              <div className="min-w-24">
+                <label className="text-xs font-medium text-muted-foreground">Children</label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={200}
+                  value={addedChildren}
+                  onChange={(event) => setAddedChildren(Number(event.target.value))}
+                />
+              </div>
+              <Button type="button" onClick={() => void handleAddGuests()} disabled={amendmentLoading || addedAdults + addedChildren <= 0}>
+                <Users className="mr-2 h-4 w-4" />
+                Continue
+              </Button>
+              <p className="text-xs text-muted-foreground">Reducing guests is handled by support: {APPROVED_PUBLIC_CONTACT.email}.</p>
+            </div>
+          </div>
+        ) : null}
         <ScrollArea ref={scrollAreaRef} className="flex-1 p-4">
           <div className="space-y-6">
             {messages.length === 0 ? (

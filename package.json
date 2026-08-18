@@ -12,7 +12,9 @@
     "lint": "eslint .",
     "postinstall": "node scripts/prisma-generate.cjs",
     "prisma:generate": "prisma generate",
-    "migrate": "prisma db push",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "db:push": "prisma db push",
     "seed": "ts-node prisma/seed-production.ts"
   },
   "dependencies": {

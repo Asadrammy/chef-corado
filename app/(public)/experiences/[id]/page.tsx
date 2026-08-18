@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getServerSession } from "next-auth";
-import { Calendar, ChefHat, Clock, MapPin, ShieldCheck, Star, Users, Wallet } from "lucide-react";
+import { Calendar, ChefHat, Clock, MapPin, Star, Users, Wallet } from "lucide-react";
 
 import { BookNowButton } from "@/components/book-now-button";
 import { PublicJsonLd } from "@/components/public/structured-data";
@@ -13,6 +13,7 @@ import { authOptions } from "@/lib/auth";
 import { formatCurrency } from "@/lib/currency";
 import { prisma } from "@/lib/prisma";
 import { buildPublicMetadata } from "@/lib/public-site";
+import { publicChefEligibilityWhere } from "@/lib/public-chef-view";
 
 interface ExperiencePageProps {
   params: Promise<{ id: string }>;
@@ -39,17 +40,37 @@ export default async function ExperiencePage({ params }: ExperiencePageProps) {
   const { id } = await params;
   const session = await getServerSession(authOptions);
 
-  const experience = await prisma.experience.findUnique({
-    where: { id },
-    include: {
+  const experience = await prisma.experience.findFirst({
+    where: {
+      id,
+      isActive: true,
+      chef: publicChefEligibilityWhere,
+    },
+    select: {
+      id: true,
+      title: true,
+      description: true,
+      price: true,
+      currency: true,
+      duration: true,
+      includedServices: true,
+      eventType: true,
+      cuisineType: true,
+      maxGuests: true,
+      minGuests: true,
+      difficulty: true,
+      tags: true,
+      experienceImage: true,
       chef: {
-        include: {
+        select: {
+          id: true,
+          userId: true,
+          bio: true,
+          location: true,
           user: {
             select: {
               id: true,
               name: true,
-              email: true,
-              verified: true,
             },
           },
         },
@@ -192,7 +213,6 @@ export default async function ExperiencePage({ params }: ExperiencePageProps) {
                   <p className="text-sm leading-6 text-muted-foreground">{experience.chef.bio || "This chef is preparing more details about their private dining style."}</p>
                   <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                     {experience.chef.location ? <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" /> {experience.chef.location}</span> : null}
-                    <span className="inline-flex items-center gap-1"><ShieldCheck className="h-4 w-4" /> {experience.chef.user.verified ? "Verified chef" : "Active chef profile"}</span>
                   </div>
                 </div>
               </div>

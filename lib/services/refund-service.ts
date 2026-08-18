@@ -100,9 +100,16 @@ export const refundService = {
         data: {
           paymentId: data.paymentId,
           amount: data.amount,
+          currency: payment.currency,
           reason: data.reason,
           description: data.description,
           status: REFUND_STATUS.PENDING,
+          originalGrossAmount: payment.totalAmount,
+          originalCommissionAmount: payment.commissionAmount,
+          originalServiceChargeTaxAmount: payment.serviceChargeTaxAmount,
+          originalTotalPlatformDeduction: payment.totalPlatformDeduction,
+          originalChefAmount: payment.chefAmount,
+          originalServiceChargeTaxStatus: payment.serviceChargeTaxStatus,
         },
         include: {
           payment: {
@@ -192,7 +199,16 @@ export const refundService = {
           reason: 'requested_by_customer',
           metadata: {
             refundId: refund.id,
-            bookingId: refund.payment.booking.id
+            bookingId: refund.payment.booking.id,
+            originalPaymentSnapshot: JSON.stringify({
+              grossAmount: refund.payment.totalAmount,
+              commissionAmount: refund.payment.commissionAmount,
+              serviceChargeTaxAmount: refund.payment.serviceChargeTaxAmount,
+              totalPlatformDeduction: refund.payment.totalPlatformDeduction,
+              chefAmount: refund.payment.chefAmount,
+              serviceChargeTaxStatus: refund.payment.serviceChargeTaxStatus,
+              currency: refund.payment.currency,
+            }),
           }
         })
 
@@ -247,7 +263,19 @@ export const refundService = {
             fromAccount: "PLATFORM_HOLDING",
             toAccount: "STRIPE_REFUND",
             description: `Refund processed: ${refund.amount} ${refund.payment.currency} - ${refund.description}`,
-            metadata: JSON.stringify({ reason: refund.reason, stripeRefundId: stripeRefund.id }),
+            metadata: JSON.stringify({
+              reason: refund.reason,
+              stripeRefundId: stripeRefund.id,
+              originalPaymentSnapshot: {
+                grossAmount: refund.payment.totalAmount,
+                commissionAmount: refund.payment.commissionAmount,
+                serviceChargeTaxAmount: refund.payment.serviceChargeTaxAmount,
+                totalPlatformDeduction: refund.payment.totalPlatformDeduction,
+                chefAmount: refund.payment.chefAmount,
+                serviceChargeTaxStatus: refund.payment.serviceChargeTaxStatus,
+                currency: refund.payment.currency,
+              },
+            }),
             createdBy: approvedBy,
           },
         })

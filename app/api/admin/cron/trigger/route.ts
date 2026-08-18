@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { requireAdminPermission } from "@/lib/admin-rbac"
+import { getConfiguredAppBaseUrl } from "@/lib/site-config"
 
 /**
  * Manual cron trigger for development/admin use
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     }
 
     // Call the cron endpoint
-    const baseUrl = process.env.NEXTAUTH_URL || process.env.VERCEL_URL || "http://localhost:3000"
+    const baseUrl = getConfiguredAppBaseUrl()
     const cronSecret = process.env.CRON_SECRET
 
     const headers: Record<string, string> = {

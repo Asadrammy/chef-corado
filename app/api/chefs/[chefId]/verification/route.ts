@@ -2,14 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRequiredSession } from '@/lib/auth-helpers';
 import { handleApiError } from '@/lib/error-handler';
 import { chefVerificationService } from '@/lib/services/chef-verification-service';
+import { prisma } from '@/lib/prisma';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ chefId: string }> }
 ) {
   try {
-    await getRequiredSession();
+    const session = await getRequiredSession();
     const { chefId } = await params;
+    if (session.user.role !== "ADMIN") {
+      const ownProfile = await prisma.chefProfile.findUnique({
+        where: { userId: session.user.id },
+        select: { id: true },
+      });
+      if (ownProfile?.id !== chefId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
     const verificationStatus = await chefVerificationService.getVerificationStatus(chefId);
     return NextResponse.json(verificationStatus);
   } catch (error) {

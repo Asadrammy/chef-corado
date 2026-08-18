@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth"
 import { ChefRequestsMarketplace } from "@/components/chef-requests-marketplace"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { calculateDistance } from "@/lib/geo"
+import { sortChefMarketplaceRequests } from "@/lib/chef-request-marketplace"
 import type { ChefRequestRow } from "@/components/chef-request-table"
 
 export const metadata: Metadata = generateMeta({
@@ -22,6 +23,7 @@ const localDemoRequests: ChefRequestRow[] = [
     serviceType: "THREE_COURSE_MEAL",
     serviceTypeLabel: "3-Course Meal",
     eventDate: new Date(Date.now() + 9 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
     location: "Downtown",
     budget: 1450,
     currency: "USD",
@@ -35,6 +37,7 @@ const localDemoRequests: ChefRequestRow[] = [
     serviceType: "SIX_NINE_COURSE_MEAL",
     serviceTypeLabel: "6-9-Course Meal",
     eventDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
     location: "West End",
     budget: 2200,
     currency: "USD",
@@ -48,6 +51,7 @@ const localDemoRequests: ChefRequestRow[] = [
     serviceType: "BRUNCH",
     serviceTypeLabel: "Brunch",
     eventDate: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
     location: "Riverside",
     budget: 980,
     currency: "USD",
@@ -61,6 +65,7 @@ const localDemoRequests: ChefRequestRow[] = [
     serviceType: "FOUR_FIVE_COURSE_MEAL",
     serviceTypeLabel: "4-5-Course Meal",
     eventDate: new Date(Date.now() + 18 * 24 * 60 * 60 * 1000).toISOString(),
+    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
     location: "Financial District",
     budget: 3100,
     currency: "USD",
@@ -107,18 +112,41 @@ export default async function ChefRequestsPage() {
 
     const allRequests = await prisma.request.findMany({
       where: {
-        eventDate: { gte: new Date() },
+        OR: [
+          { eventDate: { gte: new Date() } },
+          { multiDayDates: { some: { date: { gte: new Date() } } } },
+        ],
         proposals: {
           none: {
             chefId: chefProfile.id,
           },
         },
       },
-      orderBy: { eventDate: "desc" },
+      select: {
+        id: true,
+        title: true,
+        eventType: true,
+        serviceType: true,
+        serviceTypeLabel: true,
+        eventDate: true,
+        location: true,
+        budget: true,
+        currency: true,
+        details: true,
+        createdAt: true,
+        latitude: true,
+        longitude: true,
+        geocodingStatus: true,
+        multiDayDates: {
+          select: { date: true },
+          orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+        },
+      },
+      orderBy: [{ createdAt: "desc" }, { eventDate: "asc" }, { id: "asc" }],
       take: 100,
     })
 
-    requests = allRequests
+    requests = sortChefMarketplaceRequests(allRequests
       .map((request) => {
         const hasExactDistance =
           chefProfile.latitude != null &&
@@ -144,6 +172,9 @@ export default async function ChefRequestsPage() {
           serviceType: request.serviceType,
           serviceTypeLabel: request.serviceTypeLabel,
           eventDate: request.eventDate.toISOString(),
+          createdAt: request.createdAt.toISOString(),
+          submittedAt: request.createdAt.toISOString(),
+          multiDayDates: request.multiDayDates.map((date) => date.date.toISOString()),
           location: request.location,
           budget: request.budget,
           currency: request.currency,
@@ -153,7 +184,7 @@ export default async function ChefRequestsPage() {
           geocodingStatus: (request as any).geocodingStatus ?? (distanceKm == null ? "UNAVAILABLE" : "VERIFIED"),
         }
       })
-      .filter((request) => request.distanceKm == null || request.distanceKm <= chefProfile.radius)
+      .filter((request) => request.distanceKm == null || request.distanceKm <= chefProfile.radius), "newest")
 
     serviceRadiusKm = chefProfile.radius
     baseLocation = chefProfile.location || undefined

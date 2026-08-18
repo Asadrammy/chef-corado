@@ -25,6 +25,7 @@ type RequestRow = {
   id: string
   title: string | null
   eventType: string
+  requestMode?: string | null
   serviceType?: string | null
   serviceTypeLabel?: string | null
   cuisineTypes: string | null
@@ -38,6 +39,14 @@ type RequestRow = {
   _count: {
     proposals: number
   }
+  multiDayDates?: Array<{
+    id: string
+    date: Date
+    startTime: string | null
+    endTime: string | null
+    serviceType: string | null
+    serviceTypeLabel: string | null
+  }>
 }
 
 function parseTagList(value: string | null) {
@@ -81,6 +90,7 @@ export default async function ClientRequestsPage() {
           id: true,
           title: true,
           eventType: true,
+          requestMode: true,
           serviceType: true,
           serviceTypeLabel: true,
           cuisineTypes: true,
@@ -93,6 +103,17 @@ export default async function ClientRequestsPage() {
           _count: {
             select: {
               proposals: true,
+            },
+          },
+          multiDayDates: {
+            orderBy: { sortOrder: "asc" },
+            select: {
+              id: true,
+              date: true,
+              startTime: true,
+              endTime: true,
+              serviceType: true,
+              serviceTypeLabel: true,
             },
           },
         },
@@ -151,6 +172,11 @@ export default async function ClientRequestsPage() {
                     <Badge variant="secondary" className="text-xs">
                       {request.eventType || "Event"}
                     </Badge>
+                    {request.requestMode === "MULTI_DAY" ? (
+                      <Badge variant="outline" className="text-xs">
+                        {request.multiDayDates?.length ?? 0} days
+                      </Badge>
+                    ) : null}
                     <Badge variant="outline" className="text-xs">
                       {getServiceTypeLabel(request.serviceType, request.serviceTypeLabel)}
                     </Badge>
@@ -168,8 +194,20 @@ export default async function ClientRequestsPage() {
               <div className="space-y-2.5 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{format(new Date(request.eventDate), "MMM d, yyyy · EEEE")}</span>
+                  <span className="truncate">
+                    {request.requestMode === "MULTI_DAY" && request.multiDayDates?.length
+                      ? `${request.multiDayDates.length} service dates from ${format(new Date(request.multiDayDates[0].date), "MMM d, yyyy")}`
+                      : format(new Date(request.eventDate), "MMM d, yyyy - EEEE")}
+                  </span>
                 </div>
+                {request.requestMode === "MULTI_DAY" && request.multiDayDates?.length ? (
+                  <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+                    {request.multiDayDates.slice(0, 3).map((date) => (
+                      <p key={date.id}>{format(new Date(date.date), "EEE MMM d")} - {getServiceTypeLabel(date.serviceType, date.serviceTypeLabel)}</p>
+                    ))}
+                    {request.multiDayDates.length > 3 ? <p>+ {request.multiDayDates.length - 3} more date{request.multiDayDates.length - 3 === 1 ? "" : "s"}</p> : null}
+                  </div>
+                ) : null}
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <MapPin className="h-4 w-4 shrink-0" />
                   <span className="truncate">{request.location}</span>

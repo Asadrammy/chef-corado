@@ -16,6 +16,8 @@
 /.next/
 /out/
 .next*.log
+/.phase*-dev-*.log
+*.log
 
 # production
 /build
@@ -42,6 +44,9 @@ yarn-error.log*
 *.db
 *.db-journal
 prisma/*.db
+
+# runtime uploads
+/public/uploads/images/*
 
 # vercel
 .vercel

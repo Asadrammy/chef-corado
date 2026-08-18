@@ -6,12 +6,13 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { normalizeCurrency } from '@/lib/currency';
-import { calculateChefPayout, calculatePlatformCommission } from '@/lib/marketplace-rules';
+import { marketConfigurationService } from '@/lib/services/market-configuration-service';
 import { logger } from '@/lib/logger';
 import { enforceUserModeration } from '@/lib/security/moderation-guard';
 import { enforceClientCompliance } from '@/lib/security/legal-compliance';
 import { enforceChefModeration } from '@/lib/security/moderation-guard';
 import { validateExperienceBookingCounts } from '@/lib/booking-counts';
+import { getConfiguredAppBaseUrl } from '@/lib/site-config';
 
 // Initialize Stripe
 const getStripeClient = () => {
@@ -38,6 +39,13 @@ const atomicPaymentSchema = z.object({
   guestCount: z.number().int().positive(),
   specialRequests: z.string().optional(),
 });
+
+function countryFromCurrency(currency: string) {
+  if (currency === "USD") return "US";
+  if (currency === "EUR") return "IT";
+  if (currency === "KES") return "KE";
+  return "GB";
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -119,9 +127,10 @@ export async function POST(request: NextRequest) {
       // Step 4: Calculate pricing with cooking class invariant
       const bookingCounts = validateExperienceBookingCounts(experience, payload.guestCount);
       const totalPrice = bookingCounts.totalPrice;
-      const commissionAmount = calculatePlatformCommission(totalPrice);
-      const chefAmount = calculateChefPayout(totalPrice);
       const currency = normalizeCurrency((experience as any).currency || 'GBP');
+      const countryCode = countryFromCurrency(currency);
+      await marketConfigurationService.assertPaymentMarketEnabled(countryCode);
+      const finance = await marketConfigurationService.calculateFinancials({ grossAmount: totalPrice, countryCode, currency });
       const bookingData = {
         clientId: session.user.id as string,
         chefId: experience.chefId,
@@ -139,8 +148,15 @@ export async function POST(request: NextRequest) {
       const paymentData = {
         bookingId: undefined as unknown as string,
         totalAmount: totalPrice,
-        commissionAmount,
-        chefAmount,
+        commissionAmount: finance.platformCommissionAmount,
+        chefAmount: finance.chefNetPayout,
+        platformCommissionRate: finance.platformCommissionRate,
+        serviceChargeTaxRate: finance.serviceChargeTaxRate,
+        serviceChargeTaxAmount: finance.serviceChargeTaxAmount,
+        serviceChargeTaxDeductionEnabled: finance.serviceChargeTaxDeductionEnabled,
+        totalPlatformDeduction: finance.totalPlatformDeduction,
+        taxJurisdiction: finance.taxJurisdiction,
+        serviceChargeTaxStatus: finance.serviceChargeTaxStatus,
         currency,
         status: 'HELD',
       } as any
@@ -175,10 +191,11 @@ export async function POST(request: NextRequest) {
     });
 
     // Step 8: Create Stripe checkout session outside transaction
+    const appBaseUrl = getConfiguredAppBaseUrl();
     const successUrl = process.env.STRIPE_SUCCESS_URL ?? 
-      `${process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/dashboard/client/bookings?status=success`;
+      `${appBaseUrl}/dashboard/client/bookings?status=success`;
     const cancelUrl = process.env.STRIPE_CANCEL_URL ?? 
-      `${process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/dashboard/client/bookings?status=cancelled`;
+      `${appBaseUrl}/dashboard/client/bookings?status=cancelled`;
 
     const checkoutSession = await stripe.checkout.sessions.create({
       mode: "payment",
@@ -186,7 +203,7 @@ export async function POST(request: NextRequest) {
       line_items: [
         {
           price_data: {
-            currency: normalizeCurrency((result.booking as any).currency || 'GBP'),
+            currency: normalizeCurrency((result.booking as any).currency || 'GBP').toLowerCase(),
             unit_amount: Math.round(result.booking.totalPrice * 100),
             product_data: {
               name: `Instant Booking: ${result.experience.title}`,

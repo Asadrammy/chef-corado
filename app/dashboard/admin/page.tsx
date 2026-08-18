@@ -134,20 +134,20 @@ export default async function AdminDashboardPage() {
   return (
     <div className="space-y-8">
       {/* Hero Section */}
-      <header className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm p-8">
+      <header className="brand-surface rounded-2xl p-8 shadow-sm">
         <div className="flex items-center gap-3 mb-6">
-          <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
-          <p className="text-sm uppercase tracking-[0.4em] text-gray-500 dark:text-gray-400 font-medium">Admin Workspace</p>
-          <div className="h-px flex-1 bg-gray-200 dark:bg-gray-700"></div>
+          <div className="h-px flex-1 bg-border"></div>
+          <p className="text-sm font-medium uppercase tracking-[0.4em] text-muted-foreground">Admin Workspace</p>
+          <div className="h-px flex-1 bg-border"></div>
         </div>
-        <h1 className="text-3xl font-semibold tracking-tight text-gray-900 dark:text-white mb-4">
+        <h1 className="mb-4 text-3xl font-semibold tracking-tight text-foreground">
           Welcome back, Admin
         </h1>
-        <p className="text-gray-600 dark:text-gray-300 leading-relaxed max-w-3xl mb-8">
+        <p className="mb-8 max-w-3xl leading-relaxed text-muted-foreground">
           Manage your marketplace with powerful tools. Monitor performance, approve chefs, and ensure platform health.
         </p>
         <div className="flex items-center gap-4">
-          <Button asChild className="shadow-sm hover:shadow-md">
+          <Button asChild className="brand-gradient-button shadow-sm hover:shadow-md">
             <Link href="/dashboard/admin/analytics">
               <ArrowRight className="mr-2 h-4 w-4" />
               View Analytics
@@ -161,7 +161,7 @@ export default async function AdminDashboardPage() {
         <div className="card-hover bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="icon-bg">
-              <Users className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+              <Users className="h-6 w-6 text-primary" />
             </div>
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Live count</span>
           </div>
@@ -172,7 +172,7 @@ export default async function AdminDashboardPage() {
         <div className="card-hover bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="icon-bg">
-              <Calendar className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+              <Calendar className="h-6 w-6 text-primary" />
             </div>
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Live count</span>
           </div>
@@ -183,7 +183,7 @@ export default async function AdminDashboardPage() {
         <div className="card-hover bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="icon-bg">
-              <Wallet className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+              <Wallet className="h-6 w-6 text-primary" />
             </div>
             <span className="text-xs font-medium text-gray-500 dark:text-gray-400">By currency</span>
           </div>
@@ -198,7 +198,7 @@ export default async function AdminDashboardPage() {
         <div className="card-hover bg-white dark:bg-gray-900 border border-gray-200/60 dark:border-gray-700/60 rounded-2xl shadow-sm p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="icon-bg">
-              <ChefHat className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+              <ChefHat className="h-6 w-6 text-primary" />
             </div>
             <Badge variant="secondary" className="bg-orange-50 text-orange-600 border-orange-200 dark:bg-orange-900/20 dark:border-orange-800">
               {pendingChefs}
@@ -241,8 +241,8 @@ export default async function AdminDashboardPage() {
             {canReviewChefs ? <Link href="/dashboard/admin/chefs">
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-150 cursor-pointer group">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-blue-50 dark:bg-blue-900/20">
-                    <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Users className="h-5 w-5 text-primary" />
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Manage Chefs</span>
@@ -256,8 +256,8 @@ export default async function AdminDashboardPage() {
             {canViewBookings ? <Link href="/dashboard/admin/bookings">
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-150 cursor-pointer group">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-purple-50 dark:bg-purple-900/20">
-                    <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Calendar className="h-5 w-5 text-primary" />
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-900 dark:text-white">All Bookings</span>
@@ -271,8 +271,8 @@ export default async function AdminDashboardPage() {
             {canViewFinance ? <Link href="/dashboard/admin/payments">
               <div className="flex items-center justify-between p-4 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all duration-150 cursor-pointer group">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-50 dark:bg-green-900/20">
-                    <Wallet className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10">
+                    <Wallet className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
                   </div>
                   <div>
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Payments</span>

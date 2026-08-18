@@ -316,7 +316,7 @@ export default function ChefSettingsPage() {
                 {settings?.legal.foodHygieneCertificateUrl ? (
                   <div className="text-xs">
                     <span>Private certificate document on file: </span>
-                    <a href={settings.legal.foodHygieneCertificateUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                    <a href={settings.legal.foodHygieneCertificateUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
                       View admin review document
                     </a>
                   </div>

@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth"
 import type { Session } from "next-auth"
 
 import { authOptions, getLocalDemoSessionRecord, type SessionComplianceRecord } from "@/lib/auth"
+import { requiresEmailVerification } from "@/lib/email-verification"
 import { TERMS_VERSION } from "@/lib/request-options"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { Role } from "@/types"
@@ -21,6 +22,8 @@ export async function getRequiredSession(requiredRole?: Role | Role[]): Promise<
         where: { id: session.user.id },
         select: {
           isBanned: true,
+          verified: true,
+          createdAt: true,
           role: true,
           adminRole: true,
           adminPermissions: true,
@@ -55,6 +58,10 @@ export async function getRequiredSession(requiredRole?: Role | Role[]): Promise<
 
   if (currentUser.isBanned) {
     throw new Error("ACCOUNT_SUSPENDED")
+  }
+
+  if (requiresEmailVerification({ role: currentUser.role, verified: currentUser.verified, createdAt: currentUser.createdAt })) {
+    throw new Error("EMAIL_VERIFICATION_REQUIRED")
   }
 
   const needsTermsAcceptance = !currentUser.termsAcceptedAt || currentUser.termsVersion !== TERMS_VERSION || !currentUser.acceptedVia

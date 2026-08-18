@@ -36,6 +36,7 @@ import {
   resolvePricingState,
   validateServiceSpecificAnswers,
 } from "@/lib/request-options"
+import { getInactiveMarketMessage, getMarketConfig } from "@/lib/marketplace-rules"
 import { requestSchema } from "@/lib/validation-schemas"
 
 const steps = [
@@ -100,6 +101,26 @@ type StoredRequestDraft = Partial<{
 
 const isKnownOption = (options: readonly string[], value?: string | null) => Boolean(value && options.includes(value))
 
+function createClientDraftId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID()
+  }
+
+  return `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function getTailoredFlowPath(eventType: string, draftId: string) {
+  if (eventType === "Multi-Day Chef Hire") {
+    return `/dashboard/client/multi-day-chef-hire?draft=${encodeURIComponent(draftId)}`
+  }
+
+  if (eventType === "Full-Time Chef") {
+    return `/dashboard/client/full-time-chef?draft=${encodeURIComponent(draftId)}`
+  }
+
+  return null
+}
+
 export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormProps) {
   const router = useRouter()
   const [stepIndex, setStepIndex] = React.useState(0)
@@ -126,6 +147,7 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
   })
 
   const currencyConfig = getCurrencyConfig(formData.country)
+  const marketConfig = getMarketConfig(formData.country)
   const selectedService = SERVICE_TYPE_OPTIONS.find((option) => option.id === formData.serviceType) ?? SERVICE_TYPE_OPTIONS[0]
   const isCookingClass = formData.serviceType === "COOKING_CLASS"
   const selectedEventNeedsTailoredFlow = formData.eventType === "Multi-Day Chef Hire" || formData.eventType === "Full-Time Chef"
@@ -144,6 +166,35 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
   const attendeeLabel = isCookingClass ? "students" : "guests"
   const hasSelectedChefContext = Boolean(chefId)
   const progressPercentage = ((stepIndex + 1) / steps.length) * 100
+
+  const storeDraftAndRouteToTailoredFlow = React.useCallback((eventType: string, nextData = formData) => {
+    const draftId = initialDraftId || createClientDraftId()
+    const path = getTailoredFlowPath(eventType, draftId)
+
+    if (!path || typeof window === "undefined") {
+      return false
+    }
+
+    window.sessionStorage.setItem(`chefachef:request-draft:${draftId}`, JSON.stringify({
+      eventType,
+      serviceType: nextData.serviceType,
+      cuisinePreferences: nextData.cuisinePreferences,
+      dietaryRequirements: nextData.dietaryRequirements,
+      serviceTier: nextData.serviceTier,
+      serviceSpecificAnswers: nextData.serviceSpecificAnswers,
+      eventDate: nextData.eventDate,
+      eventTime: nextData.eventTime,
+      location: nextData.location,
+      country: nextData.country,
+      guestCount: nextData.guestCount,
+      adultCount: nextData.adultCount,
+      childrenUnder10: nextData.childrenUnder10,
+      budget: nextData.budget,
+      details: nextData.details,
+    }))
+    router.push(path)
+    return true
+  }, [formData, initialDraftId, router])
 
   React.useEffect(() => {
     if (!initialDraftId || typeof window === "undefined") {
@@ -188,6 +239,20 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
     }
   }, [initialDraftId])
 
+  React.useEffect(() => {
+    if (!initialDraftId || !selectedEventNeedsTailoredFlow) {
+      return
+    }
+
+    storeDraftAndRouteToTailoredFlow(formData.eventType)
+  }, [formData.eventType, initialDraftId, selectedEventNeedsTailoredFlow, storeDraftAndRouteToTailoredFlow])
+
+  const handleEventTypeSelect = (eventType: string) => {
+    const nextData = { ...formData, eventType }
+    setFormData(nextData)
+    storeDraftAndRouteToTailoredFlow(eventType, nextData)
+  }
+
   const validateCurrent = React.useCallback(() => {
     // Step-based validation: only validate fields relevant to current step
     let parsed: any = { success: true }
@@ -216,11 +281,7 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
         }
         break
 
-      case 2: // Food Preferences: cuisinePreferences required
-        if (!formData.cuisinePreferences || formData.cuisinePreferences.length === 0) {
-          stepErrors.cuisinePreferences = "Select at least one cuisine preference"
-          parsed.success = false
-        }
+      case 2: // Food Preferences: cuisinePreferences optional; zero selections means Skip.
         break
 
       case 3: // Schedule & Location: eventDate, eventTime, location, country required
@@ -234,6 +295,10 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
         }
         if (!formData.location || formData.location.length < 3) {
           stepErrors.location = "Location must be at least 3 characters"
+          parsed.success = false
+        }
+        if (!marketConfig.bookingEnabled) {
+          stepErrors.country = getInactiveMarketMessage(formData.country)
           parsed.success = false
         }
         break
@@ -272,7 +337,7 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
 
     setFieldErrors(stepErrors)
     return false
-  }, [formData, selectedService.serviceTiers.length, stepIndex])
+  }, [formData, marketConfig.bookingEnabled, selectedService.serviceTiers.length, stepIndex])
 
   const validateFull = React.useCallback(() => {
     // Full-form validation for final submission
@@ -326,6 +391,10 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
   }
 
   const nextStep = () => {
+    if (selectedEventNeedsTailoredFlow && storeDraftAndRouteToTailoredFlow(formData.eventType)) {
+      return
+    }
+
     if (!validateCurrent()) {
       toast.error("Please complete the required fields for this step")
       return
@@ -340,6 +409,10 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitError(null)
+
+    if (selectedEventNeedsTailoredFlow && storeDraftAndRouteToTailoredFlow(formData.eventType)) {
+      return
+    }
 
     if (!validateFull()) {
       toast.error("Please review the form before publishing")
@@ -417,13 +490,13 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
                     <button
                       key={eventType}
                       type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, eventType }))}
+                      onClick={() => handleEventTypeSelect(eventType)}
                       className={`rounded-2xl border px-4 py-4 text-left transition-all duration-200 ${selected ? "border-primary bg-primary/10 shadow-sm shadow-primary/10" : "border-border bg-background hover:border-primary/30 hover:bg-primary/5"}`}
                     >
                       <p className={`text-sm font-semibold ${selected ? "text-foreground" : "text-foreground"}`}>{eventType}</p>
                       <p className="mt-1 text-xs text-muted-foreground">
                         {eventType === "Multi-Day Chef Hire" || eventType === "Full-Time Chef"
-                          ? "Visible now; tailored Phase 2 flow required before standard booking."
+                          ? "Uses a dedicated enquiry workflow."
                           : "Private event request shared with chefs"}
                       </p>
                     </button>
@@ -556,7 +629,7 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
       case 2:
         return (
           <div className="grid gap-6 md:grid-cols-2">
-            <FormFieldWrapper label="Cuisine preferences" error={fieldErrors.cuisinePreferences} required>
+            <FormFieldWrapper label="Cuisine preferences" error={fieldErrors.cuisinePreferences} helperText="Optional; choose up to 3 or skip">
               <div className="grid gap-3 rounded-2xl border border-border bg-background p-4">
                 {CUISINE_TYPES.map((option) => (
                   <label key={option} className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition-colors ${formData.cuisinePreferences.includes(option) ? "border-primary/30 bg-primary/5" : "border-border/70 bg-muted/20 hover:border-primary/20"}`}>
@@ -613,11 +686,15 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
                   <SelectValue placeholder="Select a country" />
                 </SelectTrigger>
                 <SelectContent>
-                  {COUNTRY_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-                  ))}
+                  {COUNTRY_OPTIONS.map((option) => {
+                    const market = getMarketConfig(option.value)
+                    return <SelectItem key={option.value} value={option.value}>{option.label}{market.bookingEnabled ? "" : " - launching soon"}</SelectItem>
+                  })}
                 </SelectContent>
               </Select>
+              {!marketConfig.bookingEnabled ? (
+                <p className="text-xs font-normal leading-5 text-amber-700">{getInactiveMarketMessage(formData.country)}</p>
+              ) : null}
             </FormFieldWrapper>
 
             <FormFieldWrapper label="Location" error={fieldErrors.location} required>
@@ -838,7 +915,7 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
             </div>
             <div>
               <p className="text-muted-foreground">Country & location</p>
-              <p className="font-medium text-foreground">{COUNTRY_OPTIONS.find((option) => option.value === formData.country)?.label ?? formData.country} Â· {formData.location || "Not set"}</p>
+              <p className="font-medium text-foreground">{COUNTRY_OPTIONS.find((option) => option.value === formData.country)?.label ?? formData.country} - {formData.location || "Not set"}</p>
             </div>
             <div>
               <p className="text-muted-foreground">{isCookingClass ? "Students/adults" : "Adults and children"}</p>

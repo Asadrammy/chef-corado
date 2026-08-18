@@ -9,6 +9,8 @@ import { chefProfileService } from "@/lib/services/chef-profile-service"
 import { Role } from "@/types"
 import { validateMessageContent } from "@/lib/security/communication-policy"
 import { isPrismaConnectionError } from "@/lib/prisma"
+import { CHEF_CAREER_STAGE_VALUES, CHEF_SPECIALTY_VALUES } from "@/lib/chef-onboarding-options"
+import { imageReferenceSchema } from "@/lib/menu-image-storage"
 
 const countryCodes = COUNTRY_OPTIONS.map((option) => option.value) as [string, ...string[]]
 const currencyCodes = [...new Set(COUNTRY_OPTIONS.map((option) => option.currency))] as [string, ...string[]]
@@ -23,8 +25,10 @@ const profileSchema = z.object({
   radius: z.number().min(1, "Radius must be at least 1 km").max(500, "Radius cannot exceed 500 km"),
   baseCountryCode: z.enum(countryCodes).default("GB"),
   preferredCurrency: z.enum(currencyCodes).default("GBP"),
-  profileImage: z.string().optional(),
+  profileImage: imageReferenceSchema.optional(),
   chefType: z.string().optional(),
+  careerStage: z.enum(CHEF_CAREER_STAGE_VALUES).optional(),
+  specialties: z.array(z.enum(CHEF_SPECIALTY_VALUES)).max(10).optional(),
   certifications: z.string().optional(),
   cuisineType: z.string().optional(),
   eventsPerMonth: z.number().int().min(0).optional(),
@@ -53,6 +57,8 @@ function getLocalDemoChefProfile(userId: string) {
     isApproved: true,
     profileImage: undefined,
     chefType: "PRIVATE_CHEF",
+    careerStage: "EXPERIENCED_PRIVATE_CHEF",
+    specialties: ["PRIVATE_DINING"],
     certifications: "Level 2 Food Hygiene, private dining service",
     cuisineType: "Modern European",
     eventsPerMonth: 8,
@@ -140,6 +146,9 @@ export async function PUT(request: NextRequest) {
     }
     if (validatedData.chefType) {
       validateMessageContent(validatedData.chefType)
+    }
+    if (validatedData.careerStage) {
+      validateMessageContent(validatedData.careerStage)
     }
     if (validatedData.certifications) {
       validateMessageContent(validatedData.certifications)

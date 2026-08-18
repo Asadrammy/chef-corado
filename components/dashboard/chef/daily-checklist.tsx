@@ -113,7 +113,7 @@ export function DailyChecklist({
       case "high":
         return "text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800"
       case "medium":
-        return "text-blue-600 bg-blue-50 border-blue-200 dark:bg-blue-950/30 dark:border-blue-800"
+        return "text-primary bg-primary/10 border-primary/20"
       default:
         return "text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-800"
     }
@@ -202,7 +202,7 @@ export function DailyChecklist({
         {progress === 100 && (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-center dark:border-emerald-800 dark:bg-emerald-950/30">
             <p className="font-semibold text-emerald-800 dark:text-emerald-400">
-              🎉 Daily goals complete!
+              Daily goals complete!
             </p>
             <p className="text-sm text-emerald-700 dark:text-emerald-500">
               Great work today. You&apos;re maximizing your marketplace potential.

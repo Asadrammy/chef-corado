@@ -320,7 +320,16 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
         id: true,
         createdAt: true,
         status: true,
-        request: true,
+        request: {
+          select: {
+            id: true,
+            title: true,
+            eventDate: true,
+            location: true,
+            budget: true,
+            currency: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     }),

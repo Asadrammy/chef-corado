@@ -6,6 +6,7 @@ import { experienceSchema } from '@/lib/validation-schemas';
 import { enforceUserModeration } from '@/lib/security/moderation-guard';
 import { enforceChefCompliance } from '@/lib/security/legal-compliance';
 import { validatePolicyFields } from '@/lib/security/communication-policy';
+import { publicChefEligibilityWhere } from '@/lib/public-chef-view';
 
 // Simple in-memory cache for popular queries
 const cache = new Map();
@@ -49,7 +50,6 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get('search');
     const location = searchParams.get('location');
     const hasAvailability = searchParams.get('hasAvailability');
-    const verifiedOnly = searchParams.get('verifiedOnly');
     const minGuests = searchParams.get('minGuests');
     const maxGuests = searchParams.get('maxGuests');
     const sortBy = searchParams.get('sortBy') || 'createdAt';
@@ -80,7 +80,6 @@ export async function GET(request: NextRequest) {
           difficulty,
           search,
           location,
-          verifiedOnly,
           hasAvailability,
           minPrice,
           maxPrice,
@@ -95,11 +94,7 @@ export async function GET(request: NextRequest) {
     const where: any = {
       isActive: true,
       chef: {
-        isApproved: true,
-        isBanned: false,
-        user: {
-          isBanned: false,
-        },
+        ...publicChefEligibilityWhere,
       },
     };
 
@@ -136,10 +131,6 @@ export async function GET(request: NextRequest) {
     if (location) {
       chefFilters.location = { contains: location, mode: 'insensitive' };
     }
-    if (verifiedOnly === 'true') {
-      chefFilters.user = { verified: true };
-    }
-
     // Availability filtering (simplified - would need date parameter for real implementation)
     if (hasAvailability === 'true') {
       // This would require joining with availability table
@@ -191,8 +182,6 @@ export async function GET(request: NextRequest) {
                 user: {
                   select: {
                     name: true,
-                    verified: true,
-                    experienceLevel: true,
                   },
                 },
               },
@@ -247,7 +236,6 @@ export async function GET(request: NextRequest) {
         difficulty,
         search,
         location,
-        verifiedOnly,
         hasAvailability,
         minPrice,
         maxPrice,
@@ -344,8 +332,6 @@ export async function POST(request: NextRequest) {
             user: {
               select: {
                 name: true,
-                verified: true,
-                experienceLevel: true,
               },
             },
           },

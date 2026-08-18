@@ -15,6 +15,12 @@ const proposalSchema = z.object({
   price: secureSchemas.securePrice,
   message: secureSchemas.secureMessage,
   menuId: z.string().cuid().optional().nullable(),
+  lineItems: z.array(z.object({
+    serviceDate: z.string().refine((date) => !Number.isNaN(Date.parse(date)), "Invalid service date").optional(),
+    title: z.string().min(1).max(140),
+    description: z.string().max(1000).optional(),
+    price: secureSchemas.securePrice,
+  })).max(30).optional(),
 }).strict() // No additional properties allowed
 
 const proposalUpdateSchema = z.object({
@@ -104,10 +110,54 @@ export async function POST(request: Request) {
       return response
     }
 
+    if (error instanceof Error && error.message.startsWith("MARKET_BOOKING_INACTIVE:")) {
+      const response = NextResponse.json(
+        { error: "ChefaChef is preparing to launch bookings in this market. Proposals are not available yet." },
+        { status: 403 }
+      )
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
     if (error instanceof Error && error.message === "REQUEST_PROPOSAL_LIMIT_REACHED") {
       const response = NextResponse.json(
         { error: "This request has already received the maximum of 10 quotes." },
         { status: 409 }
+      )
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
+    if (error instanceof Error && error.message === "MULTI_DAY_PROPOSAL_LINE_ITEMS_REQUIRED") {
+      const response = NextResponse.json(
+        { error: "Multi-Day proposals must include one daily line item for each service date." },
+        { status: 422 }
+      )
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
+    if (error instanceof Error && error.message === "MULTI_DAY_PROPOSAL_LINE_ITEMS_MISMATCH") {
+      const response = NextResponse.json(
+        { error: "Multi-Day proposal line items must match the request service dates." },
+        { status: 422 }
+      )
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
+    if (error instanceof Error && error.message === "MULTI_DAY_PROPOSAL_TOTAL_MISMATCH") {
+      const response = NextResponse.json(
+        { error: "Multi-Day proposal total must equal the sum of daily line items." },
+        { status: 422 }
       )
       Object.entries(securityHeaders).forEach(([key, value]) => {
         response.headers.set(key, value)
@@ -201,7 +251,7 @@ export async function GET() {
       return NextResponse.json({ proposals: [], localDemo: true })
     }
 
-    throw error
+    return handleApiError(error, "Proposals GET")
   }
 
   return NextResponse.json({ proposals })

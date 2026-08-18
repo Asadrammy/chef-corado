@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import Link from "next/link"
+import { useSession } from "next-auth/react"
 import {
   Camera,
   Plus,
@@ -39,15 +41,17 @@ const tabs = [
 ]
 
 export function SettingsDashboard() {
+  const { data: session } = useSession()
   const [activeSection, setActiveSection] = React.useState<SettingsSection>("profile")
-  const [isSaving, setIsSaving] = React.useState(false)
-
-  const handleSave = async () => {
-    setIsSaving(true)
-    // Simulate save operation
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setIsSaving(false)
-  }
+  const displayName = session?.user?.name || "ChefaChef member"
+  const displayEmail = session?.user?.email || "Email unavailable"
+  const initials = displayName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "CC"
+  const profileHref = session?.user?.role === "CHEF" ? "/dashboard/chef/profile" : "/dashboard/settings/account"
 
   return (
     <div className="w-full pb-10">
@@ -57,13 +61,15 @@ export function SettingsDashboard() {
             <h1 className="text-2xl font-semibold tracking-tight text-foreground">Settings</h1>
             <p className="text-sm text-muted-foreground">Manage your account, profile, and preferences.</p>
           </div>
-          <Button onClick={handleSave} disabled={isSaving} className="h-10 rounded-lg px-4 shadow-sm">
+          <Button asChild className="brand-gradient-button h-10 rounded-lg px-4 shadow-sm">
+            <Link href={profileHref}>
             <Save className="mr-2 h-4 w-4" />
-            {isSaving ? "Saving..." : "Save Changes"}
+            Manage Profile
+            </Link>
           </Button>
         </div>
 
-        <ProfileOverviewCard />
+        <ProfileOverviewCard displayName={displayName} displayEmail={displayEmail} initials={initials} profileHref={profileHref} />
 
         <Tabs
           value={activeSection}
@@ -115,21 +121,33 @@ export function SettingsDashboard() {
   )
 }
 
-function ProfileOverviewCard() {
+function ProfileOverviewCard({
+  displayName,
+  displayEmail,
+  initials,
+  profileHref,
+}: {
+  displayName: string
+  displayEmail: string
+  initials: string
+  profileHref: string
+}) {
   return (
     <Card className="rounded-xl border-border/60 bg-background shadow-sm">
       <CardContent className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
         <div className="flex items-center gap-4">
           <Avatar className="h-16 w-16 border border-border/60">
-            <AvatarFallback className="bg-muted text-sm font-medium text-foreground">JD</AvatarFallback>
+            <AvatarFallback className="bg-muted text-sm font-medium text-foreground">{initials}</AvatarFallback>
           </Avatar>
           <div className="space-y-1">
-            <p className="text-lg font-semibold text-foreground">John Doe</p>
-            <p className="text-sm text-muted-foreground">john@example.com</p>
+            <p className="text-lg font-semibold text-foreground">{displayName}</p>
+            <p className="text-sm text-muted-foreground">{displayEmail}</p>
           </div>
         </div>
-        <Button variant="outline" className="h-10 rounded-lg px-4">
+        <Button asChild variant="outline" className="h-10 rounded-lg px-4">
+          <Link href={profileHref}>
           Edit profile
+          </Link>
         </Button>
       </CardContent>
     </Card>
@@ -152,7 +170,7 @@ function ProfileSection() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <Avatar className="h-14 w-14 border border-border/60">
-                <AvatarFallback className="bg-muted text-sm font-medium text-foreground">JD</AvatarFallback>
+                <AvatarFallback className="bg-muted text-sm font-medium text-foreground">CC</AvatarFallback>
               </Avatar>
               <div className="space-y-1">
                 <p className="font-medium text-foreground">Profile photo</p>
@@ -169,7 +187,7 @@ function ProfileSection() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name</Label>
-                <Input id="fullName" placeholder="John Doe" className="h-11 rounded-lg" />
+                <Input id="fullName" placeholder="Your display name" className="h-11 rounded-lg" />
                 <p className="text-xs text-muted-foreground">This is your public display name.</p>
               </div>
             </div>
@@ -177,7 +195,7 @@ function ProfileSection() {
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
-                <Input id="username" placeholder="johndoe" className="h-11 rounded-lg" />
+                <Input id="username" placeholder="your-chefachef-name" className="h-11 rounded-lg" />
                 <p className="text-xs text-muted-foreground">Unique identifier for your profile.</p>
               </div>
             </div>
@@ -207,7 +225,7 @@ function ProfileSection() {
               <Input
                 id="email"
                 type="email"
-                placeholder="john@example.com"
+                placeholder="your.email@example.com"
                 className="h-11 rounded-lg"
               />
               <p className="text-xs text-muted-foreground">Used for account notifications.</p>
@@ -217,7 +235,7 @@ function ProfileSection() {
               <Label htmlFor="phone">Phone Number</Label>
               <Input
                 id="phone"
-                placeholder="+1 (555) 123-4567"
+                placeholder="+44 07942 641878"
                 className="h-11 rounded-lg"
               />
               <p className="text-xs text-muted-foreground">Optional for urgent contact.</p>
@@ -239,13 +257,13 @@ function ProfileSection() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="website">Website</Label>
-              <Input id="website" placeholder="https://yourwebsite.com" className="h-11 rounded-lg" />
+              <Input id="website" placeholder="https://your-site.example" className="h-11 rounded-lg" />
               <p className="text-xs text-muted-foreground">Personal site or portfolio.</p>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="twitter">Twitter</Label>
-              <Input id="twitter" placeholder="@username" className="h-11 rounded-lg" />
+              <Label htmlFor="socialProfile">Social profile</Label>
+              <Input id="socialProfile" placeholder="Approved public profile URL" className="h-11 rounded-lg" />
               <p className="text-xs text-muted-foreground">Optional social link.</p>
             </div>
           </div>

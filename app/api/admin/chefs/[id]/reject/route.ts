@@ -4,15 +4,16 @@ import { requireAdminPermission } from "@/lib/admin-rbac"
 import { handleApiError } from "@/lib/error-handler"
 import { adminChefService } from "@/lib/services/admin-chef-service"
 
-// POST reject a chef (delete their profile)
+// POST reject a chef without deleting their profile
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const actor = await requireAdminPermission("chefs.review")
+    const actor = await requireAdminPermission("chefs.approve")
     const { id } = await params
-    const result = await adminChefService.rejectChef(id, actor.userId)
+    const body = await request.json().catch(() => ({}))
+    const result = await adminChefService.rejectChef(id, actor.userId, body.reason)
 
     return NextResponse.json(result)
   } catch (error) {

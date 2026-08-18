@@ -8,6 +8,11 @@ import { Card } from "@/components/ui/card"
 import { CalendarDays, Clock3, CheckCircle2, XCircle, WalletCards, MapPin, Eye, MessageSquare } from "lucide-react"
 import { BookingStatus } from "@/types"
 import { formatCurrency } from "@/lib/currency"
+import {
+  formatServiceDateSummary,
+  getStructuredServiceDates,
+  type MultiDayDateLike,
+} from "@/lib/multi-day-display"
 
 export type ChefBookingPayload = {
   id: string
@@ -17,13 +22,16 @@ export type ChefBookingPayload = {
   eventDate: string
   location: string
   createdAt: string
+  serviceDates?: MultiDayDateLike[]
   client: {
     id: string
     name: string | null
   }
   proposal?: {
     request?: {
+      requestMode?: string | null
       eventDate: string
+      multiDayDates?: MultiDayDateLike[]
       details: string | null
       location: string
     }
@@ -83,6 +91,8 @@ export function ChefBookingCard({ booking }: ChefBookingCardProps) {
   const StatusIcon = status.icon
   const location = booking.proposal?.request?.location || booking.location
   const eventDate = booking.proposal?.request?.eventDate || booking.eventDate
+  const serviceDates = getStructuredServiceDates(booking)
+  const isMultiDay = booking.proposal?.request?.requestMode === "MULTI_DAY" || serviceDates.length > 1
   const details = booking.proposal?.request?.details
   const clientName = booking.client?.name || "Client"
 
@@ -98,7 +108,7 @@ export function ChefBookingCard({ booking }: ChefBookingCardProps) {
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 space-y-2">
               <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-primary shadow-sm">
-                Booking workspace
+                {isMultiDay ? "Multi-Day Chef Hire" : "Booking workspace"}
               </div>
               <div className="flex flex-wrap items-center gap-2.5">
                 <h3 className="min-w-0 text-lg font-semibold tracking-tight text-foreground break-words sm:text-[1.35rem]">
@@ -128,7 +138,9 @@ export function ChefBookingCard({ booking }: ChefBookingCardProps) {
             </div>
             <div className="flex items-center gap-2 rounded-full bg-muted/45 px-3 py-2 min-w-0 sm:justify-start">
               <CalendarDays className="h-4 w-4 shrink-0 text-primary" />
-              <span className="truncate">{formatDate(eventDate)}</span>
+              <span className="truncate">
+                {isMultiDay ? formatServiceDateSummary(serviceDates, eventDate) : formatDate(eventDate)}
+              </span>
             </div>
             <div className="flex items-center gap-2 rounded-full bg-muted/45 px-3 py-2 min-w-0 sm:col-span-2">
               <MapPin className="h-4 w-4 shrink-0 text-primary" />
@@ -151,7 +163,7 @@ export function ChefBookingCard({ booking }: ChefBookingCardProps) {
                 <span className="truncate">View</span>
               </Link>
             </Button>
-            <Button className="h-11 min-w-0 flex-1 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-4 shadow-lg shadow-primary/20" asChild>
+            <Button className="brand-gradient-button h-11 min-w-0 flex-1 rounded-2xl px-4 shadow-lg shadow-primary/20" asChild>
               <Link href={`/dashboard/chef/messages/${booking.client.id}`}>
                 <MessageSquare className={`h-4 w-4 shrink-0 transition-transform duration-300 ${isHovered ? "translate-x-0.5" : ""}`} />
                 <span className="truncate">Message</span>

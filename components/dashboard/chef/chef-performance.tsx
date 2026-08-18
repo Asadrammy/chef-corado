@@ -129,7 +129,7 @@ export function ChefPerformance({
                 <defs>
                   <linearGradient id="chefEarningsBar" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.95" />
-                    <stop offset="100%" stopColor="hsl(249 90% 68%)" stopOpacity="0.55" />
+                    <stop offset="100%" stopColor="hsl(var(--brand-chocolate))" stopOpacity="0.55" />
                   </linearGradient>
                 </defs>
                 <CartesianGrid vertical={false} strokeDasharray="3 3" opacity={0.35} />

@@ -2,6 +2,14 @@ import { Resend } from 'resend'
 import { shouldSendNotification, type NotificationTopic } from '@/lib/notification-preferences'
 import { formatCurrency } from '@/lib/currency'
 import { APPROVED_PUBLIC_CONTACT } from '@/lib/marketplace-rules'
+import {
+  type MultiDayDateLike,
+  type ProposalLineItemLike,
+  formatBudgetMode,
+  formatServiceDateSummary,
+  renderMultiDayEmailDetails,
+  renderProposalLineItemsEmail,
+} from '@/lib/multi-day-display'
 
 let resend: Resend | null = null
 
@@ -102,6 +110,34 @@ export const emailTemplates = {
     </div>
   `,
 
+  newMultiDayRequest: (
+    chefName: string,
+    requestTitle: string,
+    requestLocation: string,
+    budget: number,
+    currency = "GBP",
+    details?: {
+      serviceDates?: MultiDayDateLike[] | null
+      budgetMode?: string | null
+    }
+  ) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #333;">New Multi-Day Chef Hire Request Available</h2>
+      <p>Hi <strong>${chefName}</strong>,</p>
+      <p>A new Multi-Day Chef Hire request matching your service area has been posted:</p>
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #e91e63;">${requestTitle}</h3>
+        <p><strong>Location:</strong> ${requestLocation}</p>
+        <p><strong>Selected dates:</strong> ${formatServiceDateSummary(details?.serviceDates)}</p>
+        <p><strong>Budget mode:</strong> ${formatBudgetMode(details?.budgetMode)}</p>
+        <p><strong>Budget guidance:</strong> ${formatCurrency(budget, currency)}</p>
+      </div>
+      ${renderMultiDayEmailDetails({ serviceDates: details?.serviceDates, currency, budgetMode: details?.budgetMode })}
+      <p>Log in to your dashboard to view details and submit a proposal.</p>
+      <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
+    </div>
+  `,
+
   newProposal: (clientName: string, chefName: string, proposalPrice: number, requestTitle: string, currency = "GBP") => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #333;">New Proposal Received</h2>
@@ -113,6 +149,34 @@ export const emailTemplates = {
         <p><strong>Proposal Price:</strong> ${formatCurrency(proposalPrice, currency)}</p>
       </div>
       <p>Log in to your dashboard to review the proposal and accept or decline.</p>
+      <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
+    </div>
+  `,
+
+  newMultiDayProposal: (
+    clientName: string,
+    chefName: string,
+    proposalPrice: number,
+    requestTitle: string,
+    currency = "GBP",
+    details?: {
+      serviceDates?: MultiDayDateLike[] | null
+      lineItems?: ProposalLineItemLike[] | null
+      budgetMode?: string | null
+    }
+  ) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #333;">New Multi-Day Chef Hire Proposal Received</h2>
+      <p>Hi <strong>${clientName}</strong>,</p>
+      <p>You've received a new proposal for your Multi-Day Chef Hire request:</p>
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #4caf50;">${requestTitle}</h3>
+        <p><strong>Chef:</strong> ${chefName}</p>
+        <p><strong>Selected dates:</strong> ${formatServiceDateSummary(details?.serviceDates)}</p>
+        <p><strong>Proposal total:</strong> ${formatCurrency(proposalPrice, currency)}</p>
+      </div>
+      ${renderProposalLineItemsEmail(details?.lineItems, currency)}
+      <p>Log in to your dashboard to review the daily breakdown before accepting or declining.</p>
       <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
     </div>
   `,
@@ -130,6 +194,32 @@ export const emailTemplates = {
     </div>
   `,
 
+  multiDayProposalAccepted: (
+    chefName: string,
+    clientName: string,
+    requestTitle: string,
+    proposalPrice: number,
+    currency = "GBP",
+    details?: {
+      serviceDates?: MultiDayDateLike[] | null
+      lineItems?: ProposalLineItemLike[] | null
+    }
+  ) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #333;">Multi-Day Proposal Accepted!</h2>
+      <p>Hi <strong>${chefName}</strong>,</p>
+      <p><strong>${clientName}</strong> has accepted your proposal for this Multi-Day Chef Hire request:</p>
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #4caf50;">${requestTitle}</h3>
+        <p><strong>Selected dates:</strong> ${formatServiceDateSummary(details?.serviceDates)}</p>
+        <p><strong>Proposal total:</strong> ${formatCurrency(proposalPrice, currency)}</p>
+      </div>
+      ${renderProposalLineItemsEmail(details?.lineItems, currency)}
+      <p>The client will proceed with payment. You'll be notified once payment is confirmed.</p>
+      <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
+    </div>
+  `,
+
   paymentReceived: (userName: string, bookingTitle: string, amount: number, currency = "GBP") => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <h2 style="color: #333;">Payment Received</h2>
@@ -139,7 +229,7 @@ export const emailTemplates = {
         <h3 style="margin-top: 0; color: #4caf50;">${bookingTitle}</h3>
         <p><strong>Amount:</strong> ${formatCurrency(amount, currency)}</p>
       </div>
-      <p>The payment is now being held in escrow and will be released to the chef after service completion.</p>
+      <p>The payment is now held through the platform payment flow and payment provider records, and will be released to the chef after service completion when the payment record is eligible.</p>
       <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
     </div>
   `,

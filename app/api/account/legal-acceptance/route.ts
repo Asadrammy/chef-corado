@@ -5,6 +5,7 @@ import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
 import { handleApiError } from "@/lib/error-handler"
 import { prisma } from "@/lib/prisma"
 import { TERMS_VERSION } from "@/lib/request-options"
+import { legalVersionService } from "@/lib/services/legal-version-service"
 
 const legalAcceptanceSchema = z.object({
   acceptedTerms: z.literal(true),
@@ -19,6 +20,7 @@ export async function GET(request: Request) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
       select: {
+        role: true,
         termsAcceptedAt: true,
         termsVersion: true,
         acceptedVia: true,
@@ -65,7 +67,16 @@ export async function PUT(request: Request) {
         termsAcceptedAt: true,
         termsVersion: true,
         acceptedVia: true,
+        role: true,
       },
+    })
+
+    await legalVersionService.recordActiveAcceptances({
+      userId,
+      role: updated.role,
+      acceptedVia: payload.acceptedVia,
+      ipAddress: request.headers.get("x-forwarded-for"),
+      userAgent: request.headers.get("user-agent"),
     })
 
     return NextResponse.json({

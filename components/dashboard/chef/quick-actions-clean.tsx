@@ -17,7 +17,7 @@ export function QuickActionsClean({ availableRequests, activeBookings }: QuickAc
       badge: availableRequests > 0 ? availableRequests : null
     },
     {
-      title: 'Manage Experiences',
+      title: 'Manage Bookable Services',
       icon: <ChefHat className="h-4 w-4" />,
       href: '/dashboard/chef/experiences',
       badge: null

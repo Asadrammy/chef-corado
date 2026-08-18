@@ -202,7 +202,7 @@ const activeUsPricing = (
   warningCopy: "Your budget is below the client-confirmed USA guidance of $500 minimum spend or $75 per person.",
   customerGuidance: customerGuidance ?? COUNTRY_BOOKING_RULES.US.pricing,
   evidenceSource: "CLIENT REQUIREMENTS 10 AUGUST 2026.docx",
-  evidenceNotes: "Client confirmed USA online bookings, $500 or $75pp minimum guidance, $57-$99+ per-person event rates, $40-$60/hour assistance, and $300-$3,000/day multi-day rates.",
+  evidenceNotes: "Client supplied USA pricing guidance for future market readiness. This pricing guidance does not activate USA bookings or checkout.",
 });
 
 const activeItalyPricing = (
@@ -225,7 +225,7 @@ const activeItalyPricing = (
   version: SERVICE_PRICING_VERSION,
   customerGuidance: customerGuidance ?? COUNTRY_BOOKING_RULES.IT.pricing,
   evidenceSource: "CLIENT REQUIREMENTS 10 AUGUST 2026.docx",
-  evidenceNotes: "Client confirmed Italy online bookings, EUR 770 average for 10 guests, menu guidance from EUR 38-EUR 100+ per person, EUR 18-EUR 40/hour, and EUR 200-EUR 1,500/day. No Italy minimum spend was supplied.",
+  evidenceNotes: "Client supplied Italy pricing guidance for future market readiness. This pricing guidance does not activate Italy bookings or checkout. No Italy minimum spend was supplied.",
 });
 
 const activeKenyaPricing = (
@@ -251,7 +251,7 @@ const activeKenyaPricing = (
   warningCopy: `Your budget is below the client-confirmed Kenya guidance of ${minimumSpend} KES for this service category.`,
   customerGuidance,
   evidenceSource: "CLIENT REQUIREMENTS 10 AUGUST 2026.docx",
-  evidenceNotes: "Client confirmed Kenya online bookings, deposit expectations, ingredient/grocery-float handling, and category-specific KES guidance.",
+  evidenceNotes: "Client supplied Kenya pricing guidance for future market readiness. This pricing guidance does not activate Kenya bookings or checkout.",
 });
 
 const kenyaMinimumSpendByService: Record<string, number> = {

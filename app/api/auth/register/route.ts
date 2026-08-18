@@ -3,6 +3,8 @@ import { hash } from "bcrypt"
 import { prisma } from "@/lib/prisma"
 import { registerSchema } from "@/lib/validation-schemas"
 import { TERMS_VERSION } from "@/lib/request-options"
+import { getAppBaseUrlFromRequest, sanitizeCallbackUrl, sendVerificationEmail } from "@/lib/email-verification"
+import { legalVersionService } from "@/lib/services/legal-version-service"
 import { Role } from "@/types"
 
 export async function POST(request: NextRequest) {
@@ -10,6 +12,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validatedData = registerSchema.parse(body)
     const lockedRole = request.nextUrl.searchParams.get("role")
+    const callbackUrl = sanitizeCallbackUrl(typeof body?.callbackUrl === "string" ? body.callbackUrl : "")
 
     if ((lockedRole === Role.CLIENT || lockedRole === Role.CHEF) && validatedData.role !== lockedRole) {
       return NextResponse.json(
@@ -43,6 +46,7 @@ export async function POST(request: NextRequest) {
         email: validatedData.email.toLowerCase(),
         password: hashedPassword,
         role: validatedData.role,
+        verified: false,
         termsAcceptedAt: new Date(),
         termsVersion: TERMS_VERSION,
         acceptedVia: "register",
@@ -69,9 +73,25 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    await legalVersionService.recordActiveAcceptances({
+      userId: user.id,
+      role: user.role,
+      acceptedVia: "register",
+      ipAddress: request.headers.get("x-forwarded-for"),
+      userAgent: request.headers.get("user-agent"),
+    })
+
+    const emailResult = await sendVerificationEmail({
+      user,
+      baseUrl: getAppBaseUrlFromRequest(request),
+      callbackUrl,
+    })
+
     return NextResponse.json(
       {
-        message: "User registered successfully",
+        message: "Account created successfully. Please verify your email address before signing in.",
+        verificationRequired: true,
+        emailDelivery: emailResult.success ? "SENT" : "CONFIGURATION_REQUIRED",
         user,
       },
       { status: 201 }

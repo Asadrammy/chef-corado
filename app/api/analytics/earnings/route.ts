@@ -50,8 +50,7 @@ export async function GET(request: NextRequest) {
       });
       
       // Sum completed payments for this booking
-      const bookingEarnings = booking.payments ? 
-        (booking.payments.totalAmount - booking.payments.commissionAmount) : 0;
+      const bookingEarnings = booking.payments ? booking.payments.chefAmount : 0;
 
       const currentEarnings = earningsByMonth.get(month) || 0;
       earningsByMonth.set(month, currentEarnings + bookingEarnings);

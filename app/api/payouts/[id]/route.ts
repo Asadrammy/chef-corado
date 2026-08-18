@@ -33,6 +33,9 @@ export async function PATCH(
     if (error instanceof Error && error.message === 'EXTERNAL_REFERENCE_REQUIRED') {
       return NextResponse.json({ error: 'External payment reference is required before marking a manual payout paid.' }, { status: 400 });
     }
+    if (error instanceof Error && error.message === 'PAYOUT_ONBOARDING_REQUIRED') {
+      return NextResponse.json({ error: 'Complete Stripe onboarding to receive payout.' }, { status: 409 });
+    }
     if (error instanceof Error && error.message.startsWith('INVALID_PAYOUT_TRANSITION')) {
       return NextResponse.json({ error: 'Invalid payout status transition' }, { status: 400 });
     }

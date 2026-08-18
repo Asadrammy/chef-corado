@@ -25,6 +25,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: error.errors }, { status: 422 })
     }
 
+    if (error instanceof Error && error.message.startsWith("MARKET_BOOKING_INACTIVE:")) {
+      return NextResponse.json({ error: "ChefaChef is preparing to launch in this market. Full-Time Chef placement enquiries are not yet available here." }, { status: 403 })
+    }
+
     return handleApiError(error, "Full-Time Chef Enquiries POST")
   }
 }

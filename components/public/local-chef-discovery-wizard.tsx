@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { formatCurrency, getCurrencyConfig } from "@/lib/currency"
 import { COUNTRY_OPTIONS, CUISINE_TYPES, DIETARY_REQUIREMENTS, EVENT_TYPE_OPTIONS, SERVICE_TYPE_OPTIONS, CHILD_BILLING_RULE_COPY, calculateGuestComposition, resolvePricingState, validateServiceSpecificAnswers } from "@/lib/request-options"
+import { getInactiveMarketMessage, getMarketConfig } from "@/lib/marketplace-rules"
 import { cn } from "@/lib/utils"
 
 type LocalChefDiscoveryWizardProps = {
@@ -108,6 +109,8 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
     [serviceType],
   )
   const currencyConfig = getCurrencyConfig(country)
+  const marketConfig = getMarketConfig(country)
+  const marketBookingEnabled = marketConfig.bookingEnabled
   const selectedPricingState = serviceType
     ? resolvePricingState({ serviceType, countryCode: country, tier: pricingTier, budget: budget ? Number(budget) : null })
     : null
@@ -162,7 +165,7 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
 
   const canContinue = (() => {
     if (step === 0) return Boolean(venueType) && (venueType !== "Home" || Boolean(venueOwnership))
-    if (step === 1) return Boolean(location.trim())
+    if (step === 1) return Boolean(location.trim()) && marketBookingEnabled
     if (step === 2) return Boolean(eventDate && eventTime)
     if (step === 3) return guestComposition.actualAttendeeCount > 0
     if (step === 4) {
@@ -222,6 +225,8 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
       return current.length >= 3 ? current : [...current, cuisine]
     })
   }
+
+  const cuisineForwardLabel = step === 7 && selectedCuisines.length === 0 ? "Skip" : "Next"
 
   const toggleMultiDayDate = (date: string) => {
     setMultiDayDates((current) => {
@@ -305,9 +310,14 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
                     onChange={(event) => setCountry(event.target.value)}
                     className="h-14 w-full rounded-2xl border border-input bg-background px-4 text-base text-foreground shadow-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    {COUNTRY_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
+                    {COUNTRY_OPTIONS.map((option) => {
+                      const market = getMarketConfig(option.value)
+                      return (
+                        <option key={option.value} value={option.value}>
+                          {option.label}{market.bookingEnabled ? "" : " - launching soon"}
+                        </option>
+                      )
+                    })}
                   </select>
                 </div>
                 <label className="sr-only" htmlFor="guided-location">Postcode, city, or area</label>
@@ -315,7 +325,11 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
                   <MapPin className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
                   <Input id="guided-location" value={location} onChange={(event) => setLocation(event.target.value)} placeholder="Postcode, city, area, or venue" className="h-14 rounded-2xl pl-12 text-base" />
                 </div>
-                {location.trim() ? (
+                {!marketBookingEnabled ? (
+                  <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    {getInactiveMarketMessage(country)}
+                  </div>
+                ) : location.trim() ? (
                   <div className="mt-5 rounded-2xl border border-primary/15 bg-primary/5 p-4 text-sm text-foreground">
                     <strong>Good news.</strong> We will use this area to surface matching chefs and request details.
                   </div>
@@ -565,14 +579,18 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
               <div className="mt-5 flex flex-wrap gap-3">
                 {filteredCuisines.map((cuisine) => {
                   const selected = selectedCuisines.includes(cuisine)
+                  const disabled = !selected && selectedCuisines.length >= 3
                   return (
                     <button
                       key={cuisine}
                       type="button"
                       onClick={() => toggleCuisine(cuisine)}
+                      disabled={disabled}
+                      aria-pressed={selected}
                       className={cn(
                         "rounded-full border px-5 py-3 text-sm font-semibold transition-colors",
                         selected ? "border-primary bg-primary text-primary-foreground" : "border-border/70 bg-background hover:border-primary/50",
+                        disabled ? "cursor-not-allowed opacity-45 hover:border-border/70" : "",
                       )}
                     >
                       {cuisine}
@@ -668,7 +686,7 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
               </Button>
               {!isFinalStep ? (
                 <Button type="button" className="brand-gradient-button min-w-32 rounded-2xl border-0" disabled={!canContinue} onClick={() => setStep((value) => Math.min(10, value + 1))}>
-                  {step === 7 ? "Skip" : "Next"}
+                  {cuisineForwardLabel}
                 </Button>
               ) : (
                 <Button asChild className="brand-gradient-button min-w-32 rounded-2xl border-0">

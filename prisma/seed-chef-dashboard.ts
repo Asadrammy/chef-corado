@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { calculateMarketplaceFinancials } from '../lib/marketplace-rules';
 
 const prisma = new PrismaClient();
 
@@ -294,14 +295,29 @@ async function main() {
   const payments = await prisma.payment.createMany({
     data: createdBookings
       .filter(booking => booking.status === 'COMPLETED')
-      .map((booking, index) => ({
-        bookingId: booking.id,
-        totalAmount: booking.totalPrice,
-        commissionAmount: booking.totalPrice * 0.2, // 20% commission
-        chefAmount: booking.totalPrice * 0.8, // 85% to chef
-        status: 'COMPLETED',
-        releasedAt: new Date(Date.now() - (index + 1) * 24 * 60 * 60 * 1000) // Released at different times
-      }))
+      .map((booking, index) => {
+        const finance = calculateMarketplaceFinancials({
+          grossAmount: booking.totalPrice,
+          countryCode: 'GB',
+          currency: 'GBP',
+        });
+
+        return {
+          bookingId: booking.id,
+          totalAmount: booking.totalPrice,
+          commissionAmount: finance.platformCommissionAmount,
+          chefAmount: finance.chefNetPayout,
+          platformCommissionRate: finance.platformCommissionRate,
+          serviceChargeTaxRate: finance.serviceChargeTaxRate,
+          serviceChargeTaxAmount: finance.serviceChargeTaxAmount,
+          serviceChargeTaxDeductionEnabled: finance.serviceChargeTaxDeductionEnabled,
+          totalPlatformDeduction: finance.totalPlatformDeduction,
+          taxJurisdiction: finance.taxJurisdiction,
+          serviceChargeTaxStatus: finance.serviceChargeTaxStatus,
+          status: 'COMPLETED',
+          releasedAt: new Date(Date.now() - (index + 1) * 24 * 60 * 60 * 1000) // Released at different times
+        };
+      })
   });
 
   console.log('✅ Created payments for completed bookings');
@@ -326,7 +342,14 @@ async function main() {
   // Calculate totals
   const totalEarnings = createdBookings
     .filter(b => b.status === 'COMPLETED')
-    .reduce((sum, booking) => sum + (booking.totalPrice * 0.8), 0);
+    .reduce((sum, booking) => {
+      const finance = calculateMarketplaceFinancials({
+        grossAmount: booking.totalPrice,
+        countryCode: 'GB',
+        currency: 'GBP',
+      });
+      return sum + finance.chefNetPayout;
+    }, 0);
 
   const activeBookings = createdBookings.filter(b => b.status === 'CONFIRMED').length;
   const completedBookings = createdBookings.filter(b => b.status === 'COMPLETED').length;

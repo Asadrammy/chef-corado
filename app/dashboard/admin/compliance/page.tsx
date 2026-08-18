@@ -60,7 +60,7 @@ export default async function AdminCompliancePage({
       <AdminPageHeader
         eyebrow="Users & Compliance"
         title="Compliance"
-        description="Certificate, right-to-work, insurance, background check, and chef verification review. Private document URLs are not exposed directly."
+        description="Food Hygiene, right-to-work, background check, and chef platform approval review. ChefaChef platform insurance applies to eligible official bookings; admins do not upload chef-specific insurance certificates here."
       />
       <AdminMetricGrid
         metrics={[
@@ -87,32 +87,41 @@ export default async function AdminCompliancePage({
           { key: "chef", label: "Chef", render: (chef) => <div><p className="font-medium">{chef.user.name}</p><p className="text-xs text-muted-foreground">{maskEmailForAdmin(chef.user.email, actor)}</p></div> },
           { key: "rtw", label: "Right to work", render: (chef) => <AdminStatusBadge status={chef.rightToWorkUkConfirmed ? "APPROVED" : "PENDING"} /> },
           { key: "food", label: "Food Hygiene L2", render: (chef) => <div><AdminStatusBadge status={chef.foodHygieneCertificateReviewStatus ?? "MISSING"} /><p className="mt-1 text-xs text-muted-foreground">{chef.foodHygieneLevel2Confirmed ? "Level 2 confirmed" : "Level 2 not confirmed"}</p></div> },
-          { key: "insurance", label: "Insurance", render: (chef) => <AdminStatusBadge status={chef.insuranceStatus ?? "PENDING"} /> },
+          { key: "insurance", label: "Platform insurance", render: () => "ChefaChef booking cover" },
           { key: "background", label: "Background check", render: (chef) => chef.latestBackgroundCheckStatus ? <AdminStatusBadge status={chef.latestBackgroundCheckStatus} /> : "Not started" },
-          { key: "verification", label: "Chef verification", render: (chef) => <AdminStatusBadge status={chef.verificationStatus} /> },
+          { key: "verification", label: "Chef account", render: (chef) => <AdminStatusBadge status={chef.verificationStatus} /> },
           { key: "dates", label: "Relevant dates", render: (chef) => <div><p>Updated: {formatAdminDate(chef.updatedAt)}</p><p className="text-xs text-muted-foreground">Approved: {formatAdminDate(chef.approvedAt)}</p></div> },
           {
             key: "actions",
             label: "Review",
             render: (chef) => (
-              <AdminReviewDrawer title={`${chef.user.name} Compliance`} description="Review certificate, right-to-work, insurance, and verification status before taking action.">
+              <AdminReviewDrawer title={`${chef.user.name} Compliance`} description="Review Food Hygiene evidence, right-to-work confirmation, background checks, and chef account approval. Platform insurance is not a chef-uploaded document.">
                 <AdminDrawerSection title="Compliance Summary">
                   <AdminInfoGrid
                     items={[
                       { label: "Chef", value: `${chef.user.name} / ${maskEmailForAdmin(chef.user.email, actor)}` },
                       { label: "Right to work", value: <AdminStatusBadge status={chef.rightToWorkUkConfirmed ? "APPROVED" : "PENDING"} /> },
                       { label: "Food Hygiene L2", value: <AdminStatusBadge status={chef.foodHygieneCertificateReviewStatus ?? "MISSING"} /> },
-                      { label: "Insurance", value: <AdminStatusBadge status={chef.insuranceStatus ?? "PENDING"} /> },
+                      { label: "Platform insurance", value: "Covered by ChefaChef for qualifying official bookings" },
                       { label: "Background check", value: chef.latestBackgroundCheckStatus ? <AdminStatusBadge status={chef.latestBackgroundCheckStatus} /> : "Not started" },
                       { label: "Updated", value: formatAdminDate(chef.updatedAt) },
                     ]}
                   />
                 </AdminDrawerSection>
-                <AdminDrawerSection title="Approve Certificate" description="Use this when the submitted compliance evidence is acceptable.">
-                  <AdminActionForm endpoint="/api/admin/verification" method="POST" compact submitLabel="Approve certificate" fields={[{ name: "chefId", type: "hidden", defaultValue: chef.id }, { name: "action", type: "hidden", defaultValue: "APPROVE" }, { name: "reason", label: "Note", placeholder: "Approval note" }]} />
+                <AdminDrawerSection title="Food Hygiene Evidence" description="Inspect the submitted Level 2 Food Hygiene evidence before deciding on the chef account.">
+                  {chef.foodHygieneCertificateUrl ? (
+                    <a href={chef.foodHygieneCertificateUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-primary hover:underline">
+                      Open uploaded certificate
+                    </a>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No Food Hygiene certificate uploaded.</p>
+                  )}
                 </AdminDrawerSection>
-                <AdminDrawerSection title="Reject Certificate" description="Provide a clear reason for the audit trail and staff follow-up.">
-                  <AdminActionForm endpoint="/api/admin/verification" method="POST" compact submitLabel="Reject certificate" fields={[{ name: "chefId", type: "hidden", defaultValue: chef.id }, { name: "action", type: "hidden", defaultValue: "REJECT" }, { name: "reason", label: "Reason", placeholder: "Rejection reason" }]} />
+                <AdminDrawerSection title="Approve Chef Account" description="Use this only when Food Hygiene evidence and account review are acceptable. This does not change email verification.">
+                  <AdminActionForm endpoint="/api/admin/verification" method="POST" compact submitLabel="Approve chef account" fields={[{ name: "chefId", type: "hidden", defaultValue: chef.id }, { name: "action", type: "hidden", defaultValue: "APPROVE" }, { name: "reason", label: "Note", placeholder: "Approval note" }]} />
+                </AdminDrawerSection>
+                <AdminDrawerSection title="Reject Chef Account" description="Provide a clear reason for the audit trail and staff follow-up.">
+                  <AdminActionForm endpoint="/api/admin/verification" method="POST" compact submitLabel="Reject chef account" fields={[{ name: "chefId", type: "hidden", defaultValue: chef.id }, { name: "action", type: "hidden", defaultValue: "REJECT" }, { name: "reason", label: "Reason", placeholder: "Rejection reason" }]} />
                 </AdminDrawerSection>
               </AdminReviewDrawer>
             ),

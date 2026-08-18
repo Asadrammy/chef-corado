@@ -24,6 +24,13 @@ interface Payment {
   totalAmount: number
   commissionAmount: number
   chefAmount: number
+  platformCommissionRate?: number | null
+  serviceChargeTaxRate?: number | null
+  serviceChargeTaxAmount?: number
+  serviceChargeTaxStatus?: string | null
+  serviceChargeTaxDeductionEnabled?: boolean
+  totalPlatformDeduction?: number | null
+  taxJurisdiction?: string | null
   currency?: string
   status: "PENDING" | "HELD" | "RELEASED" | "COMPLETED"
   stripePaymentIntentId?: string
@@ -172,9 +179,9 @@ export default function AdminPaymentsPage() {
       value: formatCurrencySummary(commissionTotalByCurrency),
       meta: `Across ${payments.length} total bookings`,
       icon: CreditCard,
-      accent: "from-sky-500/15 via-indigo-500/10 to-transparent",
-      iconClassName: "text-sky-600 dark:text-sky-300",
-      valueClassName: "text-sky-600 dark:text-sky-300",
+      accent: "from-primary/15 via-primary/10 to-transparent",
+      iconClassName: "text-primary",
+      valueClassName: "text-primary",
     },
   ]
 
@@ -368,6 +375,7 @@ export default function AdminPaymentsPage() {
                         "Chef",
                         "Amount",
                         "Commission",
+                        "Deduction",
                         "Status",
                         "Date",
                         "Actions",
@@ -389,9 +397,9 @@ export default function AdminPaymentsPage() {
 
                       return (
                         <tr key={payment.id} className="group">
-                          <td colSpan={8} className="p-0 pt-2 first:pt-0">
+                          <td colSpan={9} className="p-0 pt-2 first:pt-0">
                             <div className="rounded-[20px] border border-border/60 bg-background/90 transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-border group-hover:bg-background group-hover:shadow-lg group-hover:shadow-black/[0.06]">
-                              <div className="grid grid-cols-[1.1fr_1.35fr_1.35fr_1fr_1fr_0.9fr_0.95fr_0.85fr] items-center gap-3 px-5 py-4">
+                              <div className="grid grid-cols-[1.05fr_1.25fr_1.25fr_0.95fr_0.95fr_1.1fr_0.85fr_0.9fr_0.8fr] items-center gap-3 px-5 py-4">
                                 <div className="min-w-0">
                                   <div className="inline-flex items-center rounded-full border border-border/60 bg-muted/50 px-3 py-1 text-xs font-semibold tracking-[0.12em] text-foreground shadow-sm">
                                     #{payment.booking.id.slice(-8)}
@@ -456,6 +464,15 @@ export default function AdminPaymentsPage() {
                                       ? ((payment.commissionAmount || 0) / payment.booking.totalPrice * 100).toFixed(1)
                                       : "0.0"}
                                     % platform fee
+                                  </div>
+                                </div>
+
+                                <div>
+                                  <div className="text-base font-semibold text-foreground">
+                                    {formatCurrency(payment.totalPlatformDeduction ?? payment.commissionAmount ?? 0, payment.currency ?? "GBP")}
+                                  </div>
+                                  <div className="mt-1 text-xs text-muted-foreground">
+                                    {formatCurrency(payment.serviceChargeTaxAmount ?? 0, payment.currency ?? "GBP")} internal tax tracking · {payment.serviceChargeTaxStatus?.replace(/_/g, " ") ?? "legacy"}
                                   </div>
                                 </div>
 

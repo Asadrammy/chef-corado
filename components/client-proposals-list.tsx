@@ -20,6 +20,12 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { analytics } from "@/lib/analytics"
 import { formatCurrency } from "@/lib/currency"
+import {
+  formatServiceDateSummary,
+  formatShortDate,
+  type MultiDayDateLike,
+  type ProposalLineItemLike,
+} from "@/lib/multi-day-display"
 import { cn } from "@/lib/utils"
 
 type ProposalStatus = "PENDING" | "ACCEPTED" | "ACCEPTED_PENDING_PAYMENT" | "REJECTED" | "EXPIRED" | "WITHDRAWN" | "BOOKED"
@@ -35,6 +41,7 @@ type ProposalPayload = {
   message: string | null
   status: ProposalStatus
   createdAt?: string
+  lineItems?: ProposalLineItemLike[]
   chef: {
     userId?: string
     name: string | null
@@ -44,10 +51,13 @@ type ProposalPayload = {
   }
   request?: {
     title?: string | null
+    requestMode?: string | null
     eventDate: string
+    multiDayDates?: MultiDayDateLike[]
     location: string
     guestCount?: number | null
     preferredTime?: string | null
+    budgetMode?: string | null
   }
   menu?: {
     id: string
@@ -122,6 +132,10 @@ function getMenuPriceLabel(menu: ProposalPayload["menu"]) {
 }
 
 function getProposalDateLabel(proposal: ProposalPayload) {
+  if (proposal.request?.requestMode === "MULTI_DAY" || proposal.request?.multiDayDates?.length) {
+    return formatServiceDateSummary(proposal.request?.multiDayDates, proposal.request?.eventDate)
+  }
+
   const eventDate = proposal.request?.eventDate ? new Date(proposal.request.eventDate) : null
   if (!eventDate || Number.isNaN(eventDate.getTime())) {
     return "Not specified"
@@ -129,6 +143,38 @@ function getProposalDateLabel(proposal: ProposalPayload) {
 
   const date = format(eventDate, "MMM d, yyyy")
   return proposal.request?.preferredTime ? `${date}, ${proposal.request.preferredTime}` : date
+}
+
+function ProposalLineItemsBreakdown({ proposal }: { proposal: ProposalPayload }) {
+  const items = proposal.lineItems ?? []
+  if (!items.length) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Daily line items are not available for this proposal. Review the proposal total and message.
+      </p>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {items.map((item, index) => (
+        <div key={`${proposal.id}-${item.serviceDate ?? index}`} className="rounded-2xl border border-border/60 bg-background/70 p-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-foreground">{formatShortDate(item.serviceDate)}</p>
+              <p className="text-sm text-muted-foreground">{item.title || "Service day"}</p>
+            </div>
+            <p className="text-sm font-semibold text-foreground">
+              {formatCurrency(Number(item.price ?? 0), item.currency ?? proposal.currency ?? "GBP")}
+            </p>
+          </div>
+          {item.description ? (
+            <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export function ClientProposalsList() {
@@ -404,7 +450,7 @@ export function ClientProposalsList() {
 
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link href="/dashboard/client/create-request">
-                  <Button className="h-11 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-6 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+                  <Button className="brand-gradient-button h-11 rounded-2xl px-6 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl">
                     Create Request
                   </Button>
                 </Link>
@@ -497,6 +543,22 @@ export function ClientProposalsList() {
                   {
                     label: "Event timing",
                     render: (proposal: ProposalPayload) => getProposalDateLabel(proposal),
+                  },
+                  {
+                    label: "Request type",
+                    render: (proposal: ProposalPayload) =>
+                      proposal.request?.requestMode === "MULTI_DAY" || proposal.request?.multiDayDates?.length
+                        ? "Multi-Day Chef Hire"
+                        : "Standard request",
+                  },
+                  {
+                    label: "Daily prices",
+                    render: (proposal: ProposalPayload) =>
+                      proposal.lineItems?.length
+                        ? proposal.lineItems
+                            .map((item) => `${formatShortDate(item.serviceDate)}: ${formatCurrency(Number(item.price ?? 0), item.currency ?? proposal.currency ?? "GBP")}`)
+                            .join(" | ")
+                        : "Not itemized",
                   },
                   {
                     label: "Location",
@@ -603,12 +665,13 @@ export function ClientProposalsList() {
           {filtered.map((proposal) => {
             const chefName = proposal.chef?.name ?? "Chef"
             const eventDate = proposal.request?.eventDate ? new Date(proposal.request.eventDate) : null
-            const location = proposal.request?.location ?? "—"
-            const message = proposal.message ?? "—"
+            const location = proposal.request?.location ?? "-"
+            const message = proposal.message ?? "-"
             const isExpanded = expandedProposalId === proposal.id
             const isSelected = selectedProposalIds.includes(proposal.id)
             const selectionDisabled = !isSelected && selectedProposalIds.length >= 3
             const initials = getInitials(chefName)
+            const isMultiDay = proposal.request?.requestMode === "MULTI_DAY" || Boolean(proposal.request?.multiDayDates?.length)
 
             return (
               <div
@@ -668,10 +731,23 @@ export function ClientProposalsList() {
                 </div>
 
                 <div className="mt-6 space-y-3 text-sm">
+                  {isMultiDay ? (
+                    <Badge variant="outline" className="w-fit rounded-full border-orange-200 bg-orange-50 text-orange-700">
+                      Multi-Day Chef Hire
+                    </Badge>
+                  ) : null}
+                  {isMultiDay ? (
+                    <div className="flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                      <span>{getProposalDateLabel(proposal)}</span>
+                    </div>
+                  ) : null}
+                  {!isMultiDay ? (
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
-                    <span>{eventDate ? format(eventDate, "MMM d, yyyy") : "—"}</span>
+                    <span>{eventDate ? format(eventDate, "MMM d, yyyy") : "-"}</span>
                   </div>
+                  ) : null}
                   <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-muted-foreground" />
                     <span className="truncate">{location}</span>
@@ -695,6 +771,16 @@ export function ClientProposalsList() {
                   <div className="text-sm text-muted-foreground">Message</div>
                   <p className={isExpanded ? "mt-2 text-sm" : "mt-2 text-sm line-clamp-3"}>{message}</p>
                 </div>
+
+                {isExpanded && isMultiDay ? (
+                  <div className="mt-6 rounded-2xl border border-border/60 bg-muted/30 p-4">
+                    <div className="mb-3 text-sm font-semibold text-foreground">Daily price breakdown</div>
+                    <ProposalLineItemsBreakdown proposal={proposal} />
+                    <div className="mt-3 border-t border-border/60 pt-3 text-sm font-semibold text-foreground">
+                      Total proposal: {formatPrice(proposal.price, proposal.currency)}
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="mt-6 flex flex-wrap items-center gap-2">
                   {proposal.chef.userId ? (

@@ -35,6 +35,8 @@ export default async function AdminCommissionsPage({
     currency,
     gross: payments.filter((payment) => payment.currency === currency).reduce((sum, payment) => sum + payment.totalAmount, 0),
     commission: payments.filter((payment) => payment.currency === currency).reduce((sum, payment) => sum + payment.commissionAmount, 0),
+    serviceChargeTax: payments.filter((payment) => payment.currency === currency).reduce((sum, payment) => sum + payment.serviceChargeTaxAmount, 0),
+    deduction: payments.filter((payment) => payment.currency === currency).reduce((sum, payment) => sum + (payment.totalPlatformDeduction ?? payment.commissionAmount), 0),
     chefNet: payments.filter((payment) => payment.currency === currency).reduce((sum, payment) => sum + payment.chefAmount, 0),
   }))
 
@@ -42,7 +44,7 @@ export default async function AdminCommissionsPage({
     <div className="space-y-5">
       <AdminPageHeader eyebrow="Finance" title="Commissions" description="Finance ledger view grouped by currency. GBP, USD, KES, and EUR are never summed into one misleading total." />
       <AdminMetricGrid
-        metrics={totals.slice(0, 4).map((row) => ({ label: `${row.currency} platform fee`, value: formatCurrency(row.commission, row.currency), helper: `${formatCurrency(row.gross, row.currency)} gross` }))}
+        metrics={totals.slice(0, 4).map((row) => ({ label: `${row.currency} platform deduction`, value: formatCurrency(row.deduction, row.currency), helper: `${formatCurrency(row.commission, row.currency)} platform fee; internal tax is tracked without extra chef deduction` }))}
       />
       <AdminToolbar>
         <form className="flex flex-wrap items-end gap-2">
@@ -60,7 +62,9 @@ export default async function AdminCommissionsPage({
           { key: "people", label: "Client / chef", render: (payment) => <div><p>{payment.booking.client.name}</p><p className="text-xs text-muted-foreground">{payment.booking.chef.user.name}</p></div> },
           { key: "service", label: "Service", render: (payment) => payment.booking.serviceTypeLabel ?? payment.booking.bookingType },
           { key: "gross", label: "Gross booking", render: (payment) => formatCurrency(payment.totalAmount, payment.currency) },
-          { key: "fee", label: "Platform fee", render: (payment) => formatCurrency(payment.commissionAmount, payment.currency) },
+          { key: "fee", label: "Service charge", render: (payment) => formatCurrency(payment.commissionAmount, payment.currency) },
+          { key: "tax", label: "Internal tax note", render: (payment) => <div><p>{formatCurrency(payment.serviceChargeTaxAmount, payment.currency)}</p><p className="text-xs text-muted-foreground">{payment.serviceChargeTaxStatus?.replace(/_/g, " ") ?? "Legacy / not captured"}</p></div> },
+          { key: "deduction", label: "Total deduction", render: (payment) => formatCurrency(payment.totalPlatformDeduction ?? payment.commissionAmount, payment.currency) },
           { key: "chef", label: "Chef net", render: (payment) => formatCurrency(payment.chefAmount, payment.currency) },
           { key: "refunds", label: "Refund adjustments", render: (payment) => payment.refunds.length ? payment.refunds.map((refund) => formatCurrency(refund.amount, payment.currency)).join(", ") : "None" },
           { key: "status", label: "Status", render: (payment) => <AdminStatusBadge status={payment.status} /> },
@@ -74,7 +78,10 @@ export default async function AdminCommissionsPage({
                     items={[
                       { label: "Currency", value: payment.currency },
                       { label: "Gross booking", value: formatCurrency(payment.totalAmount, payment.currency) },
-                      { label: "Platform fee", value: formatCurrency(payment.commissionAmount, payment.currency) },
+                      { label: "Service charge", value: formatCurrency(payment.commissionAmount, payment.currency) },
+                      { label: "Internal tax tracking", value: `${formatCurrency(payment.serviceChargeTaxAmount, payment.currency)} (${payment.serviceChargeTaxStatus?.replace(/_/g, " ") ?? "Legacy / not captured"})` },
+                      { label: "Total platform deduction", value: formatCurrency(payment.totalPlatformDeduction ?? payment.commissionAmount, payment.currency) },
+                      { label: "Tax jurisdiction", value: payment.taxJurisdiction ?? "Legacy / not captured" },
                       { label: "Chef net", value: formatCurrency(payment.chefAmount, payment.currency) },
                       { label: "Refund adjustments", value: payment.refunds.length ? payment.refunds.map((refund) => formatCurrency(refund.amount, payment.currency)).join(", ") : "None" },
                       { label: "Status", value: <AdminStatusBadge status={payment.status} /> },

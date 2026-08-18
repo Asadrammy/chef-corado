@@ -7,8 +7,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
-import { getProposalBookingCounts } from '@/lib/booking-counts'
-import { calculateChefPayout, calculatePlatformCommission } from '@/lib/marketplace-rules'
+import { paymentGuarantee } from '@/lib/services/payment-guarantee'
 import Stripe from 'stripe'
 
 export class PaymentReconciliationService {
@@ -36,6 +35,15 @@ export class PaymentReconciliationService {
       
       if (paymentIntent.status !== 'succeeded') {
         return { reconciled: false, error: 'Payment not succeeded' }
+      }
+
+      if (paymentIntent.metadata?.paymentPlanId) {
+        logger.info('[RECONCILIATION] Payment plan intent is not reconciled through legacy Payment', {
+          paymentIntentId,
+          paymentPlanId: paymentIntent.metadata.paymentPlanId,
+          installmentId: paymentIntent.metadata.installmentId,
+        })
+        return { reconciled: true }
       }
 
       // Step 2: Check if payment already recorded
@@ -93,64 +101,35 @@ export class PaymentReconciliationService {
         return { reconciled: false, error: 'Booking exists without payment' }
       }
 
-      // Step 6: ATOMIC: Create booking and payment
+      // Step 6: ATOMIC: use the same finalization service as webhook checkout completion
       const result = await prisma.$transaction(async (tx) => {
         const amount = paymentIntent.amount / 100
-        const commissionAmount = calculatePlatformCommission(amount)
-        const chefAmount = calculateChefPayout(amount)
-        const bookingCounts = getProposalBookingCounts(proposal.request)
+        const guaranteed = await paymentGuarantee.guaranteePaymentToBooking(
+          proposalId,
+          null,
+          paymentIntentId,
+          amount,
+          tx
+        )
 
-        // Create booking
-        const booking = await tx.booking.create({
-          data: {
-            clientId: proposal.request.clientId,
-            chefId: proposal.chefId,
-            proposalId: proposal.id,
-            totalPrice: amount,
-            status: 'CONFIRMED',
-            eventDate: proposal.request.eventDate,
-            location: proposal.request.location,
-            latitude: proposal.request.latitude,
-            longitude: proposal.request.longitude,
-            guestCount: bookingCounts.guestCount,
-            studentCount: bookingCounts.studentCount,
-            bookingType: 'PROPOSAL',
-          },
-        })
+        if (!guaranteed.guaranteed) {
+          throw new Error(`Payment guarantee failed: ${guaranteed.error}`)
+        }
 
-        // Create payment
-        const payment = await tx.payment.create({
-          data: {
-            bookingId: booking.id,
-            totalAmount: amount,
-            commissionAmount,
-            chefAmount,
-            status: 'PAID',
-            stripePaymentIntentId: paymentIntentId,
-            stripeChargeId: paymentIntent.latest_charge as string,
-          },
-        })
-
-        // Update proposal status
-        await tx.proposal.update({
-          where: { id: proposalId },
-          data: { status: 'BOOKED' },
-        })
-
-        logger.info('[RECONCILIATION] Created booking and payment', {
-          bookingId: booking.id,
-          paymentId: payment.id,
+        logger.info('[RECONCILIATION] Finalized booking and payment', {
+          bookingId: guaranteed.bookingId,
+          paymentId: guaranteed.paymentId,
           proposalId,
           amount,
         })
 
-        return { booking, payment }
+        return guaranteed
       })
 
       return {
         reconciled: true,
-        bookingId: result.booking.id,
-        paymentId: result.payment.id,
+        bookingId: result.bookingId,
+        paymentId: result.paymentId,
       }
 
     } catch (error) {

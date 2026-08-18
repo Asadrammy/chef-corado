@@ -8,12 +8,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
 import { ReviewForm, ReviewSection } from '@/components/reviews';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 import { useSession } from 'next-auth/react';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { formatCurrency } from '@/lib/currency';
+import {
+  formatGuestSummary,
+  formatServiceDateSummary,
+  formatServiceTime,
+  formatShortDate,
+  parseJsonList,
+  type MultiDayDateLike,
+  type ProposalLineItemLike,
+} from '@/lib/multi-day-display';
 
 interface ApiErrorPayload {
   error?: string;
@@ -34,8 +44,11 @@ interface BookingDetails {
   totalPrice: number;
   currency?: string;
   status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+  eventDate: string;
+  location: string;
   createdAt: string;
   updatedAt: string;
+  serviceDates?: MultiDayDateLike[];
   client: {
     id: string;
     name: string;
@@ -59,6 +72,13 @@ interface BookingDetails {
     price: number;
     currency?: string;
     message: string | null;
+    lineItems?: ProposalLineItemLike[];
+    request?: {
+      requestMode?: string | null;
+      eventDate?: string | null;
+      multiDayDates?: MultiDayDateLike[];
+      budgetMode?: string | null;
+    } | null;
     menu?: {
       id: string;
       title: string;
@@ -72,11 +92,55 @@ interface BookingDetails {
     totalAmount: number;
     commissionAmount: number;
     chefAmount: number;
+    serviceChargeTaxRate?: number | null;
+    serviceChargeTaxAmount?: number;
+    serviceChargeTaxStatus?: string | null;
+    serviceChargeTaxDeductionEnabled?: boolean;
+    totalPlatformDeduction?: number | null;
+    taxJurisdiction?: string | null;
     currency?: string;
     status: 'PENDING' | 'HELD' | 'RELEASED' | 'COMPLETED';
     stripePaymentIntentId?: string;
     createdAt: string;
   };
+  paymentPlan?: {
+    id: string;
+    planType: string;
+    status: string;
+    totalAmountMinor: number;
+    paidAmountMinor: number;
+    outstandingAmountMinor: number;
+    currency: string;
+    balanceDueAt?: string | null;
+    deadlineAt?: string | null;
+    installments?: Array<{
+      id: string;
+      kind: string;
+      status: string;
+      amountMinor: number;
+      dueAt?: string | null;
+      paidAt?: string | null;
+    }>;
+    splitShares?: Array<{
+      id: string;
+      payerEmail?: string | null;
+      status: string;
+      amountMinor: number;
+      currency?: string;
+      deadlineAt?: string | null;
+    }>;
+  } | null;
+  guestAmendments?: Array<{
+    id: string;
+    amendmentType: string;
+    status: string;
+    previousGuestCount: number;
+    requestedGuestCount: number;
+    incrementalAmountMinor: number;
+    refundAmountMinor?: number | null;
+    currency: string;
+    chefReviewNotes?: string | null;
+  }>;
   review?: {
     id: string;
     rating: number;
@@ -93,6 +157,9 @@ export default function BookingDetailsPage() {
   const [booking, setBooking] = useState<BookingDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [chefReviewAmounts, setChefReviewAmounts] = useState<Record<string, string>>({});
+  const [chefReviewNotes, setChefReviewNotes] = useState<Record<string, string>>({});
+  const [amendmentActionId, setAmendmentActionId] = useState<string | null>(null);
 
   // Mock current user - in real app this would come from auth
   const { data: session, status: sessionStatus } = useSession();
@@ -146,6 +213,55 @@ export default function BookingDetailsPage() {
       toast.error('Failed to update booking');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const payGuestAmendment = async (amendmentId: string) => {
+    setAmendmentActionId(amendmentId);
+    try {
+      const response = await fetch(`/api/bookings/${bookingId}/guest-amendments/${amendmentId}/checkout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || payload?.error || 'Unable to create payment');
+      }
+      const data = payload?.data ?? payload;
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to create payment');
+    } finally {
+      setAmendmentActionId(null);
+    }
+  };
+
+  const reviewGuestAmendment = async (amendmentId: string, approved: boolean) => {
+    setAmendmentActionId(amendmentId);
+    try {
+      const amount = Number(chefReviewAmounts[amendmentId]);
+      const response = await fetch(`/api/chef/bookings/${bookingId}/guest-amendments/${amendmentId}/review`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          approved,
+          amount: approved ? amount : undefined,
+          note: chefReviewNotes[amendmentId] || undefined,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error?.message || payload?.error || 'Unable to review amendment');
+      }
+      toast.success(approved ? 'Additional guest price sent to client' : 'Guest amendment rejected');
+      await fetchBooking();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to review amendment');
+    } finally {
+      setAmendmentActionId(null);
     }
   };
 
@@ -213,10 +329,16 @@ export default function BookingDetailsPage() {
   }
 
   const isClient = currentUserId ? booking.client.id === currentUserId : false;
+  const isChef = currentUserId ? booking.chef.user.id === currentUserId : false;
   const canLeaveReview = isClient && booking.status === 'COMPLETED' && !booking.review;
   const needsPayment = isClient && booking.status === 'PENDING' && !booking.payments;
   const hasUnpaidPayment = booking.payments && booking.payments.status !== 'COMPLETED';
   const bookingCurrency = booking.payments?.currency || booking.proposal?.currency || booking.currency || 'GBP';
+  const serviceDates = booking.serviceDates?.length
+    ? booking.serviceDates
+    : booking.proposal?.request?.multiDayDates ?? [];
+  const isMultiDay = booking.proposal?.request?.requestMode === 'MULTI_DAY' || serviceDates.length > 1;
+  const activePaymentPlan = booking.paymentPlan;
 
   const handlePayNow = async () => {
     try {
@@ -312,6 +434,47 @@ export default function BookingDetailsPage() {
             </CardContent>
           </Card>
 
+          {isMultiDay ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Multi-Day Chef Hire</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-900">
+                  <p className="font-medium">{serviceDates.length} service days</p>
+                  <p>{formatServiceDateSummary(serviceDates, booking.eventDate)}</p>
+                  <p className="mt-1">{booking.location}</p>
+                </div>
+                <div className="space-y-3">
+                  {serviceDates.map((day, index) => {
+                    const cuisines = parseJsonList(day.cuisineTypes)
+                    const dietary = parseJsonList(day.dietaryRequirements)
+                    return (
+                      <div key={`${day.date ?? index}`} className="rounded-lg border border-border p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium">{formatShortDate(day.date)}</p>
+                            <p className="text-sm text-muted-foreground">{formatServiceTime(day)}</p>
+                          </div>
+                          <Badge variant="outline">{day.serviceTypeLabel || day.serviceType || "Service TBD"}</Badge>
+                        </div>
+                        <div className="mt-3 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+                          <p><span className="font-medium text-foreground">Guests:</span> {formatGuestSummary(day)}</p>
+                          <p><span className="font-medium text-foreground">Cuisines:</span> {cuisines.length ? cuisines.join(", ") : "Open to suggestions"}</p>
+                          <p><span className="font-medium text-foreground">Dietary:</span> {dietary.length ? dietary.join(", ") : "None specified"}</p>
+                          {day.budget != null ? (
+                            <p><span className="font-medium text-foreground">Daily budget:</span> {formatCurrency(Number(day.budget), bookingCurrency)}</p>
+                          ) : null}
+                        </div>
+                        {day.notes ? <p className="mt-3 text-sm text-muted-foreground">{day.notes}</p> : null}
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          ) : null}
+
           {/* Proposal Details */}
           {booking.proposal ? (
             <Card>
@@ -340,6 +503,28 @@ export default function BookingDetailsPage() {
                     <p className="text-sm text-muted-foreground">{booking.proposal.message}</p>
                   </div>
                 )}
+
+                {isMultiDay ? (
+                  <div>
+                    <h4 className="font-medium mb-2">Daily Proposal Line Items</h4>
+                    {booking.proposal.lineItems?.length ? (
+                      <div className="space-y-2">
+                        {booking.proposal.lineItems.map((item, index) => (
+                          <div key={`${item.serviceDate ?? index}`} className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-border p-3 text-sm">
+                            <div>
+                              <p className="font-medium">{formatShortDate(item.serviceDate)}</p>
+                              <p className="text-muted-foreground">{item.title || "Service day"}</p>
+                              {item.description ? <p className="mt-1 text-muted-foreground">{item.description}</p> : null}
+                            </div>
+                            <p className="font-semibold">{formatCurrency(Number(item.price ?? 0), item.currency || bookingCurrency)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">This legacy Multi-Day proposal has a total price but no daily line items.</p>
+                    )}
+                  </div>
+                ) : null}
                 
                 <div className="flex items-center gap-4 pt-2">
                   <div className="flex items-center gap-2">
@@ -398,8 +583,139 @@ export default function BookingDetailsPage() {
                         {booking.payments.status}
                       </Badge>
                     </div>
+                    <div className="grid gap-2 rounded-lg border border-border bg-background p-3 text-sm">
+                      <p><span className="font-medium">ChefaChef service charge:</span> {formatCurrency(booking.payments.commissionAmount || 0, booking.payments.currency || bookingCurrency)}</p>
+                      <p><span className="font-medium">Internal tax tracking:</span> {formatCurrency(booking.payments.serviceChargeTaxAmount || 0, booking.payments.currency || bookingCurrency)} ({booking.payments.serviceChargeTaxStatus?.replace(/_/g, " ") ?? "legacy / not captured"})</p>
+                      <p><span className="font-medium">Total platform deduction:</span> {formatCurrency(booking.payments.totalPlatformDeduction ?? booking.payments.commissionAmount ?? 0, booking.payments.currency || bookingCurrency)}</p>
+                      <p><span className="font-medium">Chef net payout:</span> {formatCurrency(booking.payments.chefAmount || 0, booking.payments.currency || bookingCurrency)}</p>
+                    </div>
                 </div>
               )}
+              {activePaymentPlan ? (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-950">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">
+                      {activePaymentPlan.planType === "DEPOSIT" ? "20% Deposit" : activePaymentPlan.planType === "SPLIT_BILL" ? "Split Bill" : "Full Payment"}
+                    </p>
+                    <Badge variant="outline">{activePaymentPlan.status.replace(/_/g, " ")}</Badge>
+                  </div>
+                  <div className="mt-2 grid gap-1 sm:grid-cols-3">
+                    <p><span className="font-medium">Total:</span> {formatCurrency(activePaymentPlan.totalAmountMinor / 100, activePaymentPlan.currency)}</p>
+                    <p><span className="font-medium">Paid:</span> {formatCurrency(activePaymentPlan.paidAmountMinor / 100, activePaymentPlan.currency)}</p>
+                    <p><span className="font-medium">Outstanding:</span> {formatCurrency(activePaymentPlan.outstandingAmountMinor / 100, activePaymentPlan.currency)}</p>
+                  </div>
+                  {activePaymentPlan.balanceDueAt ? (
+                    <p className="mt-1 text-xs">Balance due {new Date(activePaymentPlan.balanceDueAt).toLocaleDateString()}</p>
+                  ) : null}
+                  {activePaymentPlan.status === "RECOVERY_REQUIRED" ? (
+                    <div className="mt-3 rounded-md border border-red-200 bg-white p-3">
+                      <p className="font-medium text-red-800">Payment recovery required</p>
+                      <p className="mt-1 text-xs text-red-700">
+                        Support has been alerted. The client can update their saved card or manually settle the outstanding balance.
+                      </p>
+                      {isClient ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={async () => {
+                              const response = await fetch(`/api/payments/payment-plans/${activePaymentPlan.id}/method-update`, { method: 'POST' });
+                              const payload = await response.json().catch(() => null);
+                              if (payload?.data?.url) window.location.href = payload.data.url;
+                            }}
+                          >
+                            Update Card
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={async () => {
+                              const response = await fetch(`/api/payments/payment-plans/${activePaymentPlan.id}/balance-checkout`, { method: 'POST' });
+                              const payload = await response.json().catch(() => null);
+                              if (payload?.data?.url) window.location.href = payload.data.url;
+                            }}
+                          >
+                            Pay Balance
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  {activePaymentPlan.splitShares?.length ? (
+                    <div className="mt-2 space-y-1">
+                      {activePaymentPlan.splitShares.map((share, index) => (
+                        <div key={share.id} className="flex justify-between gap-3">
+                          <span>{share.payerEmail || `Guest share ${index + 1}`}</span>
+                          <span>{formatCurrency(share.amountMinor / 100, share.currency || activePaymentPlan.currency)} · {share.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {booking.guestAmendments?.length ? (
+                <div className="rounded-lg border border-border p-3 text-sm">
+                  <p className="font-medium">Guest Amendments</p>
+                  <div className="mt-2 space-y-1">
+                    {booking.guestAmendments.slice(0, 5).map((amendment) => (
+                      <div key={amendment.id} className="rounded-md border border-border p-3">
+                        <div className="flex flex-wrap justify-between gap-2">
+                          <span>{amendment.amendmentType.replace(/_/g, " ")}: {amendment.previousGuestCount} to {amendment.requestedGuestCount}</span>
+                          <span>{amendment.status.replace(/_/g, " ")}</span>
+                        </div>
+                        {amendment.status === "CHEF_REVIEW_REQUIRED" && amendment.amendmentType === "ADD_GUESTS" && isChef ? (
+                          <div className="mt-3 grid gap-2 sm:grid-cols-[160px_1fr_auto_auto]">
+                            <Input
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              placeholder={`Amount (${amendment.currency})`}
+                              value={chefReviewAmounts[amendment.id] ?? ''}
+                              onChange={(event) => setChefReviewAmounts((current) => ({ ...current, [amendment.id]: event.target.value }))}
+                            />
+                            <Input
+                              placeholder="Optional note"
+                              value={chefReviewNotes[amendment.id] ?? ''}
+                              onChange={(event) => setChefReviewNotes((current) => ({ ...current, [amendment.id]: event.target.value }))}
+                            />
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={amendmentActionId === amendment.id || Number(chefReviewAmounts[amendment.id]) <= 0}
+                              onClick={() => void reviewGuestAmendment(amendment.id, true)}
+                            >
+                              Approve Price
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={amendmentActionId === amendment.id}
+                              onClick={() => void reviewGuestAmendment(amendment.id, false)}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        ) : null}
+                        {amendment.status === "PENDING_PAYMENT" && amendment.amendmentType === "ADD_GUESTS" && isClient ? (
+                          <div className="mt-3 flex flex-wrap items-center gap-3">
+                            <span className="font-medium">{formatCurrency(amendment.incrementalAmountMinor / 100, amendment.currency)}</span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={amendmentActionId === amendment.id}
+                              onClick={() => void payGuestAmendment(amendment.id)}
+                            >
+                              Pay Additional Guests
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </CardContent>
           </Card>
 

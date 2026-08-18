@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
-import { randomUUID } from 'crypto';
 import { getServerSession } from 'next-auth';
 
 import { authOptions } from '@/lib/auth';
+import {
+  uploadImageFile,
+} from '@/lib/image-upload-storage';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,33 +21,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Invalid file type. Only JPEG, PNG, and WebP are allowed.' }, { status: 400 });
-    }
-
-    // Validate file size (max 5MB)
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) {
-      return NextResponse.json({ error: 'File too large. Maximum size is 5MB.' }, { status: 400 });
-    }
-
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const extension = file.name.split('.').pop()?.toLowerCase() || 'bin';
-    const uploadDirectory = path.join(process.cwd(), 'public', 'uploads', 'images');
-    const fileName = `${randomUUID()}.${extension}`;
-    const filePath = path.join(uploadDirectory, fileName);
-
-    await mkdir(uploadDirectory, { recursive: true });
-    await writeFile(filePath, buffer);
+    const purpose = formData.get('purpose') === 'profile' ? 'profile' : 'menu';
+    const uploaded = await uploadImageFile({
+      file,
+      ownerId: session.user.id,
+      purpose,
+    });
 
     return NextResponse.json({
-      url: `/uploads/images/${fileName}`,
-      publicId: fileName,
+      url: uploaded.url,
+      publicId: uploaded.publicId,
+      storage: uploaded.storage,
     });
   } catch (error) {
+    if (error instanceof Error) {
+      if (error.message === 'INVALID_IMAGE_TYPE') {
+        return NextResponse.json({ error: 'Invalid file type. Only JPEG, PNG, and WebP are allowed.' }, { status: 400 });
+      }
+      if (error.message === 'IMAGE_TOO_LARGE') {
+        return NextResponse.json({ error: 'File too large. Maximum size is 5MB.' }, { status: 400 });
+      }
+      if (error.message === 'DURABLE_IMAGE_STORAGE_NOT_CONFIGURED') {
+        return NextResponse.json({ error: 'Durable image storage is not configured.' }, { status: 503 });
+      }
+    }
+
     console.error('Error uploading image:', error);
     return NextResponse.json({ error: 'Failed to upload image' }, { status: 500 });
   }

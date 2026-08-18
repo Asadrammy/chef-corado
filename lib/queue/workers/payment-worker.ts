@@ -6,6 +6,8 @@ import { PaymentJobData, QUEUE_NAMES } from '../queue'
 import { ledgerService } from '@/lib/services/ledger-service'
 import { logStateTransition } from '@/lib/utils/state-machine'
 import { createNotification } from '@/lib/notifications'
+import { formatCurrency } from '@/lib/currency'
+import { formatServiceDateSummary } from '@/lib/multi-day-display'
 import Stripe from 'stripe'
 import type { Prisma } from '@prisma/client'
 
@@ -31,13 +33,15 @@ const stripe = getStripeClient()
 
 type PaymentWithRelations = Prisma.PaymentGetPayload<{
   include: {
-    booking: {
-      include: {
-        client: true
-        chef: { include: { user: true } }
+        booking: {
+          include: {
+            client: true
+            chef: { include: { user: true } }
+            serviceDates: true
+            proposal: { include: { request: { include: { multiDayDates: true } } } }
+          }
+        }
       }
-    }
-  }
 }>
 
 const redisConfig = {
@@ -158,6 +162,16 @@ export class PaymentWorker {
               include: {
                 client: true,
                 chef: { include: { user: true } },
+                serviceDates: { orderBy: { sortOrder: 'asc' } },
+                proposal: {
+                  include: {
+                    request: {
+                      include: {
+                        multiDayDates: { orderBy: { sortOrder: 'asc' } },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -196,16 +210,25 @@ export class PaymentWorker {
 
       // Step 6: Create notifications (with preference checking)
       try {
+        const serviceDates = updatedPayment.booking.serviceDates.length
+          ? updatedPayment.booking.serviceDates
+          : updatedPayment.booking.proposal?.request?.multiDayDates ?? []
+        const isMultiDay = updatedPayment.booking.proposal?.request?.requestMode === 'MULTI_DAY' || serviceDates.length > 1
+        const paymentAmount = formatCurrency(updatedPayment.totalAmount, updatedPayment.currency)
+        const dateContext = isMultiDay
+          ? ` for Multi-Day Chef Hire (${formatServiceDateSummary(serviceDates, updatedPayment.booking.eventDate)})`
+          : ''
+
         await Promise.all([
           createNotification(
             updatedPayment.booking.clientId,
             'PAYMENT_CONFIRMED',
-            `Payment confirmed for booking ${bookingId}`
+            `Payment ${paymentAmount} confirmed${dateContext}`
           ),
           createNotification(
             updatedPayment.booking.chef.userId,
             'PAYMENT_RECEIVED',
-            `Payment received for booking ${bookingId}`
+            `Payment ${paymentAmount} received${dateContext}`
           ),
         ])
       } catch (notifError) {

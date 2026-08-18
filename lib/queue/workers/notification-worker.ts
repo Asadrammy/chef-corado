@@ -5,6 +5,7 @@ import { NotificationJobData, QUEUE_NAMES } from '../queue'
 import { prisma } from '@/lib/prisma'
 import { shouldSendNotification, type NotificationTopic } from '@/lib/notification-preferences'
 import { sendPreferenceAwareEmail } from '@/lib/email'
+import { getConfiguredAppBaseUrl } from '@/lib/site-config'
 
 const redisConfig = {
   host: process.env.REDIS_HOST || 'localhost',
@@ -231,7 +232,7 @@ export class NotificationWorker {
           <h2 style="color: #333;">${this.getEmailSubject(type)}</h2>
           <p>Hi <strong>${user.name || 'User'}</strong>,</p>
           <p>${message}</p>
-          ${metadata?.bookingId ? `<p><a href="${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/dashboard">View details in your dashboard</a></p>` : ''}
+          ${metadata?.bookingId ? `<p><a href="${getConfiguredAppBaseUrl()}/dashboard">View details in your dashboard</a></p>` : ''}
           <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
         </div>
       `,

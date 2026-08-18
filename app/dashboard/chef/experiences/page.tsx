@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ExperienceForm } from "@/components/experiences/experience-form";
 import { ExperienceCard } from "@/components/experiences/experience-card";
-import { Plus, Edit, Trash2, Users, Wallet, Star } from "lucide-react";
+import { Plus, Edit, Trash2, Users, Wallet, Star, ChefHat, ClipboardList } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
 import { formatCurrency } from "@/lib/currency";
@@ -167,22 +167,22 @@ export default function ChefExperiencesPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">My Experiences</h1>
-          <p className="text-gray-600">Create and manage your culinary experiences</p>
+          <h1 className="text-3xl font-bold">My Bookable Services</h1>
+          <p className="text-gray-600">Create and manage your bookable cooking services, classes, and packages</p>
         </div>
         
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              Create Experience
+              Create Service
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Create New Experience</DialogTitle>
+              <DialogTitle>Create New Bookable Service</DialogTitle>
               <DialogDescription>
-                Design a unique culinary experience for your clients
+                Design a bookable service or package for your clients
               </DialogDescription>
             </DialogHeader>
             <ExperienceForm onSubmit={handleCreateExperience} isLoading={submitting} defaultCurrency={defaultCurrency} />
@@ -194,7 +194,7 @@ export default function ChefExperiencesPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Experiences</CardTitle>
+            <CardTitle className="text-sm font-medium">Total Bookable Services</CardTitle>
             <Users className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -204,7 +204,7 @@ export default function ChefExperiencesPage() {
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Experiences</CardTitle>
+            <CardTitle className="text-sm font-medium">Active Bookable Services</CardTitle>
             <Star className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -233,7 +233,7 @@ export default function ChefExperiencesPage() {
         </Card>
       </div>
 
-      {/* Experiences List */}
+      {/* Bookable services list */}
       <Tabs defaultValue="active" className="space-y-4">
         <TabsList>
           <TabsTrigger value="active">Active ({activeExperiences.length})</TabsTrigger>
@@ -244,14 +244,16 @@ export default function ChefExperiencesPage() {
           {activeExperiences.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
-                <div className="text-6xl mb-4">🍳</div>
-                <h3 className="text-lg font-semibold mb-2">No active experiences</h3>
+                <div className="mb-4 rounded-2xl bg-primary/10 p-4 text-primary">
+                  <ChefHat className="h-10 w-10" aria-hidden="true" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No active bookable services</h3>
                 <p className="text-gray-600 text-center mb-4">
-                  Create your first culinary experience to start attracting clients
+                  Create your first bookable service to start attracting clients
                 </p>
                 <Button onClick={() => setIsCreateDialogOpen(true)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Create Experience
+                  Create Service
                 </Button>
               </CardContent>
             </Card>
@@ -299,10 +301,12 @@ export default function ChefExperiencesPage() {
           {inactiveExperiences.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12">
-                <div className="text-6xl mb-4">📋</div>
-                <h3 className="text-lg font-semibold mb-2">No inactive experiences</h3>
+                <div className="mb-4 rounded-2xl bg-muted p-4 text-muted-foreground">
+                  <ClipboardList className="h-10 w-10" aria-hidden="true" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No inactive bookable services</h3>
                 <p className="text-gray-600">
-                  All your experiences are currently active
+                  All your bookable services are currently active
                 </p>
               </CardContent>
             </Card>

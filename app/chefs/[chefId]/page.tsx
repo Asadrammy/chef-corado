@@ -8,6 +8,9 @@ import { PublicJsonLd } from "@/components/public/structured-data"
 import { formatCurrency } from "@/lib/currency"
 import { buildPublicMetadata } from "@/lib/public-site"
 import { COMMUNICATION_POLICY_EXTENDED } from "@/lib/request-options"
+import { getChefSpecialtyLabel } from "@/lib/chef-onboarding-options"
+import { pluralizeCompletedJobs } from "@/lib/public-chef-view"
+import { getConfiguredAppBaseUrl } from "@/lib/site-config"
 
 interface ChefPublicProfilePageProps {
   params: Promise<{ chefId: string }>
@@ -16,7 +19,7 @@ interface ChefPublicProfilePageProps {
 
 async function getChefProfile(chefId: string, preview?: string, cookieHeader?: string) {
   const query = preview === "1" ? "?preview=1" : ""
-  const response = await fetch(`${process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/api/chefs/${chefId}${query}`, {
+  const response = await fetch(`${getConfiguredAppBaseUrl()}/api/chefs/${chefId}${query}`, {
     cache: "no-store",
     headers: cookieHeader ? { cookie: cookieHeader } : undefined,
   })
@@ -37,9 +40,10 @@ export async function generateMetadata({ params }: ChefPublicProfilePageProps) {
 
   try {
     const chef = await getChefProfile(chefId)
+    const chefName = chef.displayName || chef.user.name
     return buildPublicMetadata({
-      title: `${chef.user.name} | Private Chef Profile`,
-      description: chef.bio || `Explore ${chef.user.name}'s private chef profile, menus, reviews, and service area.`,
+      title: `${chefName} | Private Chef Profile`,
+      description: chef.bio || `Explore ${chefName}'s private chef profile, menus, reviews, and service area.`,
       path: `/chefs/${chefId}`,
     })
   } catch {
@@ -63,6 +67,7 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
   }
 
   const cookingClassExperience = chef.experiences.find((experience: any) => experience.serviceType === "COOKING_CLASS")
+  const chefName = chef.displayName || chef.user.name
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-10 sm:px-6 lg:px-8">
@@ -70,7 +75,7 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
         data={{
           "@context": "https://schema.org",
           "@type": "Person",
-          name: chef.user.name,
+          name: chefName,
           image: chef.profileImage,
           description: chef.bio,
           address: chef.location,
@@ -95,23 +100,15 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
             <div className="flex flex-wrap items-center gap-4">
               <div className="rounded-[28px] border border-white/60 bg-white/80 p-2 shadow-lg shadow-black/5 dark:border-white/10 dark:bg-white/5">
                 {chef.profileImage ? (
-                  <img src={chef.profileImage} alt={`${chef.user.name} public profile image`} className="h-28 w-28 rounded-[22px] object-cover" />
+                  <img src={chef.profileImage} alt={`${chefName} public profile image`} className="h-28 w-28 rounded-[22px] object-cover" />
                 ) : (
                   <div className="flex h-28 w-28 items-center justify-center rounded-[22px] bg-muted text-2xl font-semibold">
-                    {chef.user.name?.charAt(0) ?? "C"}
+                    {chefName?.charAt(0) ?? "C"}
                   </div>
                 )}
               </div>
               <div className="space-y-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h1 className="text-4xl font-semibold tracking-tight text-foreground">{chef.user.name}</h1>
-                  {chef.user.verified ? (
-                    <Badge className="rounded-full px-3 py-1">
-                      <CheckCircle2 className="mr-1 size-3.5" />
-                      Verified
-                    </Badge>
-                  ) : null}
-                </div>
+                <h1 className="text-4xl font-semibold tracking-tight text-foreground">{chefName}</h1>
                 <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5">
                     <Star className="size-4 fill-current text-amber-500" />
@@ -128,20 +125,11 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
               {chef.bio || "This chef has not added a bio yet."}
             </p>
             <div className="flex flex-wrap gap-2">
-              {chef.chefType ? <Badge variant="secondary">{chef.chefType}</Badge> : null}
-              {chef.eventsPerMonth ? <Badge variant="outline">{chef.eventsPerMonth}+ events / month</Badge> : null}
-              {chef.user.experienceLevel ? <Badge variant="outline">{chef.user.experienceLevel}</Badge> : null}
+              {chef.specialties?.map((specialty: string) => (
+                <Badge key={specialty} variant="outline">{getChefSpecialtyLabel(specialty)}</Badge>
+              ))}
+              <Badge variant="outline">{pluralizeCompletedJobs(chef.completedJobs ?? 0)}</Badge>
             </div>
-            {chef.certifications.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-foreground">Additional professional certifications</p>
-                <div className="flex flex-wrap gap-2">
-                  {chef.certifications.map((certification: string) => (
-                    <Badge key={certification} variant="outline">{certification}</Badge>
-                  ))}
-                </div>
-              </div>
-            ) : null}
           </div>
 
           <div className="space-y-4">
@@ -156,8 +144,8 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
                 </div>
                 <div className="grid gap-3">
                   <div>
-                    <p className="font-medium text-foreground">Verified signal</p>
-                    <p>{chef.user.verified ? "Verification is visible on this chef profile." : "This chef is available for discovery but does not currently show a verification badge."}</p>
+                    <p className="font-medium text-foreground">ChefaChef jobs</p>
+                    <p>{pluralizeCompletedJobs(chef.completedJobs ?? 0)}</p>
                   </div>
                   <div>
                     <p className="font-medium text-foreground">Private dining details</p>
@@ -165,7 +153,7 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
                   </div>
                   <div>
                     <p className="font-medium text-foreground">Experience</p>
-                    <p>{chef.experience ?? 0} years · {chef.eventsPerMonth ?? "Flexible"} events / month</p>
+                    <p>{chef.experience ?? 0}+ years</p>
                   </div>
                   <div>
                     <p className="font-medium text-foreground">Service area</p>
@@ -340,8 +328,8 @@ export default async function ChefPublicProfilePage({ params, searchParams }: Ch
                   <p className="mt-2 text-lg font-semibold text-foreground">{chef.experience ?? 0}+ years</p>
                 </div>
                 <div className="rounded-[20px] border border-border/60 bg-muted/20 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Events hosted</p>
-                  <p className="mt-2 text-lg font-semibold text-foreground">{chef.eventsPerMonth ?? 0}+ / month</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">ChefaChef jobs</p>
+                  <p className="mt-2 text-lg font-semibold text-foreground">{chef.completedJobs ?? 0}</p>
                 </div>
               </div>
             </CardContent>

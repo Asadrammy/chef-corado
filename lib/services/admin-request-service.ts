@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { createNotification } from "@/lib/notifications"
+import { formatServiceDateSummary } from "@/lib/multi-day-display"
 
 export const adminRequestService = {
   async notifyChefsAboutRequest(requestId: string) {
@@ -7,6 +8,7 @@ export const adminRequestService = {
       where: { id: requestId },
       include: {
         client: true,
+        multiDayDates: { orderBy: { sortOrder: "asc" } },
       },
     })
 
@@ -32,12 +34,17 @@ export const adminRequestService = {
     })
 
     // Create notifications with preference checking
+    const isMultiDay = requestData.requestMode === "MULTI_DAY" || requestData.multiDayDates.length > 1
+    const notificationMessage = isMultiDay
+      ? `Urgent Multi-Day Chef Hire request: ${requestData.title || "New Event"} in ${requestData.location} (${formatServiceDateSummary(requestData.multiDayDates, requestData.eventDate)})`
+      : `Urgent request: ${requestData.title || "New Event"} in ${requestData.location}`
+
     const notificationResults = await Promise.all(
       activeChefs.map((chef) =>
         createNotification(
           chef.user.id,
           "NEW_REQUEST_ALERT",
-          `Urgent request: ${requestData.title || "New Event"} in ${requestData.location}`
+          notificationMessage
         )
       )
     )

@@ -1,6 +1,7 @@
 import Link from "next/link"
 
 import { TERMS_VERSION, COMMUNICATION_POLICY_EXTENDED } from "@/lib/request-options"
+import { APPROVED_PUBLIC_CONTACT } from "@/lib/marketplace-rules"
 
 export default function PrivacyPage() {
   return (
@@ -50,6 +51,7 @@ export default function PrivacyPage() {
           <section className="brand-card-surface rounded-[26px] p-5 text-sm leading-7 text-muted-foreground sm:p-6">
             <h2 className="text-base font-semibold text-foreground sm:text-lg">Data security</h2>
             <p className="mt-4">We implement appropriate technical and organizational measures to protect your personal data against unauthorized access, alteration, disclosure, or destruction.</p>
+            <p className="mt-3">User data is stored on secure servers in London, UK, as confirmed for the current published policy.</p>
             <p className="mt-3">Payment data is processed through PCI-compliant payment providers and is not stored on our servers beyond necessary transaction references.</p>
           </section>
 
@@ -58,6 +60,7 @@ export default function PrivacyPage() {
             <p className="mt-4">{COMMUNICATION_POLICY_EXTENDED}</p>
             <p className="mt-3">Platform communications and booking records may be used for customer support, moderation, fraud prevention, and resolving operational issues connected to active transactions.</p>
             <p className="mt-3">We monitor for policy violations including off-platform communication attempts to protect user safety and platform integrity.</p>
+            <p className="mt-3">For privacy or legal support, contact <a href={`mailto:${APPROVED_PUBLIC_CONTACT.email}`} className="text-primary hover:underline">{APPROVED_PUBLIC_CONTACT.email}</a>.</p>
             <p className="mt-3">If platform terms, legal wording, or operational processes change, the latest published website version applies from the effective date shown on the relevant policy page.</p>
           </section>
         </div>

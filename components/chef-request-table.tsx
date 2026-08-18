@@ -13,6 +13,9 @@ export type ChefRequestRow = {
   serviceType?: string | null
   serviceTypeLabel?: string | null
   eventDate: string
+  createdAt?: string | null
+  submittedAt?: string | null
+  multiDayDates?: string[]
   location: string
   budget: number
   currency: string

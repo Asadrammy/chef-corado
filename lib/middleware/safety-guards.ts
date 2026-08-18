@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { logger } from '@/lib/monitoring/logger'
 import { metrics } from '@/lib/monitoring/metrics'
+import { OFFICIAL_WEBSITE_URL } from '@/lib/site-config'
 
 /**
  * System-Wide Safety Guards
@@ -192,7 +193,7 @@ export function addSafetyHeaders(response: NextResponse): NextResponse {
   response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
 
   // CORS headers (configure based on environment)
-  const allowedOrigin = process.env.ALLOWED_ORIGIN || 'http://localhost:3000'
+  const allowedOrigin = process.env.ALLOWED_ORIGIN || process.env.CORS_ORIGIN || OFFICIAL_WEBSITE_URL
   response.headers.set('Access-Control-Allow-Origin', allowedOrigin)
   response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS')
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')

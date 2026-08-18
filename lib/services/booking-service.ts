@@ -13,8 +13,17 @@ import { enforceUserModeration, enforceChefModeration } from "@/lib/security/mod
 import { enforceClientCompliance, enforceChefCompliance } from "@/lib/security/legal-compliance"
 import { validatePolicyFields } from "@/lib/security/communication-policy"
 import { validateExperienceBookingCounts } from "@/lib/booking-counts"
+import { marketConfigurationService } from "@/lib/services/market-configuration-service"
+import { bookingInsuranceService } from "@/lib/services/booking-insurance-service"
 
 const SORTABLE_BOOKING_FIELDS = new Set(["createdAt", "eventDate", "totalPrice", "status"])
+
+function countryFromCurrency(currency: string) {
+  if (currency === "USD") return "US"
+  if (currency === "EUR") return "IT"
+  if (currency === "KES") return "KE"
+  return "GB"
+}
 
 export const bookingService = {
   async listBookings(input: {
@@ -107,6 +116,10 @@ export const bookingService = {
     }
 
     const updatedBooking = await bookingRepository.updateBookingStatus(bookingId, BookingStatus.CANCELLED)
+    await bookingInsuranceService.markCoverageStatusForBooking(bookingId, "CANCELLED", {
+      performedBy: sessionUserId,
+      reason: reason || "Booking cancelled.",
+    })
     const payment = booking.payments
 
     let refund = null
@@ -259,6 +272,7 @@ export const bookingService = {
       }
 
       const experienceCurrency = (experience as any).currency || 'GBP'
+      await marketConfigurationService.assertBookingMarketEnabled(countryFromCurrency(experienceCurrency))
       const bookingCounts = validateExperienceBookingCounts(experience as any, input.guestCount)
 
       // Create booking atomically

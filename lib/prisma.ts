@@ -52,7 +52,21 @@ const setDatabaseParam = (url: string, key: string, value: string) => {
   return `${url}${separator}${key}=${value}`
 }
 
-const getConnectTimeoutSeconds = () => {
+const getDatabaseUrlParam = (url: string | undefined, key: string) => {
+  if (!isValidDatabaseUrl(url)) {
+    return undefined
+  }
+
+  const value = new URL(url as string).searchParams.get(key)
+  return value || undefined
+}
+
+const getConnectTimeoutSeconds = (url?: string) => {
+  const urlConfigured = Number(getDatabaseUrlParam(url, "connect_timeout"))
+  if (Number.isFinite(urlConfigured) && urlConfigured > 0) {
+    return String(Math.min(urlConfigured, 30))
+  }
+
   const configured = Number(process.env.DATABASE_CONNECT_TIMEOUT_SECONDS)
   if (Number.isFinite(configured) && configured > 0) {
     return String(Math.min(configured, 30))
@@ -71,7 +85,7 @@ const getDatabaseUrl = () => {
 
   url = setDatabaseParam(url, "connection_limit", process.env.NODE_ENV === "production" ? "10" : "5")
   url = setDatabaseParam(url, "pool_timeout", process.env.NODE_ENV === "production" ? "20" : "5")
-  url = setDatabaseParam(url, "connect_timeout", getConnectTimeoutSeconds())
+  url = setDatabaseParam(url, "connect_timeout", getConnectTimeoutSeconds(url))
 
   return url
 }
@@ -89,7 +103,7 @@ const getPgPoolConfig = (databaseUrl: string): PgPoolConfig => {
   const url = new URL(databaseUrl)
   const connectionLimit = getDatabaseIntParam(databaseUrl, "connection_limit", 5, 20)
   const poolTimeoutSeconds = getDatabaseIntParam(databaseUrl, "pool_timeout", 20, 60)
-  const connectTimeoutSeconds = getDatabaseIntParam(databaseUrl, "connect_timeout", Number(getConnectTimeoutSeconds()), 30)
+  const connectTimeoutSeconds = getDatabaseIntParam(databaseUrl, "connect_timeout", Number(getConnectTimeoutSeconds(databaseUrl)), 30)
 
   // node-postgres does not understand Prisma engine-specific pool params.
   // Translate them into PoolConfig so the app keeps the same connection budget after engineType="client".
@@ -155,6 +169,8 @@ export const isPrismaConnectionError = (error: unknown) => {
     "ECONNRESET",
     "ETIMEDOUT",
     "P1017",
+    "Missing configured driver adapter",
+    "P2038",
   ].some((pattern) => message.includes(pattern))
 }
 

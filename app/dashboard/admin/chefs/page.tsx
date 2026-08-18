@@ -1,17 +1,30 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Loader2, Check, X, Eye, MapPin, ChefHat, Clock3, UtensilsCrossed, ShieldCheck } from "lucide-react"
+import {
+  decodeChefSpecialties,
+  getChefCareerStageShortLabel,
+  getChefSpecialtyLabel,
+  normalizeChefCareerStage,
+} from "@/lib/chef-onboarding-options"
 
 interface ChefProfile {
   id: string
   bio?: string
   experience?: number
+  profileImage?: string | null
+  careerStage?: string | null
+  specialties?: string | null
+  chefType?: string | null
+  verificationStatus?: string | null
+  reviewNotes?: string | null
   location: string
   radius: number
   isApproved: boolean
@@ -25,6 +38,8 @@ interface ChefProfile {
   user: {
     id: string
     name: string
+    firstName?: string | null
+    surname?: string | null
     email: string
     isBanned?: boolean
     banReason?: string | null
@@ -45,12 +60,19 @@ export default function AdminChefsPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "PENDING" | "APPROVED" | "SUSPENDED">("ALL")
 
   const approvedChefs = chefs.filter((chef) => chef.isApproved && !chef.user.isBanned && !chef.isBanned).length
   const pendingChefs = chefs.filter((chef) => !chef.isApproved).length
   const suspendedChefs = chefs.filter((chef) => chef.user.isBanned || chef.isBanned).length
   const totalExperiences = chefs.reduce((total, chef) => total + chef._count.experiences, 0)
   const totalBookings = chefs.reduce((total, chef) => total + chef._count.bookings, 0)
+  const visibleChefs = chefs.filter((chef) => {
+    if (statusFilter === "PENDING") return !chef.isApproved && !chef.user.isBanned && !chef.isBanned
+    if (statusFilter === "APPROVED") return chef.isApproved && !chef.user.isBanned && !chef.isBanned
+    if (statusFilter === "SUSPENDED") return chef.user.isBanned || chef.isBanned
+    return true
+  })
 
   useEffect(() => {
     fetchChefs()
@@ -96,7 +118,7 @@ export default function AdminChefsPage() {
   }
 
   const handleReject = async (chefId: string) => {
-    if (!confirm("Are you sure you want to reject this chef? This will remove their profile.")) {
+    if (!confirm("Reject this chef application? The profile and documents will be preserved for audit history.")) {
       return
     }
 
@@ -187,7 +209,11 @@ export default function AdminChefsPage() {
               <p className="mt-1 text-sm text-muted-foreground">Active approved chef accounts</p>
             </div>
 
-            <div className="rounded-2xl border border-amber-200/70 bg-amber-50/70 p-5 shadow-sm transition-all duration-200 hover:shadow-md dark:border-amber-900/60 dark:bg-amber-950/20">
+            <button
+              type="button"
+              onClick={() => setStatusFilter("PENDING")}
+              className="rounded-2xl border border-amber-200/70 bg-amber-50/70 p-5 text-left shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-amber-900/60 dark:bg-amber-950/20"
+            >
               <div className="mb-4 flex items-center justify-between">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
                   <Clock3 className="h-5 w-5" />
@@ -198,11 +224,11 @@ export default function AdminChefsPage() {
               </div>
               <div className="text-3xl font-semibold tracking-tight text-foreground">{pendingChefs}</div>
               <p className="mt-1 text-sm text-muted-foreground">Applications waiting for action</p>
-            </div>
+            </button>
 
             <div className="rounded-2xl border border-border/60 bg-muted/30 p-5 shadow-sm transition-all duration-200 hover:bg-muted/40 hover:shadow-md">
               <div className="mb-4 flex items-center justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <UtensilsCrossed className="h-5 w-5" />
                 </div>
                 <Badge variant="secondary" className="rounded-full border-border/60 bg-background/80 px-3 py-1 text-xs font-medium">
@@ -232,6 +258,14 @@ export default function AdminChefsPage() {
               {pendingChefs} pending review
             </Badge>
           </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button type="button" size="sm" onClick={() => setStatusFilter("PENDING")}>
+              Review pending applications
+            </Button>
+            <Button type="button" size="sm" variant="outline" onClick={() => setStatusFilter("ALL")}>
+              Show all chefs
+            </Button>
+          </div>
         </div>
 
         <div className="rounded-2xl border border-border/60 bg-background/80 p-6 shadow-lg shadow-black/[0.03] backdrop-blur-sm">
@@ -247,7 +281,7 @@ export default function AdminChefsPage() {
               <span className="text-lg font-semibold text-foreground">{totalBookings}</span>
             </div>
             <div className="flex items-center justify-between rounded-2xl border border-border/50 bg-muted/25 px-4 py-3">
-              <span className="text-sm text-muted-foreground">Average experiences / chef</span>
+              <span className="text-sm text-muted-foreground">Average bookable services / chef</span>
               <span className="text-lg font-semibold text-foreground">
                 {chefs.length > 0 ? (totalExperiences / chefs.length).toFixed(1) : "0.0"}
               </span>
@@ -297,14 +331,16 @@ export default function AdminChefsPage() {
           </div>
         </CardHeader>
         <CardContent className="px-0 py-0">
-          {chefs.length === 0 ? (
+          {visibleChefs.length === 0 ? (
             <div className="flex flex-col items-center justify-center px-8 py-20 text-center">
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border/60 bg-muted/30 shadow-sm">
                 <ChefHat className="h-7 w-7 text-muted-foreground" />
               </div>
               <h3 className="mt-5 text-lg font-semibold text-foreground">No chef profiles found</h3>
               <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-                New chef applications and approved profiles will appear here once they exist in the marketplace.
+                {statusFilter === "ALL"
+                  ? "New chef applications and approved profiles will appear here once they exist in the marketplace."
+                  : "No chef applications match the selected filter."}
               </p>
             </div>
           ) : (
@@ -314,24 +350,41 @@ export default function AdminChefsPage() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Chef</TableHead>
                     <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Location</TableHead>
-                    <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Experience</TableHead>
-                    <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Experiences</TableHead>
+                    <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Years of Experience</TableHead>
+                    <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Bookable Services</TableHead>
                     <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Bookings</TableHead>
                     <TableHead className="h-14 bg-muted/40 px-5 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Status</TableHead>
                     <TableHead className="h-14 bg-muted/40 px-5 text-right text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {chefs.map((chef) => (
+                  {visibleChefs.map((chef) => {
+                    const careerStage = normalizeChefCareerStage(chef.careerStage, chef.chefType)
+                    const specialties = decodeChefSpecialties(chef.specialties, chef.chefType)
+                    const displayName = [chef.user.firstName, chef.user.surname].filter(Boolean).join(" ") || chef.user.name
+
+                    return (
                     <TableRow key={chef.id} className="group border-b border-border/50 transition-all duration-200 hover:bg-muted/25">
                       <TableCell className="px-5 py-5 align-top">
                         <div className="flex items-start gap-4">
                           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-muted/30 text-sm font-semibold text-foreground shadow-sm">
-                            {chef.user.name?.charAt(0) || "C"}
+                            {displayName?.charAt(0) || "C"}
                           </div>
                           <div className="min-w-0 space-y-1.5">
-                            <div className="font-semibold text-foreground">{chef.user.name}</div>
+                            <div className="font-semibold text-foreground">{displayName}</div>
                             <div className="text-sm text-muted-foreground">{chef.user.email}</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {careerStage ? (
+                                <Badge variant="outline" className="rounded-full text-[11px]">
+                                  {getChefCareerStageShortLabel(careerStage)}
+                                </Badge>
+                              ) : null}
+                              {specialties.slice(0, 3).map((specialty) => (
+                                <Badge key={specialty} variant="outline" className="rounded-full text-[11px]">
+                                  {getChefSpecialtyLabel(specialty)}
+                                </Badge>
+                              ))}
+                            </div>
                             {chef.bio && (
                               <div className="max-w-sm text-sm leading-6 text-muted-foreground line-clamp-2">
                                 {chef.bio}
@@ -358,7 +411,7 @@ export default function AdminChefsPage() {
                       </TableCell>
                       <TableCell className="px-5 py-5 align-top">
                         <Badge variant="secondary" className="rounded-full border-border/60 bg-muted/40 px-3 py-1 text-xs font-medium text-foreground">
-                          {chef._count.experiences} experiences
+                          {chef._count.experiences} bookable services
                         </Badge>
                       </TableCell>
                       <TableCell className="px-5 py-5 align-top">
@@ -381,7 +434,7 @@ export default function AdminChefsPage() {
                         </Badge>
                         <div className="mt-2 space-y-1 text-xs text-muted-foreground">
                           <p><span className="font-medium text-foreground">Terms:</span> {chef.user.termsAcceptedAt ? `${new Date(chef.user.termsAcceptedAt).toLocaleDateString()} · ${chef.user.termsVersion ?? "current"}` : "Missing"}</p>
-                          <p><span className="font-medium text-foreground">Insurance:</span> {chef.insuranceAcknowledgedAt ? `${new Date(chef.insuranceAcknowledgedAt).toLocaleDateString()} · ${chef.insuranceVersion ?? "current"}` : "Missing"}</p>
+                          <p><span className="font-medium text-foreground">Platform insurance:</span> ChefaChef handles eligible platform bookings{chef.insuranceAcknowledgedAt ? ` · acknowledged ${new Date(chef.insuranceAcknowledgedAt).toLocaleDateString()}` : ""}</p>
                           {chef.user.isBanned || chef.isBanned ? (
                             <p><span className="font-medium text-foreground">Reason:</span> {chef.user.banReason || chef.banReason || "Not provided"}</p>
                           ) : null}
@@ -400,7 +453,10 @@ export default function AdminChefsPage() {
                                 {actionLoading === chef.id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
-                                  <Check className="h-4 w-4" />
+                                  <>
+                                    <Check className="mr-2 h-4 w-4" />
+                                    Approve chef account
+                                  </>
                                 )}
                               </Button>
                               <Button
@@ -413,7 +469,10 @@ export default function AdminChefsPage() {
                                 {actionLoading === chef.id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
-                                  <X className="h-4 w-4" />
+                                  <>
+                                    <X className="mr-2 h-4 w-4" />
+                                    Reject
+                                  </>
                                 )}
                               </Button>
                             </>
@@ -421,15 +480,18 @@ export default function AdminChefsPage() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => window.open(`/dashboard/chef/profile`, '_blank')}
+                            asChild
                             className="h-9 rounded-xl border-border/60 bg-background/80 px-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-muted/50 hover:shadow-md"
                           >
-                            <Eye className="h-4 w-4" />
+                            <Link href={`/dashboard/admin/chefs/${chef.id}`}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              Review application
+                            </Link>
                           </Button>
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )})}
                 </TableBody>
               </Table>
             </div>

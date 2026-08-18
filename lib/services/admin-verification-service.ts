@@ -127,10 +127,12 @@ export const adminVerificationService = {
       where: { id: chefId },
       data: {
         isApproved: action === "APPROVE",
-        verified: action === "APPROVE",
         verificationStatus: action === "APPROVE" ? "APPROVED" : "REJECTED",
         approvedAt: action === "APPROVE" ? new Date() : null,
         approvedBy: action === "APPROVE" ? (adminUserId ?? null) : null,
+        reviewedAt: new Date(),
+        reviewedBy: adminUserId ?? null,
+        reviewNotes: reason ?? `Chef compliance ${action.toLowerCase()}`,
         foodHygieneCertificateReviewedAt: action === "APPROVE" ? new Date() : null,
         foodHygieneCertificateReviewedBy: adminUserId ?? null,
         foodHygieneCertificateReviewStatus: action === "APPROVE" ? "APPROVED" : "REJECTED",
@@ -144,13 +146,6 @@ export const adminVerificationService = {
             verified: true,
           },
         },
-      },
-    })
-
-    await prisma.user.update({
-      where: { id: chef.user.id },
-      data: {
-        verified: action === "APPROVE",
       },
     })
 

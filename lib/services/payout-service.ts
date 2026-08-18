@@ -5,6 +5,7 @@ import { generateIdempotencyKey } from "@/lib/utils/idempotency"
 import { logger } from "@/lib/logger"
 import { prisma } from "@/lib/prisma"
 import { PLATFORM_COMMISSION_PERCENT } from "@/lib/marketplace-rules"
+import { getStripeService, StripeService } from "@/lib/services/stripe-service"
 import type { Prisma } from "@prisma/client"
 
 type PayoutAction = "approve" | "process" | "pay" | "complete" | "fail" | "cancel" | "retry"
@@ -31,6 +32,12 @@ type ChefPaymentSummary = {
   customerPayment: number
   platformCommission: number
   commissionRatePercent: number
+  serviceChargeTaxRate: number | null
+  serviceChargeTaxAmount: number
+  serviceChargeTaxStatus: string | null
+  serviceChargeTaxDeductionEnabled: boolean
+  totalPlatformDeduction: number
+  taxJurisdiction: string | null
   chefPayout: number
   paymentStatus: string
   payoutEligibilityStatus: string
@@ -53,19 +60,21 @@ const PAYOUT_STATUS = {
   FAILED: "FAILED",
   CANCELLED: "CANCELLED",
   FROZEN: "FROZEN",
+  ONBOARDING_REQUIRED: "ONBOARDING_REQUIRED",
 } as const
 
 const PAYOUT_STATE_TRANSITIONS: Record<string, string[]> = {
-  [PAYOUT_STATUS.PENDING]: [PAYOUT_STATUS.APPROVED, PAYOUT_STATUS.CANCELLED, PAYOUT_STATUS.FROZEN, PAYOUT_STATUS.FAILED],
-  [PAYOUT_STATUS.APPROVED]: [PAYOUT_STATUS.PROCESSING, PAYOUT_STATUS.CANCELLED, PAYOUT_STATUS.FAILED],
-  [PAYOUT_STATUS.PROCESSING]: [PAYOUT_STATUS.PAID, PAYOUT_STATUS.FAILED],
+  [PAYOUT_STATUS.PENDING]: [PAYOUT_STATUS.APPROVED, PAYOUT_STATUS.CANCELLED, PAYOUT_STATUS.FROZEN, PAYOUT_STATUS.FAILED, PAYOUT_STATUS.ONBOARDING_REQUIRED],
+  [PAYOUT_STATUS.APPROVED]: [PAYOUT_STATUS.PROCESSING, PAYOUT_STATUS.CANCELLED, PAYOUT_STATUS.FAILED, PAYOUT_STATUS.ONBOARDING_REQUIRED],
+  [PAYOUT_STATUS.PROCESSING]: [PAYOUT_STATUS.PAID, PAYOUT_STATUS.FAILED, PAYOUT_STATUS.ONBOARDING_REQUIRED],
   [PAYOUT_STATUS.FROZEN]: [PAYOUT_STATUS.PENDING], // Can unfreeze
+  [PAYOUT_STATUS.ONBOARDING_REQUIRED]: [PAYOUT_STATUS.PENDING, PAYOUT_STATUS.PROCESSING, PAYOUT_STATUS.CANCELLED],
   [PAYOUT_STATUS.PAID]: [], // Terminal state
   [PAYOUT_STATUS.CANCELLED]: [], // Terminal state
   [PAYOUT_STATUS.FAILED]: [PAYOUT_STATUS.PENDING], // Can retry
 } as const
 
-const activePayoutStatuses = ["PENDING", "APPROVED", "PROCESSING", "FROZEN"]
+const activePayoutStatuses = ["PENDING", "APPROVED", "PROCESSING", "FROZEN", "ONBOARDING_REQUIRED"]
 const paidPayoutStatuses = ["PAID", "COMPLETED"]
 
 function getEmptyBalance(currency: string): CurrencyBalance {
@@ -82,6 +91,35 @@ function getEmptyBalance(currency: string): CurrencyBalance {
 
 function roundMoney(value: number) {
   return Number(value.toFixed(2))
+}
+
+function canTransition(currentStatus: string, nextStatus: string) {
+  if ((currentStatus === PAYOUT_STATUS.PAID || currentStatus === PAYOUT_STATUS.CANCELLED) && currentStatus === nextStatus) {
+    return false
+  }
+
+  const allowedTransitions = PAYOUT_STATE_TRANSITIONS[currentStatus] || []
+  return allowedTransitions.includes(nextStatus) || currentStatus === nextStatus
+}
+
+async function verifyChefPayoutReadiness(chef: {
+  stripeAccountId?: string | null
+  stripeOnboardingComplete?: boolean | null
+}) {
+  if (!chef.stripeAccountId) {
+    return { ready: false, reason: "STRIPE_CONNECT_ONBOARDING_REQUIRED" }
+  }
+
+  if (!StripeService.isConfigured()) {
+    return { ready: false, reason: "STRIPE_CONNECT_VERIFICATION_UNAVAILABLE" }
+  }
+
+  const account = await getStripeService().retrieveConnectAccount(chef.stripeAccountId)
+  if (!account.details_submitted || !account.payouts_enabled) {
+    return { ready: false, reason: "STRIPE_CONNECT_ONBOARDING_REQUIRED" }
+  }
+
+  return { ready: true, reason: null }
 }
 
 export const payoutService = {
@@ -189,6 +227,12 @@ export const payoutService = {
           customerPayment: roundMoney(payment?.totalAmount ?? booking.totalPrice ?? 0),
           platformCommission: roundMoney(payment?.commissionAmount ?? 0),
           commissionRatePercent: PLATFORM_COMMISSION_PERCENT,
+          serviceChargeTaxRate: payment?.serviceChargeTaxRate ?? null,
+          serviceChargeTaxAmount: roundMoney(payment?.serviceChargeTaxAmount ?? 0),
+          serviceChargeTaxStatus: payment?.serviceChargeTaxStatus ?? null,
+          serviceChargeTaxDeductionEnabled: Boolean(payment?.serviceChargeTaxDeductionEnabled),
+          totalPlatformDeduction: roundMoney(payment?.totalPlatformDeduction ?? payment?.commissionAmount ?? 0),
+          taxJurisdiction: payment?.taxJurisdiction ?? null,
           chefPayout: roundMoney(payment?.chefAmount ?? 0),
           paymentStatus,
           payoutEligibilityStatus: paymentStatus === "RELEASED" ? "Released for payout" : "Paid / awaiting completion or payout release",
@@ -275,9 +319,59 @@ export const payoutService = {
       throw new Error("EXTERNAL_REFERENCE_REQUIRED")
     }
 
-    const allowedTransitions = PAYOUT_STATE_TRANSITIONS[payout.status] || []
-    if (!allowedTransitions.includes(newStatus) && payout.status !== newStatus) {
+    if (!canTransition(payout.status, newStatus)) {
       throw new Error(`INVALID_PAYOUT_TRANSITION:${payout.status}->${newStatus}`)
+    }
+
+    if (newStatus === PAYOUT_STATUS.PAID) {
+      let readiness
+      try {
+        readiness = await verifyChefPayoutReadiness(payout.chef)
+      } catch (error) {
+        logger.error("[PAYOUT] Stripe Connect payout readiness verification failed", { payoutId: id, error })
+        readiness = { ready: false, reason: "STRIPE_CONNECT_VERIFICATION_FAILED" }
+      }
+
+      if (!readiness.ready) {
+        await prisma.$transaction(async (tx) => {
+          const currentPayout = await tx.payout.findUnique({
+            where: { id },
+            select: { id: true, status: true },
+          })
+
+          if (!currentPayout) {
+            throw new Error("PAYOUT_NOT_FOUND")
+          }
+
+          if (!canTransition(currentPayout.status, PAYOUT_STATUS.ONBOARDING_REQUIRED)) {
+            throw new Error(`INVALID_PAYOUT_TRANSITION:${currentPayout.status}->${PAYOUT_STATUS.ONBOARDING_REQUIRED}`)
+          }
+
+          await tx.payout.update({
+            where: { id },
+            data: {
+              status: PAYOUT_STATUS.ONBOARDING_REQUIRED,
+              adminNotes: input.adminNotes ?? "Complete Stripe onboarding to receive payout.",
+              failureReason: readiness.reason,
+              processedBy: input.processedBy,
+            },
+          })
+
+          await tx.auditLog.create({
+            data: {
+              action: "PAYOUT_ONBOARDING_REQUIRED",
+              entityType: "Payout",
+              entityId: id,
+              oldValue: JSON.stringify({ status: currentPayout.status }),
+              newValue: JSON.stringify({ status: PAYOUT_STATUS.ONBOARDING_REQUIRED, reason: readiness.reason }),
+              performedBy: input.processedBy || "SYSTEM",
+              reason: "Payout release held until Stripe Connect onboarding is complete.",
+            },
+          })
+        })
+
+        throw new Error("PAYOUT_ONBOARDING_REQUIRED")
+      }
     }
 
     // Use transaction for atomic update with state transition logging
@@ -290,6 +384,10 @@ export const payoutService = {
 
       if (!currentPayout) {
         throw new Error("PAYOUT_NOT_FOUND")
+      }
+
+      if (!canTransition(currentPayout.status, newStatus)) {
+        throw new Error(`INVALID_PAYOUT_TRANSITION:${currentPayout.status}->${newStatus}`)
       }
 
       // Update payout record

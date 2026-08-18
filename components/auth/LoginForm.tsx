@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
-import { AlertCircle, ArrowRight, LockKeyhole, Sparkles } from "lucide-react"
+import { AlertCircle, ArrowRight, LockKeyhole, RefreshCw, Sparkles } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,9 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [verificationRequired, setVerificationRequired] = useState(false)
+  const [resendLoading, setResendLoading] = useState(false)
+  const [resendMessage, setResendMessage] = useState("")
   const [fieldErrors, setFieldErrors] = useState({
     email: "",
     password: "",
@@ -90,6 +93,13 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
       decodedError = error
     }
     if (
+      decodedError.includes("EMAIL_NOT_VERIFIED") ||
+      decodedError.includes("Email verification required")
+    ) {
+      return "Please verify your email address before signing in."
+    }
+
+    if (
       decodedError.includes("Connection terminated") ||
       decodedError.includes("Can't reach database server") ||
       decodedError.includes("Timed out") ||
@@ -108,6 +118,8 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
       ...prev,
       [name]: value,
     }))
+    setVerificationRequired(false)
+    setResendMessage("")
 
     if (touchedFields[name as keyof typeof touchedFields]) {
       if (name === "email") {
@@ -197,6 +209,8 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
 
     setLoading(true)
     setError("")
+    setVerificationRequired(false)
+    setResendMessage("")
 
     try {
       const result = await signIn("credentials", {
@@ -206,7 +220,13 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
       })
 
       if (result?.error) {
-        setError(getSignInErrorMessage(result.error))
+        const message = getSignInErrorMessage(result.error)
+        if (message.includes("verify your email")) {
+          setVerificationRequired(true)
+          setError("")
+        } else {
+          setError(message)
+        }
         return
       }
 
@@ -224,6 +244,34 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
       setError("Network error. Please try again.")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    if (!validateEmail(formData.email.trim())) {
+      setError("Please enter a valid email before requesting a new verification link.")
+      return
+    }
+
+    setResendLoading(true)
+    setError("")
+    setResendMessage("")
+
+    try {
+      await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: formData.email.trim(),
+          role: requestedRole === "CLIENT" || requestedRole === "CHEF" ? requestedRole : undefined,
+          callbackUrl: safeCallbackUrl,
+        }),
+      })
+      setResendMessage("If the account is still awaiting verification, a new link will be sent.")
+    } catch {
+      setResendMessage("We could not request a new link right now. Please try again.")
+    } finally {
+      setResendLoading(false)
     }
   }
 
@@ -264,6 +312,27 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
           <Alert variant="destructive" className="items-start rounded-2xl border-[rgba(220,38,38,0.14)] bg-[rgba(254,242,242,0.92)] text-[#991b1b] shadow-none">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {verificationRequired && (
+          <Alert className="items-start rounded-2xl border-amber-500/25 bg-amber-50/90 text-amber-900 shadow-none">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription className="space-y-3 text-amber-900">
+              <p>Please verify your email address before signing in.</p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="rounded-xl bg-background"
+                onClick={handleResendVerification}
+                disabled={resendLoading}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                {resendLoading ? "Requesting..." : "Resend verification email"}
+              </Button>
+              {resendMessage ? <p className="text-sm">{resendMessage}</p> : null}
+            </AlertDescription>
           </Alert>
         )}
 

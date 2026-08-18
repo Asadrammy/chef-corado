@@ -10,6 +10,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Calendar, User, ChefHat, Eye, CheckCircle2, Clock3, Sparkles, ArrowUpRight, Wallet } from "lucide-react"
 import { getServiceTypeLabel } from "@/lib/request-options"
 import { formatCurrency } from "@/lib/currency"
+import {
+  formatServiceDatesCompact,
+  getStructuredServiceDates,
+  type MultiDayDateLike,
+} from "@/lib/multi-day-display"
 
 const operationalStatusOptions = [
   "NOT_STARTED",
@@ -30,6 +35,8 @@ interface Booking {
   operationalStatusUpdatedAt?: string | null
   createdAt: string
   updatedAt: string
+  eventDate?: string
+  serviceDates?: MultiDayDateLike[]
   client: {
     name: string
     email: string
@@ -44,9 +51,12 @@ interface Booking {
     price: number
     message?: string
     request?: {
+      requestMode?: string | null
       eventType?: string | null
       serviceType?: string | null
       serviceTypeLabel?: string | null
+      eventDate?: string | null
+      multiDayDates?: MultiDayDateLike[]
     } | null
     menu?: {
       title: string
@@ -211,8 +221,8 @@ export default function AdminBookingsPage() {
       value: bookings.length.toString(),
       meta: "All tracked booking records",
       icon: Wallet,
-      accent: "from-violet-500/15 via-sky-500/10 to-transparent",
-      iconClassName: "text-violet-600 dark:text-violet-300",
+      accent: "from-primary/15 via-primary/10 to-transparent",
+      iconClassName: "text-primary",
     },
     {
       title: "Pending review",
@@ -227,8 +237,8 @@ export default function AdminBookingsPage() {
       value: confirmedBookings.length.toString(),
       meta: "Active booking flow",
       icon: Calendar,
-      accent: "from-sky-500/15 via-indigo-500/10 to-transparent",
-      iconClassName: "text-sky-600 dark:text-sky-300",
+      accent: "from-primary/15 via-primary/10 to-transparent",
+      iconClassName: "text-primary",
     },
     {
       title: "Completed",
@@ -430,6 +440,8 @@ export default function AdminBookingsPage() {
                       const clientName = booking.client.name || "Client"
                       const chefName = booking.chef.user.name || "Chef"
                       const payment = getNormalizedPayment(booking.payments)
+                      const serviceDates = getStructuredServiceDates(booking)
+                      const isMultiDay = booking.proposal?.request?.requestMode === "MULTI_DAY" || serviceDates.length > 1
 
                       return (
                         <tr key={booking.id} className="group">
@@ -441,7 +453,7 @@ export default function AdminBookingsPage() {
                                     #{booking.id.slice(-8)}
                                   </div>
                                   <div className="mt-3 text-sm font-medium text-foreground">
-                                    {booking.proposal ? "Proposal booking" : "Instant booking"}
+                                    {isMultiDay ? "Multi-Day Chef Hire" : booking.proposal ? "Proposal booking" : "Instant booking"}
                                   </div>
                                   <div className="mt-1 text-xs text-muted-foreground">
                                     Booking record
@@ -548,9 +560,11 @@ export default function AdminBookingsPage() {
                                 </div>
 
                                 <div>
-                                  <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm">
+                                    <div className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-muted/40 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm">
                                     <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                                    {new Date(booking.createdAt).toLocaleDateString()}
+                                    {isMultiDay
+                                      ? formatServiceDatesCompact(serviceDates, booking.eventDate)
+                                      : new Date(booking.eventDate ?? booking.createdAt).toLocaleDateString()}
                                   </div>
                                 </div>
 

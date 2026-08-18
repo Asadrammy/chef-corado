@@ -10,7 +10,11 @@ import { BookingStatus, PaymentStatus, ProposalStatus } from "@/types"
 import { logPaymentSuccess, logPaymentFailure, logWebhookProcessed, logWebhookFailure, logLedgerError } from "@/lib/monitoring/financial-monitor"
 import { logger } from "@/lib/logger"
 import { invoiceService } from "@/lib/services/invoice-service"
-import { calculateChefPayout, calculatePlatformCommission } from "@/lib/marketplace-rules"
+import {
+  triggerBookingCreatedNotification,
+  triggerPaymentReceivedNotification,
+  triggerPaymentSuccessNotification,
+} from "@/lib/notifications"
 
 const WEBHOOK_STATUS = {
   PENDING: "PENDING",
@@ -100,6 +104,8 @@ export const paymentService = {
     const paymentIntentId = session.payment_intent as string
     const stripeSessionId = session.id
 
+    let guaranteedBookingId: string | null = null
+
     // Execute atomic payment-to-booking guarantee
     await prisma.$transaction(async (tx) => {
       const result = await paymentGuarantee.guaranteePaymentToBooking(
@@ -113,11 +119,15 @@ export const paymentService = {
       if (!result.guaranteed) {
         throw new Error(`Payment guarantee failed: ${result.error}`)
       }
+      guaranteedBookingId = result.bookingId ?? null
 
       // Record in ledger for financial tracking (CRITICAL for money safety)
       try {
-        const commissionAmount = calculatePlatformCommission(amount)
-        const chefAmount = calculateChefPayout(amount)
+        const persistedPayment = await tx.payment.findUnique({
+          where: { id: result.paymentId! },
+        })
+        const commissionAmount = persistedPayment?.commissionAmount ?? 0
+        const chefAmount = persistedPayment?.chefAmount ?? 0
         
         await ledgerService.recordPayment(
           result.paymentId!,
@@ -126,7 +136,19 @@ export const paymentService = {
           commissionAmount,
           chefAmount,
           "SYSTEM",
-          { stripeSessionId: session.id, proposalId },
+          {
+            stripeSessionId: session.id,
+            proposalId,
+            finance: persistedPayment ? {
+              platformCommissionRate: persistedPayment.platformCommissionRate,
+              serviceChargeTaxRate: persistedPayment.serviceChargeTaxRate,
+              serviceChargeTaxAmount: persistedPayment.serviceChargeTaxAmount,
+              serviceChargeTaxDeductionEnabled: persistedPayment.serviceChargeTaxDeductionEnabled,
+              totalPlatformDeduction: persistedPayment.totalPlatformDeduction,
+              taxJurisdiction: persistedPayment.taxJurisdiction,
+              serviceChargeTaxStatus: persistedPayment.serviceChargeTaxStatus,
+            } : undefined,
+          },
           (session.currency || "GBP").toUpperCase()
         )
       } catch (ledgerError) {
@@ -151,6 +173,54 @@ export const paymentService = {
         proposalId,
       })
     })
+
+    if (guaranteedBookingId) {
+      try {
+        const booking = await prisma.booking.findUnique({
+          where: { id: guaranteedBookingId },
+          include: {
+            client: { select: { id: true, name: true } },
+            chef: { include: { user: { select: { id: true, name: true } } } },
+            serviceDates: { orderBy: { sortOrder: "asc" } },
+            proposal: {
+              include: {
+                request: {
+                  include: {
+                    multiDayDates: { orderBy: { sortOrder: "asc" } },
+                  },
+                },
+              },
+            },
+          },
+        })
+
+        if (booking) {
+          const serviceDates = booking.serviceDates.length
+            ? booking.serviceDates
+            : booking.proposal?.request?.multiDayDates ?? []
+          const isMultiDay = booking.proposal?.request?.requestMode === "MULTI_DAY" || serviceDates.length > 1
+          const context = {
+            isMultiDay,
+            serviceDates,
+            location: booking.location,
+            amount: booking.totalPrice,
+            currency: booking.currency,
+            bookingReference: booking.id,
+          }
+
+          await Promise.allSettled([
+            triggerBookingCreatedNotification(booking.chef.userId, booking.client.name ?? "Client", context),
+            triggerPaymentSuccessNotification(booking.clientId, booking.chef.user.name ?? "Chef", context),
+            triggerPaymentReceivedNotification(booking.chef.userId, booking.client.name ?? "Client", context),
+          ])
+        }
+      } catch (notificationError) {
+        logger.warn("[PAYMENT_SERVICE] Booking/payment notification failed after checkout", {
+          bookingId: guaranteedBookingId,
+          error: notificationError instanceof Error ? notificationError.message : String(notificationError),
+        })
+      }
+    }
 
     return
   },

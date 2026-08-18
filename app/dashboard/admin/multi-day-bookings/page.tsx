@@ -4,6 +4,7 @@ import { formatAdminDate, maskEmailForAdmin } from "@/lib/admin-format"
 import { requireAdminPagePermission } from "@/lib/admin-rbac"
 import { formatCurrency } from "@/lib/currency"
 import { prisma } from "@/lib/prisma"
+import { getServiceTypeLabel } from "@/lib/request-options"
 
 export default async function AdminMultiDayBookingsPage({
   searchParams,
@@ -68,9 +69,9 @@ export default async function AdminMultiDayBookingsPage({
         columns={[
           { key: "client", label: "Client", render: (request) => <div><p className="font-medium">{request.client.name}</p><p className="text-xs text-muted-foreground">{maskEmailForAdmin(request.client.email, actor)}</p></div> },
           { key: "range", label: "Date range", render: (request) => request.multiDayDates.length ? `${request.multiDayDates[0].date.toLocaleDateString()} - ${request.multiDayDates[request.multiDayDates.length - 1].date.toLocaleDateString()}` : request.eventDate.toLocaleDateString() },
-          { key: "dates", label: "Service dates", render: (request) => <div>{request.multiDayDates.map((date) => <p key={date.id} className="text-xs">{date.date.toLocaleDateString()} {date.startTime ?? ""}-{date.endTime ?? ""}</p>)}</div> },
+          { key: "dates", label: "Service dates", render: (request) => <div>{request.multiDayDates.map((date) => <p key={date.id} className="text-xs">{date.date.toLocaleDateString()} {date.startTime ?? ""}{date.endTime ? `-${date.endTime}` : ""} - {getServiceTypeLabel(date.serviceType, date.serviceTypeLabel)}</p>)}</div> },
           { key: "service", label: "Service", render: (request) => request.serviceTypeLabel ?? request.serviceType ?? request.eventType },
-          { key: "total", label: "Budget", render: (request) => formatCurrency(request.budget, request.currency) },
+          { key: "total", label: "Budget", render: (request) => <div><p>{formatCurrency(request.budget, request.currency)}</p><p className="text-xs text-muted-foreground">{request.budgetMode === "PER_DAY" ? "Per day mode" : request.budgetMode === "TOTAL_EVENT" ? "Total-event mode" : "Legacy budget"}</p></div> },
           { key: "assignment", label: "Assignment", render: (request) => request.proposals[0]?.chef?.user?.name ?? "Unassigned" },
           { key: "status", label: "State", render: (request) => <AdminStatusBadge status={request.proposals.length ? "REVIEW" : "OPEN"} /> },
           { key: "conflict", label: "Conflict", render: (request) => request.multiDayDates.some((date) => duplicateDates.has(date.date.toISOString().slice(0, 10))) ? <AdminStatusBadge status="REVIEW" /> : "None detected" },
@@ -86,7 +87,7 @@ export default async function AdminMultiDayBookingsPage({
                       { label: "Client", value: `${request.client.name} / ${maskEmailForAdmin(request.client.email, actor)}` },
                       { label: "Service", value: request.serviceTypeLabel ?? request.serviceType ?? request.eventType },
                       { label: "Location", value: `${request.location} (${request.countryCode})` },
-                      { label: "Budget", value: formatCurrency(request.budget, request.currency) },
+                      { label: "Budget", value: `${formatCurrency(request.budget, request.currency)} / ${request.budgetMode === "PER_DAY" ? "per-day mode" : request.budgetMode === "TOTAL_EVENT" ? "total-event mode" : "legacy"}` },
                       { label: "Assignment", value: request.proposals[0]?.chef?.user?.name ?? "Unassigned" },
                       { label: "Conflict", value: request.multiDayDates.some((date) => duplicateDates.has(date.date.toISOString().slice(0, 10))) ? <AdminStatusBadge status="REVIEW" /> : "None detected" },
                     ]}
@@ -96,8 +97,13 @@ export default async function AdminMultiDayBookingsPage({
                   <div className="space-y-2">
                     {request.multiDayDates.map((date) => (
                       <p key={date.id} className="rounded-lg border border-border bg-muted/20 p-3 text-sm">
-                        {date.date.toLocaleDateString()} {date.startTime ?? ""}-{date.endTime ?? ""}
-                        {date.serviceNeeds ? <span className="block text-xs text-muted-foreground">{date.serviceNeeds}</span> : null}
+                        <span className="font-medium">{date.date.toLocaleDateString()} {date.startTime ?? ""}{date.endTime ? `-${date.endTime}` : ""}</span>
+                        <span className="block text-xs text-muted-foreground">{getServiceTypeLabel(date.serviceType, date.serviceTypeLabel)}</span>
+                        <span className="block text-xs text-muted-foreground">Cuisine: {parseJsonList(date.cuisineTypes).join(", ") || "Not specified"}</span>
+                        <span className="block text-xs text-muted-foreground">Dietary: {parseJsonList(date.dietaryRequirements).join(", ") || "None selected"}</span>
+                        <span className="block text-xs text-muted-foreground">Guests: {date.actualAttendeeCount ?? request.guestCount}{date.billableGuestCount ? ` / ${date.billableGuestCount} billable` : ""}</span>
+                        {date.budget ? <span className="block text-xs text-muted-foreground">Daily budget: {formatCurrency(date.budget, request.currency)}</span> : null}
+                        {date.notes ? <span className="block text-xs text-muted-foreground">{date.notes}</span> : date.serviceNeeds ? <span className="block text-xs text-muted-foreground">{date.serviceNeeds}</span> : null}
                       </p>
                     ))}
                   </div>
@@ -109,4 +115,15 @@ export default async function AdminMultiDayBookingsPage({
       />
     </div>
   )
+}
+
+function parseJsonList(value?: string | null) {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed.map(String).filter(Boolean)
+  } catch {
+    return value.split(",").map((item) => item.trim()).filter(Boolean)
+  }
+  return []
 }

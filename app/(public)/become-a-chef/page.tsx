@@ -24,7 +24,7 @@ export default function BecomeChefPage() {
       </div>
       <div className="space-y-4">
         <h2 className="text-xl font-semibold text-foreground">Profile, bookings, and payouts</h2>
-        <p className="text-sm leading-6 text-muted-foreground">Approved chefs can maintain menus, availability, service radius, public profile content, request proposals, messages, bookings, and payout requests. The platform arranges insurance after the chef has confirmed the required legal conditions and has been approved.</p>
+        <p className="text-sm leading-6 text-muted-foreground">Approved chefs can maintain menus, availability, service radius, public profile content, request proposals, messages, bookings, and payout requests. Qualifying official ChefaChef bookings processed through the platform are protected by platform-level public liability coverage up to GBP 5 million; private or off-platform work is outside that booking policy.</p>
       </div>
     </PublicContentPage>
   );

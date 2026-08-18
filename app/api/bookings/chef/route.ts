@@ -82,7 +82,17 @@ export async function GET(request: NextRequest) {
         orderBy: { createdAt: "desc" },
         include: {
           client: true,
-          proposal: { include: { request: true } },
+          serviceDates: { orderBy: { sortOrder: "asc" } },
+          proposal: {
+            include: {
+              lineItems: { orderBy: { sortOrder: "asc" } },
+              request: {
+                include: {
+                  multiDayDates: { orderBy: { sortOrder: "asc" } },
+                },
+              },
+            },
+          },
           payments: true,
           experience: true,
         },

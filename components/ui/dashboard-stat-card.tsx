@@ -23,18 +23,18 @@ export function DashboardStatCard({
   return (
     <Card
       className={cn(
-        "group relative overflow-hidden rounded-[28px] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(246,249,255,0.88))] shadow-lg shadow-slate-900/5 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-slate-900/10 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]",
+        "group relative overflow-hidden rounded-[28px] border border-white/50 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),hsl(var(--brand-surface)/0.86))] shadow-lg shadow-slate-900/5 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-slate-900/10 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))]",
         className
       )}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.14),transparent_55%),radial-gradient(circle_at_top_right,rgba(56,189,248,0.10),transparent_52%)] opacity-80 transition-opacity duration-300 group-hover:opacity-100" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top_left,hsl(var(--brand-primary)/0.14),transparent_55%),radial-gradient(circle_at_top_right,hsl(var(--brand-chocolate)/0.10),transparent_52%)] opacity-80 transition-opacity duration-300 group-hover:opacity-100" />
       <CardContent className="relative flex min-h-[196px] flex-col justify-between gap-6 p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-3">
             <p className="text-muted-foreground text-[11px] font-semibold uppercase tracking-[0.22em]">{label}</p>
             <p className="text-foreground text-4xl font-semibold tracking-tight sm:text-[2.6rem]">{value}</p>
           </div>
-          <div className="from-primary/20 via-sky-500/10 to-background text-primary flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl border border-white/60 bg-gradient-to-br shadow-lg shadow-slate-900/5 transition-transform duration-300 group-hover:scale-105 dark:border-white/10">
+          <div className="from-primary/20 via-primary/10 to-background text-primary flex h-14 w-14 shrink-0 items-center justify-center rounded-3xl border border-white/60 bg-gradient-to-br shadow-lg shadow-slate-900/5 transition-transform duration-300 group-hover:scale-105 dark:border-white/10">
             {icon}
           </div>
         </div>

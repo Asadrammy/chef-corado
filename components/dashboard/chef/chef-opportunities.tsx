@@ -37,7 +37,7 @@ export function ChefOpportunities({ requests, availableRequestsCount }: ChefOppo
       </CardHeader>
       <CardContent className="space-y-4">
         {availableRequestsCount === 0 ? (
-          <div className="rounded-3xl border border-dashed border-primary/20 bg-[linear-gradient(180deg,rgba(99,102,241,0.08),rgba(255,255,255,0.7))] p-8 shadow-inner dark:bg-[linear-gradient(180deg,rgba(99,102,241,0.14),rgba(255,255,255,0.03))]">
+          <div className="rounded-3xl border border-dashed border-primary/20 bg-[linear-gradient(180deg,hsl(var(--brand-primary)/0.08),rgba(255,255,255,0.7))] p-8 shadow-inner dark:bg-[linear-gradient(180deg,hsl(var(--brand-primary)/0.14),rgba(255,255,255,0.03))]">
             <div className="mx-auto flex max-w-md flex-col items-center text-center">
               <div className="from-primary/15 to-primary/5 text-primary mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-gradient-to-br shadow-sm">
                 <BriefcaseBusiness className="h-7 w-7" />
@@ -57,7 +57,7 @@ export function ChefOpportunities({ requests, availableRequestsCount }: ChefOppo
           requests.slice(0, 4).map((request) => (
             <div
               key={request.id}
-              className="group flex flex-col gap-4 rounded-3xl border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(248,250,255,0.9))] p-5 shadow-sm shadow-black/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] lg:flex-row lg:items-start lg:justify-between"
+              className="group flex flex-col gap-4 rounded-3xl border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),hsl(var(--brand-surface)/0.86))] p-5 shadow-sm shadow-black/5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10 dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))] lg:flex-row lg:items-start lg:justify-between"
             >
               <div className="space-y-3">
                 <div className="space-y-1">

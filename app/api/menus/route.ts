@@ -5,6 +5,8 @@ import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { getCurrencyForCountry } from "@/lib/request-options"
 import { z } from "zod"
 import { validateMessageContent } from "@/lib/security/communication-policy"
+import { logger } from "@/lib/logger"
+import { menuImageReferenceSchema, normalizeMenuImageReference } from "@/lib/menu-image-storage"
 
 const MENU_MAX_COUNT = 20
 
@@ -14,7 +16,7 @@ const menuSchema = z.object({
   price: z.number().positive("Price must be positive").optional(),
   currency: z.string().length(3).optional(),
   menuType: z.enum(["PRICED", "SAMPLE", "FREE_FORM"]).default("FREE_FORM"),
-  menuImage: z.string().url().optional(),
+  menuImage: menuImageReferenceSchema.optional(),
   cuisineType: z.string().optional(),
   eventType: z.string().optional(),
 })
@@ -159,7 +161,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const validatedData = menuSchema.parse(body)
+    const validatedData = menuSchema.parse({
+      ...body,
+      menuImage: normalizeMenuImageReference(body?.menuImage),
+    })
 
     // Enforce communication policy on user-generated text
     if (validatedData.title) {
@@ -213,11 +218,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.error("Error creating menu:", error)
+    logger.error("[MENUS] Create failed", {
+      action: "create",
+      error: error instanceof Error ? error.message : String(error),
+    })
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation failed", details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    if (error instanceof Error && error.message.startsWith("COMMUNICATION_POLICY_VIOLATION")) {
+      return NextResponse.json(
+        { error: error.message.replace(/^COMMUNICATION_POLICY_VIOLATION:?\s*/, "") || "Menu content violates platform policy" },
         { status: 400 }
       )
     }

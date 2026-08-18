@@ -1,9 +1,32 @@
-import { AdminDataTable, AdminInfoGrid, AdminMetricGrid, AdminPageHeader, AdminStatusBadge, AdminToolbar } from "@/components/admin/admin-workspace"
+import type { Prisma } from "@prisma/client"
+
+import { AdminDataTable, AdminInfoGrid, AdminMetricGrid, AdminPageHeader, AdminStatusBadge, AdminToolbar, AdminWarning } from "@/components/admin/admin-workspace"
 import { AdminDrawerSection, AdminReviewDrawer } from "@/components/admin/admin-review-drawer"
 import { formatAdminDate, maskEmailForAdmin } from "@/lib/admin-format"
 import { requireAdminPagePermission } from "@/lib/admin-rbac"
 import { formatCurrency } from "@/lib/currency"
-import { prisma } from "@/lib/prisma"
+import { isPrismaConnectionError, prisma, withPrismaReconnect } from "@/lib/prisma"
+
+type AdminRequest = Prisma.RequestGetPayload<{
+  select: {
+    id: true
+    title: true
+    eventType: true
+    requestMode: true
+    serviceType: true
+    serviceTypeLabel: true
+    location: true
+    countryCode: true
+    budget: true
+    currency: true
+    guestCount: true
+    eventDate: true
+    createdAt: true
+    client: { select: { name: true; email: true } }
+    proposals: { select: { id: true; status: true; price: true } }
+    multiDayDates: { select: { id: true; date: true; startTime: true; endTime: true } }
+  }
+}>
 
 export default async function AdminRequestsPage({
   searchParams,
@@ -12,29 +35,57 @@ export default async function AdminRequestsPage({
 }) {
   const actor = await requireAdminPagePermission("requests.view")
   const params = await searchParams
-  const requests = await prisma.request.findMany({
-    where: {
-      requestMode: params.mode && params.mode !== "all" ? params.mode : undefined,
-      eventType: params.eventType && params.eventType !== "all" ? params.eventType : undefined,
-      serviceType: params.serviceType && params.serviceType !== "all" ? params.serviceType : undefined,
-      countryCode: params.country && params.country !== "all" ? params.country : undefined,
-      currency: params.currency && params.currency !== "all" ? params.currency : undefined,
-      OR: params.q
-        ? [
-            { title: { contains: params.q, mode: "insensitive" } },
-            { location: { contains: params.q, mode: "insensitive" } },
-            { description: { contains: params.q, mode: "insensitive" } },
-          ]
-        : undefined,
-    },
-    include: {
-      client: { select: { name: true, email: true } },
-      proposals: { select: { id: true, status: true, price: true } },
-      multiDayDates: { orderBy: { date: "asc" } },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  })
+  let requests: AdminRequest[] = []
+  let dataWarning: string | null = null
+
+  try {
+    requests = await withPrismaReconnect(
+      () =>
+        prisma.request.findMany({
+          where: {
+            requestMode: params.mode && params.mode !== "all" ? params.mode : undefined,
+            eventType: params.eventType && params.eventType !== "all" ? params.eventType : undefined,
+            serviceType: params.serviceType && params.serviceType !== "all" ? params.serviceType : undefined,
+            countryCode: params.country && params.country !== "all" ? params.country : undefined,
+            currency: params.currency && params.currency !== "all" ? params.currency : undefined,
+            OR: params.q
+              ? [
+                  { title: { contains: params.q, mode: "insensitive" } },
+                  { location: { contains: params.q, mode: "insensitive" } },
+                  { description: { contains: params.q, mode: "insensitive" } },
+                ]
+              : undefined,
+          },
+          select: {
+            id: true,
+            title: true,
+            eventType: true,
+            requestMode: true,
+            serviceType: true,
+            serviceTypeLabel: true,
+            location: true,
+            countryCode: true,
+            budget: true,
+            currency: true,
+            guestCount: true,
+            eventDate: true,
+            createdAt: true,
+            client: { select: { name: true, email: true } },
+            proposals: { select: { id: true, status: true, price: true } },
+            multiDayDates: { select: { id: true, date: true, startTime: true, endTime: true }, orderBy: { date: "asc" } },
+          },
+          orderBy: { createdAt: "desc" },
+          take: 100,
+        }),
+      2
+    )
+  } catch (error) {
+    if (!isPrismaConnectionError(error)) {
+      throw error
+    }
+
+    dataWarning = "The database timed out while loading requests. Refresh to retry; no request data was changed."
+  }
 
   const unique = (field: keyof typeof requests[number]) => [...new Set(requests.map((request) => String(request[field] ?? "")).filter(Boolean))].sort()
 
@@ -53,6 +104,9 @@ export default async function AdminRequestsPage({
           { label: "Proposal volume", value: requests.reduce((sum, request) => sum + request.proposals.length, 0) },
         ]}
       />
+      {dataWarning ? (
+        <AdminWarning>{dataWarning}</AdminWarning>
+      ) : null}
       <AdminToolbar>
         <form className="flex flex-wrap items-end gap-2">
           <input name="q" defaultValue={params.q ?? ""} placeholder="Search requests" className="h-9 rounded-md border border-input bg-background px-3 text-sm" />

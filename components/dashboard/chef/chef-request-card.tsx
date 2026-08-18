@@ -31,7 +31,7 @@ function getPriorityBadge(requestId: string, matchScore?: number) {
     if (matchScore >= 75) {
       return {
         label: "Great Fit",
-        className: "border-blue-500/30 bg-blue-500/15 text-blue-700",
+        className: "border-primary/30 bg-primary/15 text-primary",
       }
     }
     return null
@@ -184,7 +184,7 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
           </div>
           <ProposalModal request={request}>
             <Button
-              className="h-11 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25"
+              className="brand-gradient-button h-11 rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25"
             >
               Send Proposal
               <ArrowRight className={`h-4 w-4 transition-transform duration-300 ${isHovered ? "translate-x-0.5" : ""}`} />

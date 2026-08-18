@@ -3,19 +3,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design System Tokens - Chefachef brand-ready foundation */
+/* Design System Tokens - ChefaChef brand-ready foundation */
 :root {
   /* Typography */
   --font-inter: 'Inter', sans-serif;
   
-  /* Chefachef approved palette: Pumpkin Orange #FF7518, Jet Black #343434, Chocolate #7B3F00. */
+  /* ChefaChef Phase 4 palette: Neon Orange #FF5C00, Jet Black #343434, Dark Chocolate #7B3F00. */
   --background: 0 0% 99%; /* Cleaner white */
   --foreground: 0 0% 20%;
   --card: 0 0% 100%;
   --card-foreground: 0 0% 20%;
   --popover: 0 0% 100%;
   --popover-foreground: 0 0% 20%;
-  --primary: 24 100% 55%;
+  --primary: 22 100% 50%;
   --primary-foreground: 0 0% 7%;
   --secondary: 210 40% 97%; /* Very light gray */
   --secondary-foreground: 0 0% 20%;
@@ -23,15 +23,17 @@
   --muted-foreground: 215.4 16.3% 46.9%;
   --accent: 31 100% 24%;
   --accent-foreground: 0 0% 98%;
-  --brand-primary: 24 100% 55%;
-  --brand-primary-hover: 24 100% 41%;
+  --brand-primary: 22 100% 50%;
+  --brand-primary-hover: 22 100% 43%;
   --brand-accent: 31 100% 24%;
   --brand-dark: 0 0% 20%;
+  --brand-black: 0 0% 20%;
   --brand-chocolate: 31 100% 24%;
   --brand-chocolate-light: 31 58% 36%;
   --brand-secondary: 31 58% 36%;
-  --brand-highlight: 24 100% 55%;
-  --brand-surface: 24 100% 97%;
+  --brand-highlight: 22 100% 50%;
+  --brand-cream: 22 100% 97%;
+  --brand-surface: 22 100% 97%;
   --brand-card: 0 0% 100%;
   --surface: 0 0% 100%;
   --surface-muted: 24 60% 96%;
@@ -44,7 +46,7 @@
   --destructive-foreground: 210 40% 98%;
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
-  --ring: 24 100% 55%;
+  --ring: 22 100% 50%;
   --radius: 0.75rem; /* Larger rounded corners */
   
   /* Spacing */
@@ -76,7 +78,7 @@
   --card-foreground: 210 40% 98%;
   --popover: 0 0% 12%;
   --popover-foreground: 210 40% 98%;
-  --primary: 24 100% 55%;
+  --primary: 22 100% 50%;
   --primary-foreground: 0 0% 7%;
   --secondary: 217.2 32.6% 17.5%;
   --secondary-foreground: 210 40% 98%;
@@ -84,14 +86,16 @@
   --muted-foreground: 215 20.2% 65.1%;
   --accent: 31 100% 24%;
   --accent-foreground: 210 40% 98%;
-  --brand-primary: 24 100% 55%;
-  --brand-primary-hover: 24 100% 47%;
+  --brand-primary: 22 100% 50%;
+  --brand-primary-hover: 22 100% 43%;
   --brand-accent: 31 100% 24%;
   --brand-dark: 0 0% 20%;
+  --brand-black: 0 0% 20%;
   --brand-chocolate: 31 100% 24%;
   --brand-chocolate-light: 31 58% 36%;
   --brand-secondary: 31 58% 36%;
-  --brand-highlight: 24 100% 55%;
+  --brand-highlight: 22 100% 50%;
+  --brand-cream: 22 100% 97%;
   --brand-surface: 0 0% 10%;
   --brand-card: 0 0% 12%;
   --surface: 0 0% 12%;
@@ -105,7 +109,7 @@
   --destructive-foreground: 210 40% 98%;
   --border: 217.2 32.6% 17.5%;
   --input: 217.2 32.6% 17.5%;
-  --ring: 24 100% 55%;
+  --ring: 22 100% 50%;
 }
 
 * {
@@ -247,12 +251,12 @@ p {
 }
 
 .brand-gradient-button {
-  background: linear-gradient(135deg, hsl(var(--brand-primary)), hsl(var(--brand-accent)));
+  background: linear-gradient(135deg, hsl(var(--brand-primary)), hsl(var(--brand-highlight)));
   color: hsl(var(--primary-foreground));
 }
 
 .brand-gradient-button:hover {
-  background: linear-gradient(135deg, hsl(var(--brand-primary-hover)), hsl(var(--brand-accent)));
+  background: linear-gradient(135deg, hsl(var(--brand-primary-hover)), hsl(var(--brand-primary)));
 }
 
 .brand-surface {

@@ -7,6 +7,7 @@ import Link from "next/link"
 import { ChefRequestRow } from "@/components/chef-request-table"
 import { ChefRequestCard } from "@/components/dashboard/chef/chef-request-card"
 import { MatchResult } from "@/lib/services/smart-matching-service"
+import { ChefRequestSortKey, sortChefMarketplaceRequests } from "@/lib/chef-request-marketplace"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -25,7 +26,7 @@ export type ChefRequestsMarketplaceProps = {
 
 export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocation, useSmartMatching = false }: ChefRequestsMarketplaceProps) {
   const [searchQuery, setSearchQuery] = React.useState("")
-  const [sortBy, setSortBy] = React.useState("newest")
+  const [sortBy, setSortBy] = React.useState<ChefRequestSortKey>("newest")
   const [showFilters, setShowFilters] = React.useState(false)
   const [smartMatches, setSmartMatches] = React.useState<MatchResult[]>([])
   const [isLoadingMatches, setIsLoadingMatches] = React.useState(false)
@@ -70,28 +71,12 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
     }
 
     // Sort
-    const sorted = [...filtered].sort((a, b) => {
-      switch (sortBy) {
-        case "match-score":
-          // Sort by match score if using smart matching
-          if (useSmartMatching) {
-            const matchA = smartMatches.find((m) => m.requestId === a.id)
-            const matchB = smartMatches.find((m) => m.requestId === b.id)
-            return (matchB?.matchScore || 0) - (matchA?.matchScore || 0)
-          }
-          return 0
-        case "budget-high":
-          return b.budget - a.budget
-        case "budget-low":
-          return a.budget - b.budget
-        case "newest":
-        default:
-          return new Date(b.eventDate).getTime() - new Date(a.eventDate).getTime()
-      }
+    const sorted = sortChefMarketplaceRequests(filtered, sortBy, {
+      getMatchScore: (request) => smartMatches.find((match) => match.requestId === request.id)?.matchScore,
     })
 
     return sorted
-  }, [requests, searchQuery, sortBy, smartMatches, useSmartMatching, radiusFilter])
+  }, [requests, searchQuery, sortBy, smartMatches, radiusFilter])
 
   // Enrich requests with match data
   const displayRequests = React.useMemo(() => {
@@ -155,26 +140,75 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
               </div>
             </div>
 
-            <div className="grid gap-4 xl:min-w-[470px] xl:max-w-[520px]">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="rounded-[26px] border border-white/60 bg-white/80 p-5 shadow-lg backdrop-blur dark:border-white/10 dark:bg-white/5">
-                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-[0.18em]">Available</p>
-                  <p className="text-foreground mt-2 text-3xl font-semibold tracking-tight">{requests.length}</p>
-                  <p className="text-muted-foreground mt-1 text-xs">Requests ready to review</p>
-                </div>
-                <div className="rounded-2xl border border-white/60 bg-background/75 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
-                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-[0.18em]">Upcoming</p>
-                  <p className="text-foreground mt-2 text-3xl font-semibold tracking-tight">{upcomingRequestsCount}</p>
-                  <p className="text-muted-foreground mt-1 text-xs">Future events in range</p>
-                </div>
-                <div className="rounded-2xl border border-white/60 bg-background/75 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
-                  <p className="text-muted-foreground text-xs font-medium uppercase tracking-[0.18em]">Top budget</p>
-                  <p className="text-foreground mt-2 text-3xl font-semibold tracking-tight">{highestBudget}</p>
-                  <p className="text-muted-foreground mt-1 text-xs">Highest-value lead</p>
-                </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
+        <CardHeader className="space-y-1 pb-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-1.5">
+              <div className="text-primary inline-flex w-fit items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] shadow-sm">
+                <Sparkles className="h-3.5 w-3.5" />
+                Search and sort
               </div>
+              <CardTitle className="text-foreground text-xl font-semibold tracking-tight">Request controls</CardTitle>
+              <p className="text-muted-foreground text-sm leading-6">
+                Narrow your queue, surface priority opportunities, and move from review to proposal faster.
+              </p>
             </div>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center">
+            <div className="group relative w-full">
+              <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-foreground" />
+              <Input
+                placeholder="Search by location or request details..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-12 rounded-2xl border-white/70 bg-white/80 pl-10 shadow-sm backdrop-blur transition-all duration-200 focus-visible:bg-white focus-visible:border-white focus-visible:shadow-md focus-visible:shadow-black/5 dark:border-white/10 dark:bg-white/5"
+              />
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowFilters(!showFilters)}
+              className="h-12 rounded-2xl border-white/70 bg-white/80 px-4 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+            >
+              <Filter className="h-4 w-4" />
+              {showFilters ? "Filters active" : "Filters"}
+            </Button>
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as ChefRequestSortKey)}>
+              <SelectTrigger className="h-12 w-full rounded-2xl border-white/70 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5 lg:w-[220px]">
+                <ArrowUpDown className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                {useSmartMatching && (
+                  <SelectItem value="match-score">
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      Best Match (AI)
+                    </span>
+                  </SelectItem>
+                )}
+                <SelectItem value="newest">Newest First</SelectItem>
+                <SelectItem value="event-date">Event Date</SelectItem>
+                <SelectItem value="closest">Closest to Me</SelectItem>
+                <SelectItem value="budget-high">Budget: High to Low</SelectItem>
+                <SelectItem value="budget-low">Budget: Low to High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {showFilters ? (
+            <div className="rounded-[26px] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,248,255,0.92))] p-4 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))]">
+              <p className="text-foreground text-sm font-medium tracking-tight">Filter panel ready</p>
+              <p className="text-muted-foreground mt-1 text-sm leading-6">
+                Search and sorting are active. This panel can host more premium filters as request discovery expands.
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -234,72 +268,6 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
         </CardContent>
       </Card>
 
-      <Card className="rounded-[28px] border border-white/60 bg-card/95 shadow-xl shadow-black/5 backdrop-blur dark:border-white/10">
-        <CardHeader className="space-y-1 pb-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="space-y-1.5">
-              <div className="text-primary inline-flex w-fit items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] shadow-sm">
-                <Sparkles className="h-3.5 w-3.5" />
-                Search and sort
-              </div>
-              <CardTitle className="text-foreground text-xl font-semibold tracking-tight">Request controls</CardTitle>
-              <p className="text-muted-foreground text-sm leading-6">
-                Narrow your queue, surface priority opportunities, and move from review to proposal faster.
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center">
-            <div className="group relative w-full">
-              <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-foreground" />
-              <Input
-                placeholder="Search by location or request details..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-12 rounded-2xl border-white/70 bg-white/80 pl-10 shadow-sm backdrop-blur transition-all duration-200 focus-visible:bg-white focus-visible:border-white focus-visible:shadow-md focus-visible:shadow-black/5 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className="h-12 rounded-2xl border-white/70 bg-white/80 px-4 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-            >
-              <Filter className="h-4 w-4" />
-              {showFilters ? "Filters active" : "Filters"}
-            </Button>
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="h-12 w-full rounded-2xl border-white/70 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5 lg:w-[220px]">
-                <ArrowUpDown className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                {useSmartMatching && (
-                  <SelectItem value="match-score">
-                    <span className="flex items-center gap-2">
-                      <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      Best Match (AI)
-                    </span>
-                  </SelectItem>
-                )}
-                <SelectItem value="newest">Newest First</SelectItem>
-                <SelectItem value="budget-high">Budget: High to Low</SelectItem>
-                <SelectItem value="budget-low">Budget: Low to High</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {showFilters ? (
-            <div className="rounded-[26px] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,248,255,0.92))] p-4 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))]">
-              <p className="text-foreground text-sm font-medium tracking-tight">Filter panel ready</p>
-              <p className="text-muted-foreground mt-1 text-sm leading-6">
-                Search and sorting are active. This panel can host more premium filters as request discovery expands.
-              </p>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-
       {displayRequests.length > 0 ? (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
           {displayRequests.map((request) => (
@@ -320,7 +288,7 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
                 </p>
               </div>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Button className="h-11 rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25" asChild>
+                <Button className="brand-gradient-button h-11 rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25" asChild>
                   <Link href="/dashboard/chef/profile">Update Profile</Link>
                 </Button>
                 <Button variant="outline" className="h-11 rounded-2xl border-white/70 bg-background/70 px-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-background dark:border-white/10 dark:bg-background/10 dark:hover:bg-background/15" asChild>

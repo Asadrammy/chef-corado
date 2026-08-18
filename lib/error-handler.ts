@@ -112,6 +112,20 @@ export function handleApiError(error: unknown, context: string): NextResponse {
       return apiError('SERVICE_UNAVAILABLE', 'Service temporarily unavailable', 503);
     }
 
+    if (
+      error.message.includes('P2021') ||
+      error.message.includes('P2022') ||
+      error.message.includes('TableDoesNotExist') ||
+      error.message.includes('ColumnNotFound') ||
+      error.message.includes('does not exist in the current database')
+    ) {
+      return apiError(
+        'DATABASE_SCHEMA_OUT_OF_SYNC',
+        'Database schema is not up to date. Please apply the pending migrations before using this workflow.',
+        503
+      );
+    }
+
     if (error instanceof ApiError) {
       return NextResponse.json(
         {

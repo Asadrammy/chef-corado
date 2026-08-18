@@ -9,6 +9,7 @@ export default function ChefTermsPage() {
       points: [
         "Keep your profile, pricing, availability, menus, experiences, and service information accurate and up to date.",
         "Only offer services you are prepared to fulfill through the platform and respond to client requests in a professional manner.",
+        "Profile photos must show the chef's face clearly and present the chef professionally, such as in a chef coat, apron, or chef cap where appropriate.",
         "Meet your food safety, event-service, and local operating responsibilities for the services you choose to offer.",
       ],
     },
@@ -43,8 +44,10 @@ export default function ChefTermsPage() {
       title: "Insurance, approval, and payouts",
       points: [
         CHEF_LEGAL_ACKNOWLEDGEMENT,
-        "The platform handles insurance after chef approval and after right-to-work and Level 2 Food Hygiene confirmations are complete. Chefs do not upload insurance documents.",
-        "Chef access to public discovery, booking readiness, and payouts may depend on profile approval, current legal acknowledgement, and successful payment onboarding.",
+        "ChefaChef maintains platform-level public liability coverage up to GBP 5 million for qualifying official ChefaChef bookings processed through the platform.",
+        "Platform coverage applies to incidents connected to the booked event or service. Private, independent, or off-platform chef work is not covered by the platform booking policy.",
+        "Chef-owned public liability insurance remains optional unless a specific event, venue, or separate legal requirement asks for it.",
+        "Chef access to public discovery and booking readiness may depend on profile approval and current legal acknowledgement. Payment onboarding is required before payout release.",
         "The platform may hold, review, delay, or restrict payouts where moderation, booking status, compliance, or payment processing issues require review.",
         "Platform commission fees are deducted from payments before payouts are released to chefs.",
         "Payouts are processed according to the platform's payout schedule, typically within 3-7 business days after booking completion.",

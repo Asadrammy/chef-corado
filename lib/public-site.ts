@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { APPROVED_PUBLIC_CONTACT } from "@/lib/marketplace-rules";
+import { getConfiguredAppBaseUrl } from "@/lib/site-config";
 
 export type PublicNavItem = {
   label: string;
@@ -46,6 +47,13 @@ function configuredFooterItem(label: string, href?: string | null, note = "Confi
   return link ? { label, href: link, value: displayValue } : { label, note, disabled: true, value: displayValue };
 }
 
+function activeFooterItem(label: string, href?: string | null, value?: string | null): FooterItem | null {
+  const link = href?.trim();
+  if (!link) return null;
+  const displayValue = value?.trim();
+  return { label, href: link, value: displayValue };
+}
+
 const contactPhone = process.env.NEXT_PUBLIC_CONTACT_PHONE?.trim() || APPROVED_PUBLIC_CONTACT.phone;
 const contactEmail = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || APPROVED_PUBLIC_CONTACT.email;
 const contactWhatsappActive = process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_ACTIVE === "true";
@@ -56,6 +64,19 @@ const socialFacebook = process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK_URL?.trim() || AP
 const socialInstagram = process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL?.trim() || APPROVED_PUBLIC_CONTACT.instagramUrl;
 const socialX = process.env.NEXT_PUBLIC_SOCIAL_X_URL?.trim() || APPROVED_PUBLIC_CONTACT.xUrl;
 const socialYoutube = process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE_URL?.trim() || APPROVED_PUBLIC_CONTACT.youtubeUrl;
+
+const contactItems = [
+  activeFooterItem("WhatsApp", contactWhatsapp, APPROVED_PUBLIC_CONTACT.phoneDisplay),
+  configuredFooterItem("Telephone", contactPhone ? `tel:${contactPhone}` : null, "Configuration required", APPROVED_PUBLIC_CONTACT.phoneDisplay),
+  configuredFooterItem("Email", contactEmail ? `mailto:${contactEmail}` : null, "Configuration required", contactEmail),
+].filter((item): item is FooterItem => Boolean(item));
+
+const socialItems = [
+  activeFooterItem("Facebook", socialFacebook),
+  activeFooterItem("Instagram", socialInstagram),
+  activeFooterItem("X/Twitter", socialX),
+  activeFooterItem("YouTube", socialYoutube),
+].filter((item): item is FooterItem => Boolean(item));
 
 export const footerSections: FooterSection[] = [
   {
@@ -80,20 +101,11 @@ export const footerSections: FooterSection[] = [
   },
   {
     title: "Contact",
-    items: [
-      configuredFooterItem("WhatsApp", contactWhatsapp, "Not active yet", APPROVED_PUBLIC_CONTACT.phoneDisplay),
-      configuredFooterItem("Telephone", contactPhone ? `tel:${contactPhone}` : null, "Configuration required", APPROVED_PUBLIC_CONTACT.phoneDisplay),
-      configuredFooterItem("Email", contactEmail ? `mailto:${contactEmail}` : null, "Configuration required", contactEmail),
-    ],
+    items: contactItems,
   },
   {
     title: "Social",
-    items: [
-      configuredFooterItem("Facebook", socialFacebook, "Configuration required"),
-      configuredFooterItem("Instagram", socialInstagram, "Awaiting approved page"),
-      configuredFooterItem("X/Twitter", socialX, "Awaiting approved page"),
-      configuredFooterItem("YouTube", socialYoutube, "Awaiting approved page"),
-    ],
+    items: socialItems,
   },
 ];
 
@@ -145,7 +157,7 @@ export const homepageCuisineHighlights = [
   },
 ];
 
-export const appBaseUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+export const appBaseUrl = getConfiguredAppBaseUrl();
 
 export function getAbsoluteUrl(path: string) {
   return new URL(path, appBaseUrl).toString();

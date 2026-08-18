@@ -20,26 +20,22 @@ describe("Phase 2 public site configuration", () => {
     process.env = originalEnv
   })
 
-  it("shows approved contact defaults while keeping WhatsApp inactive by default", async () => {
+  it("shows approved contact defaults while keeping inactive WhatsApp and socials out of the footer", async () => {
     const { footerSections } = await import("@/lib/public-site")
 
     const contact = footerSections.find((section: { title: string }) => section.title === "Contact")
     const social = footerSections.find((section: { title: string }) => section.title === "Social")
 
     expect(contact?.items).toEqual([
-      { label: "WhatsApp", note: "Not active yet", disabled: true, value: "+44 07942 641878" },
       { label: "Telephone", href: "tel:+447942641878", value: "+44 07942 641878" },
-      { label: "Email", href: "mailto:Info@chefachef.co.uk", value: "Info@chefachef.co.uk" },
+      { label: "Email", href: "mailto:info@chefachef.com", value: "info@chefachef.com" },
     ])
     expect(social?.items).toEqual([
       { label: "Facebook", href: "https://www.facebook.com/chefachefUK" },
-      { label: "Instagram", note: "Awaiting approved page", disabled: true },
-      { label: "X/Twitter", note: "Awaiting approved page", disabled: true },
-      { label: "YouTube", note: "Awaiting approved page", disabled: true },
     ])
   })
 
-  it("uses configured contact and social values while preserving disabled missing social values", async () => {
+  it("uses configured contact and social values without rendering missing social placeholders", async () => {
     process.env.NEXT_PUBLIC_CONTACT_PHONE = "+447700900123"
     process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL = "https://instagram.com/approved-brand"
     jest.resetModules()
@@ -49,9 +45,9 @@ describe("Phase 2 public site configuration", () => {
     const social = footerSections.find((section: { title: string }) => section.title === "Social")
 
     expect(contact?.items).toContainEqual({ label: "Telephone", href: "tel:+447700900123", value: "+44 07942 641878" })
-    expect(contact?.items).toContainEqual({ label: "Email", href: "mailto:Info@chefachef.co.uk", value: "Info@chefachef.co.uk" })
+    expect(contact?.items).toContainEqual({ label: "Email", href: "mailto:info@chefachef.com", value: "info@chefachef.com" })
     expect(social?.items).toContainEqual({ label: "Instagram", href: "https://instagram.com/approved-brand" })
-    expect(social?.items).toContainEqual({ label: "YouTube", note: "Awaiting approved page", disabled: true })
+    expect(social?.items).not.toEqual(expect.arrayContaining([expect.objectContaining({ label: "YouTube" })]))
   })
 
   it("requires an explicit activation flag before exposing WhatsApp as a link", async () => {
@@ -60,7 +56,7 @@ describe("Phase 2 public site configuration", () => {
 
     const inactive = await import("@/lib/public-site")
     const inactiveContact = inactive.footerSections.find((section: { title: string }) => section.title === "Contact")
-    expect(inactiveContact?.items).toContainEqual({ label: "WhatsApp", note: "Not active yet", disabled: true, value: "+44 07942 641878" })
+    expect(inactiveContact?.items).not.toEqual(expect.arrayContaining([expect.objectContaining({ label: "WhatsApp" })]))
 
     process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_ACTIVE = "true"
     jest.resetModules()

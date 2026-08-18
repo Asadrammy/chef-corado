@@ -142,7 +142,7 @@ export function ChefActionPanel({
             <p className="text-foreground text-sm font-medium tracking-tight">Pending tasks</p>
             {pendingTasks.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-primary/20 bg-primary/5 p-4 shadow-inner">
-                <p className="text-foreground text-sm font-medium tracking-tight">You’re in good shape</p>
+                <p className="text-foreground text-sm font-medium tracking-tight">You&apos;re in good shape</p>
                 <p className="text-muted-foreground mt-1 text-xs leading-5">
                   Your dashboard essentials are set up. Keep responding quickly to new demand.
                 </p>
@@ -179,7 +179,7 @@ export function ChefActionPanel({
             <p className="text-foreground text-sm font-medium tracking-tight">Smart suggestions</p>
             {suggestions.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-primary/20 bg-primary/5 p-4 shadow-inner">
-                <p className="text-foreground text-sm font-medium tracking-tight">You’re on track</p>
+                <p className="text-foreground text-sm font-medium tracking-tight">You&apos;re on track</p>
                 <p className="text-muted-foreground mt-1 text-xs leading-5">
                   Keep responding quickly and update availability as new requests arrive.
                 </p>
@@ -210,7 +210,7 @@ export function ChefActionPanel({
                 variant={item.highlight ? "default" : "outline"}
                 className={
                   item.highlight
-                    ? "h-12 w-full justify-between rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25"
+                    ? "brand-gradient-button h-12 w-full justify-between rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25"
                     : "text-foreground h-12 w-full justify-between rounded-2xl border-white/70 bg-white/70 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-white hover:shadow-md dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
                 }
                 asChild

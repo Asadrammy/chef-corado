@@ -29,7 +29,7 @@ export function QuickActions({ availableRequests, activeBookings, completionPerc
     },
     {
       id: 'experiences',
-      title: 'Manage Experiences',
+      title: 'Manage Bookable Services',
       description: 'Update your offerings',
       icon: ChefHat,
       href: '/dashboard/chef/experiences',

@@ -1,143 +1,145 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { isPrismaConnectionError, prisma, withPrismaReconnect } from '@/lib/prisma';
-import { filterChefsByRadius, geocodeAddress } from '@/lib/geo';
+import { NextRequest, NextResponse } from "next/server"
+
+import { filterChefsByRadius, geocodeAddress } from "@/lib/geo"
+import { isPrismaConnectionError, prisma, withPrismaReconnect } from "@/lib/prisma"
+import { applyPublicMinimumSpendFilter, derivePublicMinimumSpend, getActivePublicMinimumSpendRules } from "@/lib/public-chef-pricing"
+import { PUBLIC_COMPLETED_BOOKING_STATUSES, publicChefEligibilityWhere, serializePublicChef } from "@/lib/public-chef-view"
+
+function parseNumber(value: string | null) {
+  if (!value) return null
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function splitParam(value: string | null) {
+  return (value || "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function compareNullableNumber(a: number | null | undefined, b: number | null | undefined, direction: "asc" | "desc") {
+  const aValid = typeof a === "number"
+  const bValid = typeof b === "number"
+  if (!aValid && !bValid) return 0
+  if (!aValid) return 1
+  if (!bValid) return -1
+  return direction === "asc" ? a - b : b - a
+}
+
+function sortPublicChefs(chefs: ReturnType<typeof serializePublicChef>[], sort: string) {
+  const sorted = [...chefs]
+
+  sorted.sort((a, b) => {
+    switch (sort) {
+      case "price_asc":
+        return compareNullableNumber(a.publicMinimumSpend, b.publicMinimumSpend, "asc") || a.displayName.localeCompare(b.displayName)
+      case "price_desc":
+        return compareNullableNumber(a.publicMinimumSpend, b.publicMinimumSpend, "desc") || a.displayName.localeCompare(b.displayName)
+      case "newest":
+        return new Date(b.approvedAt || b.createdAt || 0).getTime() - new Date(a.approvedAt || a.createdAt || 0).getTime()
+      case "jobs":
+        return b.completedJobs - a.completedJobs || a.displayName.localeCompare(b.displayName)
+      case "closest":
+        return compareNullableNumber(a.distance, b.distance, "asc") || a.displayName.localeCompare(b.displayName)
+      case "popular":
+      default:
+        // Interim popularity model: completed ChefaChef jobs first, then public review volume/rating.
+        // Kept centralized so a future client-approved ranking formula can replace it cleanly.
+        return (
+          b.completedJobs - a.completedJobs ||
+          b.reviewCount - a.reviewCount ||
+          b.averageRating - a.averageRating ||
+          a.displayName.localeCompare(b.displayName)
+        )
+    }
+  })
+
+  return sorted
+}
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const query = searchParams.get('query') || '';
-    const cuisines = (searchParams.get('cuisines') || '')
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const serviceType = searchParams.get('serviceType') || '';
-    const eventType = searchParams.get('eventType') || '';
-    const dietary = (searchParams.get('dietary') || '')
-      .split(',')
-      .map((item) => item.trim())
-      .filter(Boolean);
-    const location = searchParams.get('location') || '';
-    const minPrice = searchParams.get('minPrice');
-    const maxPrice = searchParams.get('maxPrice');
-    const eventDate = searchParams.get('eventDate');
-    const minRating = searchParams.get('minRating');
-    const maxRating = searchParams.get('maxRating');
-    let userLat = searchParams.get('latitude');
-    let userLon = searchParams.get('longitude');
-    const searchRadius = searchParams.get('radius') || '50';
+    const { searchParams } = new URL(request.url)
+    const query = (searchParams.get("query") || "").trim()
+    const cuisines = splitParam(searchParams.get("cuisines") || searchParams.get("cuisine"))
+    const serviceType = (searchParams.get("serviceType") || "").trim()
+    const eventType = (searchParams.get("eventType") || "").trim()
+    const dietary = splitParam(searchParams.get("dietary"))
+    const location = (searchParams.get("location") || "").trim()
+    const minBudget = parseNumber(searchParams.get("minBudget") || searchParams.get("minPrice"))
+    const maxBudget = parseNumber(searchParams.get("maxBudget") || searchParams.get("maxPrice"))
+    const eventDate = searchParams.get("eventDate")
+    const minRating = parseNumber(searchParams.get("minRating"))
+    const sort = searchParams.get("sort") || searchParams.get("sortBy") || "popular"
+    const page = Math.max(1, Number(searchParams.get("page") || 1))
+    const limit = Math.min(36, Math.max(1, Number(searchParams.get("limit") || 24)))
+    let userLat = searchParams.get("latitude")
+    let userLon = searchParams.get("longitude")
+    const searchRadius = parseNumber(searchParams.get("radius")) ?? 50
 
-    // Build the where clause
     const where: any = {
-      isApproved: true,
-      isBanned: false,
-      user: {
-        role: 'CHEF',
-        isBanned: false,
-      },
-    };
+      ...publicChefEligibilityWhere,
+      AND: [],
+    }
 
-    // Search query (name, bio, location, specialties, and cuisine metadata)
     if (query) {
-      where.OR = [
-        {
-          user: {
-            name: {
-              contains: query,
-              mode: 'insensitive',
-            },
-          },
-        },
-        {
-          bio: {
-            contains: query,
-            mode: 'insensitive',
-          },
-        },
-        {
-          location: {
-            contains: query,
-            mode: 'insensitive',
-          },
-        },
-        {
-          specialties: {
-            contains: query,
-            mode: 'insensitive',
-          },
-        },
-        {
-          cuisineType: {
-            contains: query,
-            mode: 'insensitive',
-          },
-        },
-        {
-          cuisineTypes: {
-            contains: query,
-            mode: 'insensitive',
-          },
-        },
-      ];
+      where.AND.push({
+        OR: [
+          { user: { name: { contains: query, mode: "insensitive" } } },
+          { bio: { contains: query, mode: "insensitive" } },
+          { location: { contains: query, mode: "insensitive" } },
+          { specialties: { contains: query, mode: "insensitive" } },
+          { cuisineType: { contains: query, mode: "insensitive" } },
+          { cuisineTypes: { contains: query, mode: "insensitive" } },
+          { menus: { some: { title: { contains: query, mode: "insensitive" } } } },
+          { menus: { some: { cuisineType: { contains: query, mode: "insensitive" } } } },
+          { experiences: { some: { title: { contains: query, mode: "insensitive" } } } },
+          { experiences: { some: { cuisineType: { contains: query, mode: "insensitive" } } } },
+        ],
+      })
     }
 
     if (cuisines.length) {
-      where.AND = [
-        ...(where.AND || []),
-        {
-          OR: cuisines.flatMap((cuisine) => [
-            { cuisineType: { contains: cuisine, mode: 'insensitive' } },
-            { cuisineTypes: { contains: cuisine, mode: 'insensitive' } },
-            { specialties: { contains: cuisine, mode: 'insensitive' } },
-            { bio: { contains: cuisine, mode: 'insensitive' } },
-            { menus: { some: { cuisineType: { contains: cuisine, mode: 'insensitive' } } } },
-            { experiences: { some: { cuisineType: { contains: cuisine, mode: 'insensitive' } } } },
-          ]),
-        },
-      ];
+      where.AND.push({
+        OR: cuisines.flatMap((cuisine) => [
+          { cuisineType: { contains: cuisine, mode: "insensitive" } },
+          { cuisineTypes: { contains: cuisine, mode: "insensitive" } },
+          { menus: { some: { cuisineType: { contains: cuisine, mode: "insensitive" } } } },
+          { experiences: { some: { cuisineType: { contains: cuisine, mode: "insensitive" } } } },
+        ]),
+      })
     }
 
     if (serviceType) {
-      where.AND = [
-        ...(where.AND || []),
-        {
-          OR: [
-            { experiences: { some: { serviceType } } },
-            { specialties: { contains: serviceType.replaceAll('_', ' '), mode: 'insensitive' } },
-            { bio: { contains: serviceType.replaceAll('_', ' '), mode: 'insensitive' } },
-          ],
-        },
-      ];
+      where.AND.push({
+        OR: [
+          { experiences: { some: { serviceType } } },
+          { specialties: { contains: serviceType.replaceAll("_", " "), mode: "insensitive" } },
+          { bio: { contains: serviceType.replaceAll("_", " "), mode: "insensitive" } },
+        ],
+      })
     }
 
     if (eventType) {
-      where.AND = [
-        ...(where.AND || []),
-        {
-          OR: [
-            { menus: { some: { eventType: { contains: eventType, mode: 'insensitive' } } } },
-            { experiences: { some: { eventType: { contains: eventType, mode: 'insensitive' } } } },
-            { bio: { contains: eventType, mode: 'insensitive' } },
-          ],
-        },
-      ];
+      where.AND.push({
+        OR: [
+          { menus: { some: { eventType: { contains: eventType, mode: "insensitive" } } } },
+          { experiences: { some: { eventType: { contains: eventType, mode: "insensitive" } } } },
+        ],
+      })
     }
 
     if (dietary.length) {
-      where.AND = [
-        ...(where.AND || []),
-        {
-          OR: dietary.flatMap((item) => [
-            { specialties: { contains: item, mode: 'insensitive' } },
-            { bio: { contains: item, mode: 'insensitive' } },
-            { menus: { some: { description: { contains: item, mode: 'insensitive' } } } },
-            { experiences: { some: { description: { contains: item, mode: 'insensitive' } } } },
-          ]),
-        },
-      ];
+      where.AND.push({
+        OR: dietary.flatMap((item) => [
+          { bio: { contains: item, mode: "insensitive" } },
+          { menus: { some: { description: { contains: item, mode: "insensitive" } } } },
+          { experiences: { some: { description: { contains: item, mode: "insensitive" } } } },
+        ]),
+      })
     }
 
-    // Location filter. Prefer radius filtering when we can resolve coordinates;
-    // fall back to text matching when no coordinate source is available.
     if (location) {
       if (!userLat || !userLon) {
         const geocodedLocation = await geocodeAddress(location)
@@ -148,200 +150,177 @@ export async function GET(request: NextRequest) {
       }
 
       if (!userLat || !userLon) {
-        where.location = {
-          contains: location,
-          mode: 'insensitive',
-        };
+        where.AND.push({ location: { contains: location, mode: "insensitive" } })
       }
     }
 
-    // Price filter (based on menu and experience prices)
-    if (minPrice || maxPrice) {
-      where.AND = [
-        ...(where.AND || []),
-        {
-          OR: [
-            {
-              menus: {
-                some: {
-                  price: {
-                    ...(minPrice && { gte: parseFloat(minPrice) }),
-                    ...(maxPrice && { lte: parseFloat(maxPrice) }),
-                  },
-                },
-              },
-            },
-            {
-              experiences: {
-                some: {
-                  price: {
-                    ...(minPrice && { gte: parseFloat(minPrice) }),
-                    ...(maxPrice && { lte: parseFloat(maxPrice) }),
-                  },
-                },
-              },
-            },
-          ],
-        },
-      ];
-    }
+    if (!where.AND.length) delete where.AND
 
-    // Rating filter
-    if (minRating || maxRating) {
-      where.reviews = {
-        some: {
-          rating: {
-            ...(minRating && { gte: parseInt(minRating) }),
-            ...(maxRating && { lte: parseInt(maxRating) }),
-          },
-        },
-      };
-    }
-
-    const chefs = await withPrismaReconnect(() => prisma.chefProfile.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
-        menus: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            description: true,
-          },
-        },
-        experiences: {
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            description: true,
-            cuisineType: true,
-            eventType: true,
-            serviceType: true,
-          },
-        },
-        reviews: {
-          select: {
-            rating: true,
-          },
-        },
-        _count: {
-          select: {
-            reviews: true,
-          },
-        },
-      } as any,
-      orderBy: [
-        {
-          reviews: {
-            _count: 'desc',
-          },
-        } as any,
-        {
+    const { chefs, minimumSpendRules } = await withPrismaReconnect(async () => {
+      const minimumSpendRules = await getActivePublicMinimumSpendRules()
+      const chefs = await prisma.chefProfile.findMany({
+        where,
+        select: {
+          id: true,
+          bio: true,
+          experience: true,
+          location: true,
+          radius: true,
+          profileImage: true,
+          chefType: true,
+          specialties: true,
+          cuisineType: true,
+          cuisineTypes: true,
+          baseCountryCode: true,
+          preferredCurrency: true,
+          latitude: true,
+          longitude: true,
+          createdAt: true,
+          approvedAt: true,
           user: {
-            name: 'asc',
+            select: {
+              id: true,
+              name: true,
+              firstName: true,
+              surname: true,
+            },
+          },
+          menus: {
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              price: true,
+              currency: true,
+              menuType: true,
+              menuImage: true,
+              cuisineType: true,
+              eventType: true,
+            },
+            orderBy: { createdAt: "desc" },
+            take: 4,
+          },
+          experiences: {
+            where: { isActive: true },
+            select: {
+              id: true,
+              title: true,
+              description: true,
+              price: true,
+              currency: true,
+              duration: true,
+              eventType: true,
+              cuisineType: true,
+              minGuests: true,
+              maxGuests: true,
+              serviceType: true,
+              offersCookingClasses: true,
+              classType: true,
+              pricePerStudent: true,
+            },
+            orderBy: { createdAt: "desc" },
+            take: 4,
+          },
+          reviews: {
+            select: { rating: true },
+          },
+          bookings: {
+            where: { status: { in: [...PUBLIC_COMPLETED_BOOKING_STATUSES] } },
+            select: { id: true, status: true },
+          },
+          _count: {
+            select: {
+              reviews: true,
+            },
           },
         },
-      ],
-    }), 1);
+        orderBy: [{ approvedAt: "desc" }, { createdAt: "desc" }],
+        take: 120,
+      })
 
-    // Apply location-based filtering if coordinates are provided
-    let filteredChefs = chefs;
+      return { chefs, minimumSpendRules }
+    }, 1)
+
+    let publicChefs = chefs.map((chef) => {
+      const minimumSpend = derivePublicMinimumSpend(chef, minimumSpendRules)
+      return serializePublicChef(
+        { ...chef, publicMinimumSpend: minimumSpend.amount, publicMinimumSpendCurrency: minimumSpend.currency },
+        {
+          publicMinimumSpend: minimumSpend.amount,
+          publicMinimumSpendCurrency: minimumSpend.currency,
+        }
+      )
+    })
+
     if (userLat && userLon) {
-      const userLatitude = parseFloat(userLat);
-      const userLongitude = parseFloat(userLon);
-      const radius = parseFloat(searchRadius);
-
-      if (Number.isFinite(userLatitude) && Number.isFinite(userLongitude) && Number.isFinite(radius)) {
+      const userLatitude = Number(userLat)
+      const userLongitude = Number(userLon)
+      if (Number.isFinite(userLatitude) && Number.isFinite(userLongitude)) {
         const chefsWithinRadius = filterChefsByRadius(
-          chefs.map((chef: any) => ({
+          chefs.map((chef) => ({
             id: chef.id,
-            latitude: (chef as any).latitude,
-            longitude: (chef as any).longitude,
+            latitude: chef.latitude,
+            longitude: chef.longitude,
             radius: chef.radius,
           })),
           userLatitude,
           userLongitude,
-          radius
-        );
-
-        const chefIdsWithinRadius = new Set(chefsWithinRadius.map((c: any) => c.id));
-        filteredChefs = chefs.filter((chef: any) => chefIdsWithinRadius.has(chef.id));
-
-        // Add distance information
-        filteredChefs = filteredChefs.map((chef: any) => {
-          const chefWithDistance = chefsWithinRadius.find((c: any) => c.id === chef.id);
-          return {
-            ...chef,
-            distance: chefWithDistance?.distance || null,
-          } as any;
-        });
+          searchRadius
+        )
+        const distanceByChefId = new Map(chefsWithinRadius.map((chef) => [chef.id, chef.distance]))
+        publicChefs = publicChefs
+          .filter((chef) => distanceByChefId.has(chef.id))
+          .map((chef) => ({ ...chef, distance: distanceByChefId.get(chef.id) ?? null }))
       }
     }
 
-    if (eventDate && filteredChefs.length > 0) {
-      const requestedDate = new Date(eventDate);
+    if (eventDate && publicChefs.length > 0) {
+      const requestedDate = new Date(eventDate)
       if (!Number.isNaN(requestedDate.getTime())) {
-        const start = new Date(requestedDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(requestedDate);
-        end.setHours(23, 59, 59, 999);
+        const start = new Date(requestedDate)
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(requestedDate)
+        end.setHours(23, 59, 59, 999)
 
         const availability = await prisma.availability.findMany({
           where: {
-            chefId: { in: filteredChefs.map((chef: any) => chef.id) },
+            chefId: { in: publicChefs.map((chef) => chef.id) },
             date: { gte: start, lte: end },
           },
-        });
-        const availabilityByChef = new Map(availability.map((slot) => [slot.chefId, slot]));
+          select: {
+            chefId: true,
+            isAvailable: true,
+            currentBookings: true,
+            maxBookings: true,
+          },
+        })
+        const availabilityByChef = new Map(availability.map((slot) => [slot.chefId, slot]))
 
-        filteredChefs = filteredChefs.filter((chef: any) => {
-          const slot = availabilityByChef.get(chef.id);
-          return !slot || (slot.isAvailable && slot.currentBookings < slot.maxBookings);
-        });
+        publicChefs = publicChefs.filter((chef) => {
+          const slot = availabilityByChef.get(chef.id)
+          return !slot || (slot.isAvailable && slot.currentBookings < slot.maxBookings)
+        })
       }
     }
 
-    // Calculate average rating for each chef
-    const chefsWithRating = filteredChefs.map((chef: any) => {
-      const averageRating =
-        chef.reviews.length > 0
-          ? chef.reviews.reduce((sum: number, review: any) => sum + review.rating, 0) / chef.reviews.length
-          : 0;
+    if (minRating != null) {
+      publicChefs = publicChefs.filter((chef) => chef.averageRating >= minRating)
+    }
 
-      return {
-        ...chef,
-        averageRating: parseFloat(averageRating.toFixed(1)),
-        reviewCount: chef._count.reviews,
-      };
-    });
+    publicChefs = applyPublicMinimumSpendFilter(publicChefs, minBudget, maxBudget)
+    publicChefs = sortPublicChefs(publicChefs, sort)
 
-    // Sort by distance if available, then by rating
-    chefsWithRating.sort((a: any, b: any) => {
-      if (a.distance !== null && b.distance !== null) {
-        return a.distance - b.distance;
-      }
-      if (a.distance !== null) return -1;
-      if (b.distance !== null) return 1;
-      return b.reviewCount - a.reviewCount;
-    });
-
-    return NextResponse.json(chefsWithRating);
+    const start = (page - 1) * limit
+    return NextResponse.json(publicChefs.slice(start, start + limit))
   } catch (error) {
-    console.error('Error searching chefs:', error);
+    console.error("Error searching chefs:", error)
     if (isPrismaConnectionError(error)) {
       return NextResponse.json(
-        { error: 'Database connection temporarily unavailable' },
+        { error: "Database connection temporarily unavailable" },
         { status: 503 }
-      );
+      )
     }
 
-    return NextResponse.json({ error: 'Failed to search chefs' }, { status: 500 });
+    return NextResponse.json({ error: "Failed to search chefs" }, { status: 500 })
   }
 }

@@ -29,7 +29,7 @@ export default async function ClientInvoicesPage() {
       <header className="rounded-lg border border-border bg-card p-6 shadow-sm">
         <h1 className="text-3xl font-semibold tracking-tight">Receipts</h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Payment receipts for completed checkout payments. These are not formal tax invoices unless tax details are configured by the business.
+          Payment receipts for completed checkout payments. These marketplace payment summaries do not replace any formal chef tax invoice that a chef may need to issue independently.
         </p>
       </header>
 

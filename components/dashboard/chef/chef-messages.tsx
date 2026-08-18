@@ -605,7 +605,7 @@ export function ChefMessages({ initialUserId }: ChefMessagesProps) {
                                     className={cn(
                                       "rounded-[24px] px-4 py-3 shadow-sm",
                                       isMine
-                                        ? "bg-[linear-gradient(135deg,hsl(var(--primary)),hsl(249_90%_68%))] text-primary-foreground shadow-lg shadow-primary/20"
+                                        ? "brand-gradient-button shadow-lg shadow-primary/20"
                                         : "border border-white/60 bg-white/78 text-foreground backdrop-blur dark:border-white/10 dark:bg-white/6"
                                     )}
                                   >

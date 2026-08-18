@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { ArrowLeft, ArrowRight, CheckCircle2, Loader2 } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, Maximize2, Minimize2 } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,25 +19,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import type { MenuDialogSubmitData, MenuFormData } from "@/components/dashboard/chef/menu-types"
-import { COUNTRY_OPTIONS } from "@/lib/request-options"
+import { COUNTRY_OPTIONS, getCuisineOptionsForContext } from "@/lib/request-options"
 import { cn } from "@/lib/utils"
 
-const CUISINE_OPTIONS = [
-  "Brunch",
-  "Fine Dining",
-  "BBQ",
-  "Afternoon Tea",
-  "Pan Asian",
-  "Christmas",
-  "Italian",
-  "Mediterranean",
-  "Vegan",
-  "Asian Fusion",
-  "British",
-  "Caribbean",
-  "Indian",
-  "Middle Eastern",
-] as const
+const CUISINE_OPTIONS = getCuisineOptionsForContext("menu").map((option) => option.label)
+const MENU_STEPS = ["Menu title", "Optional price", "Free-form menu", "Menu Photo & Details"] as const
 
 interface MenuDialogProps {
   open: boolean
@@ -62,11 +48,14 @@ export function MenuDialog({
   const [step, setStep] = useState(1)
   const [localFormData, setLocalFormData] = useState<MenuFormData>(formData)
   const [validationError, setValidationError] = useState("")
+  const [expandedEditor, setExpandedEditor] = useState(false)
+  const descriptionRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (open) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setStep(1)
+      setExpandedEditor(false)
       setValidationError("")
       setLocalFormData({
         ...formData,
@@ -75,6 +64,14 @@ export function MenuDialog({
       })
     }
   }, [formData, open])
+
+  useEffect(() => {
+    const textarea = descriptionRef.current
+    if (!textarea || step !== 3) return
+
+    textarea.style.height = "auto"
+    textarea.style.height = `${Math.min(textarea.scrollHeight, expandedEditor ? 720 : 520)}px`
+  }, [expandedEditor, localFormData.description, step])
 
   const previewLines = useMemo(
     () => localFormData.description.split(/\r?\n/).filter((line) => line.trim()).slice(0, 4),
@@ -151,7 +148,7 @@ export function MenuDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92vh] max-w-5xl overflow-y-auto rounded-2xl border-border bg-background p-0 shadow-lg sm:w-[min(92vw,72rem)]">
+      <DialogContent className="max-h-[94vh] max-w-6xl overflow-y-auto rounded-2xl border-border bg-background p-0 shadow-lg sm:w-[min(96vw,84rem)]">
         <DialogHeader className="space-y-2 border-b border-border p-6">
           <DialogTitle>{isEdit ? "Edit Menu" : "Create Menu"}</DialogTitle>
           <DialogDescription>
@@ -160,7 +157,7 @@ export function MenuDialog({
               : "Create a menu using free-form descriptions so clients can understand your menu in your own words."}
           </DialogDescription>
           <div className="flex flex-wrap gap-2 pt-2">
-            {["Menu title", "Optional price", "Free-form menu", "Image & metadata"].map((label, index) => {
+            {MENU_STEPS.map((label, index) => {
               const current = index + 1
               const active = current === step
               const complete = current < step
@@ -181,7 +178,7 @@ export function MenuDialog({
             })}
           </div>
         </DialogHeader>
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className={cn("grid gap-0", expandedEditor && step === 3 ? "lg:grid-cols-1" : "lg:grid-cols-[minmax(0,1fr)_340px]")}>
           <div className="space-y-6 p-6">
             {step === 1 ? (
               <div className="space-y-6">
@@ -198,10 +195,10 @@ export function MenuDialog({
                 <div className="space-y-2">
                   <Label htmlFor="cuisine-select">Cuisine</Label>
                   <Select
-                    value={CUISINE_OPTIONS.includes(localFormData.cuisineType as (typeof CUISINE_OPTIONS)[number]) ? localFormData.cuisineType : "custom"}
+                    value={CUISINE_OPTIONS.includes(localFormData.cuisineType) ? localFormData.cuisineType : "custom"}
                     onValueChange={(value) => {
                       if (value === "custom") {
-                        if (CUISINE_OPTIONS.includes(localFormData.cuisineType as (typeof CUISINE_OPTIONS)[number])) {
+                        if (CUISINE_OPTIONS.includes(localFormData.cuisineType)) {
                           updateField("cuisineType", "")
                         }
                         return
@@ -285,14 +282,27 @@ export function MenuDialog({
                     Example style: Welcome bites, seasonal starter, handmade pasta or main course, dessert, optional cheese course, and notes for vegetarian or gluten-free guests.
                   </div>
                 </div>
-                <Label htmlFor="description">Full Menu Description</Label>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <Label htmlFor="description">Full Menu Description</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-fit rounded-lg"
+                    onClick={() => setExpandedEditor((current) => !current)}
+                  >
+                    {expandedEditor ? <Minimize2 className="mr-2 size-4" /> : <Maximize2 className="mr-2 size-4" />}
+                    {expandedEditor ? "Show review" : "Expand editor"}
+                  </Button>
+                </div>
                 <Textarea
+                  ref={descriptionRef}
                   id="description"
                   value={localFormData.description}
                   onChange={(event) => updateField("description", event.target.value)}
                   placeholder="Write or paste your full menu here. You can include starters, mains, desserts, dietary notes, serving style, and substitutions in your own words."
-                  rows={14}
-                  className="min-h-[320px] rounded-lg"
+                  rows={16}
+                  className={cn("min-h-[380px] resize-y rounded-lg leading-6", expandedEditor && "min-h-[560px]")}
                 />
                 <p className="text-sm text-muted-foreground">
                   Do not divide this into menu-builder sections. Clients will see the final menu content as one natural description.
@@ -303,7 +313,7 @@ export function MenuDialog({
             {step === 4 ? (
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <Label>Menu image</Label>
+                  <Label>Menu photo</Label>
                   <ImageUpload
                     value={localFormData.menuImage}
                     onChange={(url) => updateField("menuImage", url)}
@@ -360,7 +370,7 @@ export function MenuDialog({
             </DialogFooter>
           </div>
 
-          <aside className="border-t border-border bg-muted/20 p-6 lg:border-l lg:border-t-0">
+          <aside className={cn("border-t border-border bg-muted/20 p-6 lg:border-l lg:border-t-0", expandedEditor && step === 3 && "hidden")}>
             <div className="space-y-4 rounded-2xl border border-border bg-background p-4 shadow-sm">
               <div>
                 <p className="text-sm font-medium text-foreground">Review</p>

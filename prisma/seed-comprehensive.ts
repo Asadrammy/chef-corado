@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
+import { calculateMarketplaceFinancials } from '../lib/marketplace-rules';
 
 const prisma = new PrismaClient();
 
@@ -437,12 +438,25 @@ async function main() {
   const completedBookings = bookings.filter((b): b is NonNullable<typeof b> => b !== null && b.status === 'COMPLETED');
   await Promise.all(
     completedBookings.map(async (booking) => {
+      const finance = calculateMarketplaceFinancials({
+        grossAmount: booking.totalPrice,
+        countryCode: 'GB',
+        currency: 'GBP',
+      });
+
       return prisma.payment.create({
         data: {
           bookingId: booking.id,
           totalAmount: booking.totalPrice,
-          commissionAmount: booking.totalPrice * 0.2, // 20% commission
-          chefAmount: booking.totalPrice * 0.8, // 85% to chef
+          commissionAmount: finance.platformCommissionAmount,
+          chefAmount: finance.chefNetPayout,
+          platformCommissionRate: finance.platformCommissionRate,
+          serviceChargeTaxRate: finance.serviceChargeTaxRate,
+          serviceChargeTaxAmount: finance.serviceChargeTaxAmount,
+          serviceChargeTaxDeductionEnabled: finance.serviceChargeTaxDeductionEnabled,
+          totalPlatformDeduction: finance.totalPlatformDeduction,
+          taxJurisdiction: finance.taxJurisdiction,
+          serviceChargeTaxStatus: finance.serviceChargeTaxStatus,
           status: 'RELEASED',
         } as any,
       });

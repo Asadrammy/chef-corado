@@ -78,7 +78,7 @@ export default function LegalAcceptancePage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <Loader2 className="h-12 w-12 animate-spin text-blue-600 mx-auto mb-4" />
+          <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading...</h2>
         </div>
       </div>
@@ -112,9 +112,9 @@ export default function LegalAcceptancePage() {
               <Link 
                 href="/terms/client" 
                 target="_blank"
-                className="text-sm text-blue-600 hover:underline"
+                className="text-sm text-primary hover:underline"
               >
-                Read full Client Terms & Conditions →
+                Read full Client Terms & Conditions
               </Link>
             </div>
 
@@ -126,8 +126,8 @@ export default function LegalAcceptancePage() {
               />
               <div className="flex-1">
                 <Label htmlFor="terms" className="text-sm">
-                  I have read and agree to the <Link href="/terms/client" target="_blank" className="text-blue-600 hover:underline">Client Terms & Conditions</Link>, 
-                  <Link href="/privacy" target="_blank" className="text-blue-600 hover:underline ml-1">Privacy Policy</Link>, 
+                  I have read and agree to the <Link href="/terms/client" target="_blank" className="text-primary hover:underline">Client Terms & Conditions</Link>, 
+                  <Link href="/privacy" target="_blank" className="text-primary hover:underline ml-1">Privacy Policy</Link>, 
                   and understand that all communication, scheduling, and payments must remain inside the platform.
                 </Label>
               </div>

@@ -6,6 +6,7 @@ import { applyRateLimit } from "@/lib/redis-rate-limiter"
 import { logger } from "@/lib/logger"
 import { prisma } from "@/lib/prisma"
 import { invoiceService } from "@/lib/services/invoice-service"
+import { bookingInsuranceService } from "@/lib/services/booking-insurance-service"
 
 // Initialize Stripe with safety check
 const getStripeClient = () => {
@@ -227,6 +228,10 @@ export async function POST(request: Request) {
       })
 
       await invoiceService.ensureReceiptForPayment(tx, paymentId, "SYSTEM")
+      await bookingInsuranceService.ensureCoverageForBooking(booking.id, {
+        tx,
+        qualificationBasis: "INSTANT_BOOKING_STRIPE_WEBHOOK_PAID",
+      })
 
       logger.info('[WEBHOOK_ATOMIC] Payment and booking confirmed atomically', {
         bookingId,

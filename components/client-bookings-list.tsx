@@ -26,6 +26,11 @@ import {
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
 import { formatCurrency } from "@/lib/currency"
+import {
+  formatServiceDatesCompact,
+  getStructuredServiceDates,
+  type MultiDayDateLike,
+} from "@/lib/multi-day-display"
 
 type BookingStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED"
 
@@ -35,6 +40,9 @@ type BookingPayload = {
   currency?: string | null
   status: BookingStatus
   createdAt: string
+  eventDate?: string
+  location?: string | null
+  serviceDates?: MultiDayDateLike[]
   chef: {
     user: {
       id: string
@@ -44,7 +52,9 @@ type BookingPayload = {
   proposal: {
     request: {
       title?: string | null
+      requestMode?: string | null
       eventDate: string
+      multiDayDates?: MultiDayDateLike[]
       location: string
     }
   } | null
@@ -122,6 +132,16 @@ const toPriceNumber = (value: string) => {
   const parsed = Number(value)
   return Number.isNaN(parsed) ? 0 : parsed
 }
+
+const getBookingDateTimestamp = (booking: BookingPayload) => {
+  const serviceDates = getStructuredServiceDates(booking)
+  const value = serviceDates[0]?.date ?? booking.proposal?.request?.eventDate ?? booking.eventDate ?? booking.createdAt
+  return new Date(value).getTime()
+}
+
+const isMultiDayBooking = (booking: BookingPayload) =>
+  booking.proposal?.request?.requestMode === "MULTI_DAY" ||
+  Boolean(getStructuredServiceDates(booking).length > 1)
 
 export function ClientBookingsList() {
   const [bookings, setBookings] = React.useState<BookingPayload[]>([])
@@ -204,8 +224,8 @@ export function ClientBookingsList() {
         }
 
         if (sortBy === "EVENT_DATE") {
-          const aDate = new Date(a.proposal?.request?.eventDate ?? a.createdAt).getTime()
-          const bDate = new Date(b.proposal?.request?.eventDate ?? b.createdAt).getTime()
+          const aDate = getBookingDateTimestamp(a)
+          const bDate = getBookingDateTimestamp(b)
           return aDate - bDate
         }
 
@@ -296,7 +316,7 @@ export function ClientBookingsList() {
         <div className="rounded-[24px] border border-white/60 bg-white/80 p-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
           <div className="mb-3 flex items-start justify-between">
             <p className="text-sm font-medium text-muted-foreground">Total Spent</p>
-            <div className="rounded-xl bg-violet-500/10 p-2 text-violet-500">
+            <div className="rounded-xl bg-primary/10 p-2 text-primary">
               <Wallet className="h-4 w-4" />
             </div>
           </div>
@@ -362,7 +382,7 @@ export function ClientBookingsList() {
                 Getting started
               </div>
               <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-                No bookings yet — let’s plan your first event
+                No bookings yet - let&apos;s plan your first event
               </h2>
               <p className="max-w-xl text-sm leading-relaxed text-muted-foreground">
                 Start by creating a request. Chefs will send proposals, and once you accept one, your booking
@@ -393,7 +413,7 @@ export function ClientBookingsList() {
           <div className="brand-gradient-surface relative overflow-hidden rounded-2xl border border-primary/20 p-6 text-white shadow-md">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.12)_1px,transparent_1px)] [background-size:18px_18px] opacity-40" />
             <div className="absolute -right-12 -top-12 h-36 w-36 rounded-full bg-white/10" />
-            <div className="absolute -bottom-14 -left-10 h-32 w-32 rounded-full bg-indigo-300/20" />
+            <div className="absolute -bottom-14 -left-10 h-32 w-32 rounded-full bg-primary/20" />
             <div className="relative space-y-4">
               <p className="text-xs uppercase tracking-[0.3em] text-white/60">Booking pipeline</p>
               <h3 className="text-xl font-semibold">Your Event Command Center</h3>
@@ -413,6 +433,8 @@ export function ClientBookingsList() {
           {filteredBookings.map((booking) => {
             const status = bookingStatusMeta[booking.status]
             const eventType = booking.proposal?.request?.title?.trim() || "Private Event"
+            const serviceDates = getStructuredServiceDates(booking)
+            const isMultiDay = isMultiDayBooking(booking)
 
             return (
               <article
@@ -425,6 +447,11 @@ export function ClientBookingsList() {
                       {booking.chef?.user?.name ?? "Chef"}
                     </h3>
                     <p className="mt-1 text-sm text-muted-foreground">{eventType}</p>
+                    {isMultiDay ? (
+                      <Badge variant="outline" className="mt-2 w-fit rounded-full border-orange-200 bg-orange-50 text-orange-700">
+                        Multi-Day Chef Hire
+                      </Badge>
+                    ) : null}
                   </div>
                   <Badge className={status.className}>{status.label}</Badge>
                 </div>
@@ -432,7 +459,11 @@ export function ClientBookingsList() {
                 <div className="space-y-3 text-sm text-muted-foreground">
                   <div className="flex items-start gap-2">
                     <CalendarDays className="mt-0.5 h-4 w-4 text-muted-foreground" />
-                    <span>{formatDate(booking.proposal?.request?.eventDate ?? booking.createdAt)}</span>
+                    <span>
+                      {isMultiDay
+                        ? formatServiceDatesCompact(serviceDates, booking.proposal?.request?.eventDate ?? booking.eventDate)
+                        : formatDate(booking.proposal?.request?.eventDate ?? booking.eventDate ?? booking.createdAt)}
+                    </span>
                   </div>
                   <div className="flex items-start gap-2">
                     <MapPin className="mt-0.5 h-4 w-4 text-muted-foreground" />

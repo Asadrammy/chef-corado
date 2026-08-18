@@ -11,12 +11,12 @@ export DATABASE_URL="$(node scripts/normalize-database-url.cjs)"
 echo "Generating Prisma Client..."
 npx prisma generate
 
-# Push schema to database (creates tables if they don't exist)
-echo "Pushing database schema..."
-npx prisma db push
+# Apply committed migration history. Do not use db push or seed during production builds.
+echo "Applying database migrations..."
+npx prisma migrate deploy
 
-# Seed database with initial data
-echo "Seeding database..."
-npx ts-node prisma/seed-production.ts
+# Build application
+echo "Building application..."
+npm run build
 
 echo "=== Render Build Complete ==="

@@ -51,6 +51,8 @@ const dietaryRequirementValues = [...DIETARY_REQUIREMENTS] as [string, ...string
 const cuisineTypeSchema = z.string()
   .transform((value) => normalizeCuisineType(value))
   .refine((value): value is typeof CUISINE_TYPES[number] => isCuisineType(value), 'Select a supported cuisine');
+const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Use a valid 24-hour time');
+export const budgetModeSchema = z.enum(['PER_DAY', 'TOTAL_EVENT']);
 
 const requestBaseSchema = z.object({
   title: z.string().max(100, 'Title cannot exceed 100 characters').optional(),
@@ -187,12 +189,153 @@ export const requestSchema = requestBaseSchema.superRefine((data, context) => {
 export const multiDayRequestSchema = requestBaseSchema.omit({
   eventDate: true,
   eventDates: true,
+  budget: true,
 }).extend({
   eventType: z.literal('Multi-Day Chef Hire'),
   eventDates: z.array(futureDate).min(2, 'Select at least two dates').max(30, 'Select up to 30 dates'),
-  dailyServiceTimes: z.string().min(3).max(2000),
-  serviceNeedsPerDay: z.string().min(3).max(3000),
+  budgetMode: budgetModeSchema,
+  totalBudget: priceSchema.optional(),
+  defaultDailyBudget: priceSchema.optional(),
+  budget: priceSchema.optional(),
+  dateRequirements: z.array(z.object({
+    date: futureDate,
+    startTime: timeSchema,
+    endTime: timeSchema.optional().or(z.literal('')),
+    serviceType: z.enum(requestServiceTypeValues),
+    serviceTier: z.string().max(100).optional().or(z.literal('')),
+    cuisinePreferences: z.array(cuisineTypeSchema).min(1, 'Select at least one cuisine preference').max(3, 'Select up to 3 cuisine preferences'),
+    dietaryRequirements: z.array(z.enum(dietaryRequirementValues)).max(8, 'Select up to 8 dietary requirements').default([]),
+    serviceSpecificAnswers: z.record(z.unknown()).optional(),
+    adultCount: z.number().int().min(0).max(300),
+    childrenUnder10: z.number().int().min(0).max(200).default(0),
+    actualAttendeeCount: z.number().int().min(1).max(500).optional(),
+    billableGuestCount: z.number().min(0.5).max(300).multipleOf(0.5).optional(),
+    pricingGuestCount: z.number().min(0.5).max(300).multipleOf(0.5).optional(),
+    budget: priceSchema.optional(),
+    notes: z.string().max(2000).optional().or(z.literal('')),
+  })).min(2, 'Add requirements for each selected date').max(30, 'Add up to 30 service dates'),
+  dailyServiceTimes: z.string().max(2000).optional(),
+  serviceNeedsPerDay: z.string().max(3000).optional(),
   accommodationTravel: z.string().max(2000).optional(),
+}).superRefine((data, context) => {
+  const uniqueDates = [...new Set(data.eventDates)];
+  if (uniqueDates.length !== data.eventDates.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['eventDates'],
+      message: 'Selected dates must be unique',
+    });
+  }
+
+  const sortedEventDates = uniqueDates.sort();
+  const requirementDates = data.dateRequirements.map((day) => day.date);
+  const uniqueRequirementDates = [...new Set(requirementDates)];
+  if (uniqueRequirementDates.length !== requirementDates.length) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['dateRequirements'],
+      message: 'Each selected date can only have one requirement block',
+    });
+  }
+
+  const sortedRequirementDates = uniqueRequirementDates.sort();
+  if (sortedEventDates.join('|') !== sortedRequirementDates.join('|')) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['dateRequirements'],
+      message: 'Daily requirements must match the selected service dates',
+    });
+  }
+
+  if (data.budgetMode === 'TOTAL_EVENT' && data.totalBudget == null) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['totalBudget'],
+      message: 'Enter the total budget for all selected days',
+    });
+  }
+
+  if (data.budgetMode === 'PER_DAY' && data.defaultDailyBudget == null && data.dateRequirements.some((day) => day.budget == null)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['defaultDailyBudget'],
+      message: 'Enter a daily budget or add a budget for each selected day',
+    });
+  }
+
+  data.dateRequirements.forEach((day, index) => {
+    const serviceConfig = getServiceTypeOption(day.serviceType);
+    if (!serviceConfig?.enabled) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dateRequirements', index, 'serviceType'],
+        message: 'Select a supported service type',
+      });
+      return;
+    }
+
+    if (!serviceConfig.supportedCountries.includes(data.country as never)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dateRequirements', index, 'serviceType'],
+        message: `${serviceConfig.label} is not available in the selected country`,
+      });
+    }
+
+    if (serviceConfig.serviceTiers.length && (!day.serviceTier || !serviceConfig.serviceTiers.includes(day.serviceTier))) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dateRequirements', index, 'serviceTier'],
+        message: 'Choose a supported tier for this service date',
+      });
+    }
+
+    const guestComposition = calculateGuestComposition({
+      adultCount: day.adultCount,
+      childrenUnder10: day.childrenUnder10,
+      fallbackGuestCount: day.adultCount,
+    });
+
+    if (day.actualAttendeeCount != null && day.actualAttendeeCount !== guestComposition.actualAttendeeCount) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dateRequirements', index, 'actualAttendeeCount'],
+        message: 'Actual attendee count must match the platform guest-count rule',
+      });
+    }
+
+    if (day.billableGuestCount != null && day.billableGuestCount !== guestComposition.billableGuestCount) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dateRequirements', index, 'billableGuestCount'],
+        message: 'Billable guest count must use the platform child billing rule',
+      });
+    }
+
+    if (serviceConfig.minGuests != null && guestComposition.pricingGuestCount < serviceConfig.minGuests) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dateRequirements', index, 'adultCount'],
+        message: `${serviceConfig.label} requires at least ${serviceConfig.minGuests} billable guests`,
+      });
+    }
+
+    if (serviceConfig.maxGuests != null && guestComposition.pricingGuestCount > serviceConfig.maxGuests) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dateRequirements', index, 'adultCount'],
+        message: `${serviceConfig.label} supports up to ${serviceConfig.maxGuests} billable guests`,
+      });
+    }
+
+    for (const question of validateServiceSpecificAnswers(day.serviceType, day.serviceSpecificAnswers)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dateRequirements', index, 'serviceSpecificAnswers', question.id],
+        message: `${question.label} is required for ${serviceConfig.label}`,
+      });
+    }
+  });
 });
 
 export const fullTimeChefEnquirySchema = z.object({

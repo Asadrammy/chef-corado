@@ -16,7 +16,12 @@ import { logger } from '@/lib/logger'
 import { generateIdempotencyKey } from '@/lib/utils/idempotency'
 import { getProposalBookingCounts } from '@/lib/booking-counts'
 import { assertProposalMeetsActivePricingRule } from '@/lib/services/pricing-rule-service'
-import { calculateChefPayout, calculatePlatformCommission } from '@/lib/marketplace-rules'
+import { marketConfigurationService } from '@/lib/services/market-configuration-service'
+import { bookingInsuranceService } from '@/lib/services/booking-insurance-service'
+import {
+  findBlockingProposalCheckoutLocks,
+  releaseProposalCheckoutLocks,
+} from '@/lib/services/proposal-checkout-locks'
 import { BookingStatus, PaymentStatus, ProposalStatus } from '@/types'
 
 export interface PaymentGuaranteeResult {
@@ -36,7 +41,7 @@ export class PaymentGuarantee {
    */
   static async guaranteePaymentToBooking(
     proposalId: string,
-    stripeSessionId: string,
+    stripeSessionId: string | null,
     paymentIntentId: string,
     amount: number,
     tx: any
@@ -59,12 +64,30 @@ export class PaymentGuarantee {
         return { guaranteed: false, error: `Proposal not payable: ${proposal.status}` }
       }
 
+      await marketConfigurationService.assertPaymentMarketEnabled(proposal.request.countryCode)
+
       // 🔴 P0 FIX #2 & #3: CAPACITY CHECK + ATOMIC BOOKING
       // Check and update availability atomically to prevent overbooking
       // IMPORTANT: Use pessimistic locking with FOR UPDATE
-      const requestedDates = proposal.request.multiDayDates?.length
-        ? proposal.request.multiDayDates.map((item: { date: Date }) => item.date)
-        : [proposal.request.eventDate]
+      const requestedServiceDates = proposal.request.multiDayDates?.length
+        ? proposal.request.multiDayDates
+        : [{
+            date: proposal.request.eventDate,
+            startTime: proposal.request.eventTime,
+            endTime: null,
+            serviceType: proposal.request.serviceType,
+            serviceTypeLabel: proposal.request.serviceTypeLabel,
+            cuisineTypes: proposal.request.cuisineTypes,
+            dietaryRequirements: proposal.request.dietaryRequirements,
+            adultCount: proposal.request.adultCount,
+            childrenUnder10: proposal.request.childrenUnder10,
+            actualAttendeeCount: proposal.request.actualAttendeeCount,
+            billableGuestCount: proposal.request.billableGuestCount,
+            pricingGuestCount: proposal.request.pricingGuestCount,
+            notes: proposal.request.details,
+            sortOrder: 0,
+          }]
+      const requestedDates = requestedServiceDates.map((item: { date: Date }) => item.date)
 
       const availabilitySlots = []
       for (const date of requestedDates) {
@@ -84,6 +107,16 @@ export class PaymentGuarantee {
         availabilitySlots.push(slot)
       }
 
+      const blockingLocks = await findBlockingProposalCheckoutLocks({
+        proposalId,
+        availabilityIds: availabilitySlots.map((slot) => slot.id),
+        tx,
+      })
+
+      if (blockingLocks.length) {
+        return { guaranteed: false, error: 'Selected date is reserved by another active checkout' }
+      }
+
       // Step 2: Check if booking already exists (idempotency)
       const existingBooking = await tx.booking.findFirst({
         where: { proposalId },
@@ -97,6 +130,7 @@ export class PaymentGuarantee {
             bookingId: existingBooking.id,
             paymentId: existingBooking.payments.id,
           })
+          await releaseProposalCheckoutLocks(proposalId, tx)
           return {
             guaranteed: true,
             bookingId: existingBooking.id,
@@ -116,10 +150,13 @@ export class PaymentGuarantee {
 
       // Step 4: 🔴 P0 FIX #3: FULL ATOMIC TRANSACTION
       // Create booking, payment, update availability, and update proposal in ONE transaction
-      const commissionAmount = calculatePlatformCommission(amount)
-      const chefAmount = calculateChefPayout(amount)
       const bookingCounts = getProposalBookingCounts(proposal.request)
       const currency = proposal.request.currency || 'GBP'
+      const finance = await marketConfigurationService.calculateFinancials({
+        grossAmount: amount,
+        countryCode: proposal.request.countryCode,
+        currency,
+      })
 
       // ATOMIC: Create booking AND payment together
       const booking = await tx.booking.create({
@@ -146,6 +183,24 @@ export class PaymentGuarantee {
           serviceTypeLabel: bookingCounts.serviceTypeLabel,
           pricingRuleVersion: bookingCounts.pricingRuleVersion,
           idempotencyKey,
+          serviceDates: {
+            create: requestedServiceDates.map((item: any, index: number) => ({
+              date: item.date,
+              startTime: item.startTime ?? null,
+              endTime: item.endTime ?? null,
+              serviceType: item.serviceType ?? proposal.request.serviceType ?? null,
+              serviceTypeLabel: item.serviceTypeLabel ?? proposal.request.serviceTypeLabel ?? null,
+              cuisineTypes: item.cuisineTypes ?? proposal.request.cuisineTypes ?? null,
+              dietaryRequirements: item.dietaryRequirements ?? proposal.request.dietaryRequirements ?? null,
+              adultCount: item.adultCount ?? proposal.request.adultCount ?? null,
+              childrenUnder10: item.childrenUnder10 ?? proposal.request.childrenUnder10 ?? null,
+              actualAttendeeCount: item.actualAttendeeCount ?? proposal.request.actualAttendeeCount ?? null,
+              billableGuestCount: item.billableGuestCount ?? proposal.request.billableGuestCount ?? null,
+              pricingGuestCount: item.pricingGuestCount ?? proposal.request.pricingGuestCount ?? null,
+              notes: item.notes ?? null,
+              sortOrder: item.sortOrder ?? index,
+            })),
+          },
         },
       })
 
@@ -153,12 +208,19 @@ export class PaymentGuarantee {
         data: {
           bookingId: booking.id,
           totalAmount: amount,
-          commissionAmount,
-          chefAmount,
+          commissionAmount: finance.platformCommissionAmount,
+          chefAmount: finance.chefNetPayout,
+          platformCommissionRate: finance.platformCommissionRate,
+          serviceChargeTaxRate: finance.serviceChargeTaxRate,
+          serviceChargeTaxAmount: finance.serviceChargeTaxAmount,
+          serviceChargeTaxDeductionEnabled: finance.serviceChargeTaxDeductionEnabled,
+          totalPlatformDeduction: finance.totalPlatformDeduction,
+          taxJurisdiction: finance.taxJurisdiction,
+          serviceChargeTaxStatus: finance.serviceChargeTaxStatus,
           currency,
           status: PaymentStatus.PAID,
           stripePaymentIntentId: paymentIntentId,
-          stripeCheckoutSessionId: stripeSessionId,
+          stripeCheckoutSessionId: stripeSessionId ?? undefined,
           idempotencyKey,
         },
       })
@@ -192,6 +254,12 @@ export class PaymentGuarantee {
       await tx.proposal.update({
         where: { id: proposalId },
         data: { status: ProposalStatus.BOOKED },
+      })
+
+      await releaseProposalCheckoutLocks(proposalId, tx)
+      await bookingInsuranceService.ensureCoverageForBooking(booking.id, {
+        tx,
+        qualificationBasis: 'PROPOSAL_CHECKOUT_PAID_PLATFORM_BOOKING',
       })
 
       logger.info('[PAYMENT_GUARANTEE] Payment and booking created atomically', {
@@ -312,6 +380,15 @@ export class PaymentGuarantee {
         return { valid: false, error: `Proposal not payable: ${proposal.status}` }
       }
 
+      try {
+        await marketConfigurationService.assertPaymentMarketEnabled(proposal.request.countryCode)
+      } catch (error) {
+        return {
+          valid: false,
+          error: error instanceof Error ? error.message : 'Marketplace payments are not active for this request country',
+        }
+      }
+
       // Check if proposal is expired
       if (proposal.expiresAt && new Date() > proposal.expiresAt) {
         return { valid: false, error: 'Proposal expired' }
@@ -360,9 +437,23 @@ export class PaymentGuarantee {
         // Find any partial booking
         const booking = await tx.booking.findFirst({
           where: { proposalId },
+          include: {
+            serviceDates: true,
+            proposal: {
+              include: {
+                request: { include: { multiDayDates: true } },
+              },
+            },
+          },
         })
 
         if (booking) {
+          const datesToRelease = booking.serviceDates.length
+            ? booking.serviceDates.map((date: { date: Date }) => date.date)
+            : booking.proposal?.request?.multiDayDates?.length
+              ? booking.proposal.request.multiDayDates.map((date: { date: Date }) => date.date)
+              : [booking.eventDate]
+
           // Delete the booking (it shouldn't exist without payment)
           await tx.booking.delete({
             where: { id: booking.id },
@@ -372,7 +463,8 @@ export class PaymentGuarantee {
           if (booking.proposalId) {
             await tx.availability.updateMany({
               where: {
-                date: booking.eventDate,
+                chefId: booking.chefId,
+                date: { in: datesToRelease },
                 currentBookings: { gt: 0 },
               },
               data: {

@@ -7,11 +7,18 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Loader2, Save, CheckCircle, Star, Award, Edit, User, FileText, MapPin as LocationIcon, Briefcase, Upload } from "lucide-react"
 import { ReviewList } from "@/components/reviews/review-list"
 import { CHEF_LEGAL_ACKNOWLEDGEMENT, COUNTRY_OPTIONS, getCurrencyForCountry } from "@/lib/request-options"
+import {
+  CHEF_CAREER_STAGE_OPTIONS,
+  CHEF_SPECIALTY_OPTIONS,
+  getChefCareerStageShortLabel,
+  getChefSpecialtyLabel,
+} from "@/lib/chef-onboarding-options"
 
 interface ChefProfile {
   id: string
@@ -27,6 +34,8 @@ interface ChefProfile {
   isApproved: boolean
   profileImage?: string
   chefType?: string
+  careerStage?: string
+  specialties?: string[]
   certifications?: string
   cuisineType?: string
   eventsPerMonth?: number
@@ -40,6 +49,9 @@ interface ChefProfile {
   verificationStatus?: string
   approvedAt?: string | null
   approvedBy?: string | null
+  reviewedAt?: string | null
+  reviewedBy?: string | null
+  reviewNotes?: string | null
   termsAcceptedAt?: string | null
   termsVersion?: string | null
   user: {
@@ -77,6 +89,8 @@ type ProfileFormData = {
   preferredCurrency: string
   profileImage: string
   chefType: string
+  careerStage: string
+  specialties: string[]
   certifications: string
   cuisineType: string
   eventsPerMonth: string
@@ -103,6 +117,8 @@ const applyProfileToForm = (
     preferredCurrency: chefProfile.preferredCurrency || getCurrencyForCountry(chefProfile.baseCountryCode || "GB"),
     profileImage: chefProfile.profileImage || "",
     chefType: chefProfile.chefType || "",
+    careerStage: chefProfile.careerStage || "",
+    specialties: chefProfile.specialties || [],
     certifications: chefProfile.certifications || "",
     cuisineType: chefProfile.cuisineType || "",
     eventsPerMonth: chefProfile.eventsPerMonth?.toString() || "",
@@ -126,6 +142,8 @@ export default function ChefProfilePage() {
     preferredCurrency: "GBP",
     profileImage: "",
     chefType: "",
+    careerStage: "",
+    specialties: [],
     certifications: "",
     cuisineType: "",
     eventsPerMonth: "",
@@ -197,6 +215,8 @@ export default function ChefProfilePage() {
         preferredCurrency: formData.preferredCurrency,
         profileImage: formData.profileImage || undefined,
         chefType: formData.chefType || undefined,
+        careerStage: formData.careerStage || undefined,
+        specialties: formData.specialties,
         certifications: formData.certifications || undefined,
         cuisineType: formData.cuisineType || undefined,
         eventsPerMonth: formData.eventsPerMonth ? parseInt(formData.eventsPerMonth) : undefined,
@@ -250,7 +270,8 @@ export default function ChefProfilePage() {
       profile.location,
       profile.radius,
       profile.profileImage,
-      profile.chefType,
+      profile.careerStage,
+      profile.specialties?.length,
       profile.cuisineType,
       profile.eventsPerMonth,
       profile.rightToWorkUkConfirmed,
@@ -270,6 +291,7 @@ export default function ChefProfilePage() {
     try {
       const payload = new FormData()
       payload.append("file", file)
+      payload.append("purpose", "profile")
 
       const response = await fetch("/api/upload", {
         method: "POST",
@@ -301,6 +323,7 @@ export default function ChefProfilePage() {
     try {
       const payload = new FormData()
       payload.append("file", file)
+      payload.append("purpose", "profile")
 
       const response = await fetch("/api/chef/certificates", {
         method: "POST",
@@ -333,6 +356,15 @@ export default function ChefProfilePage() {
       setUploadingCertificate(false)
       e.target.value = ""
     }
+  }
+
+  const handleSpecialtyChange = (value: string, checked: boolean) => {
+    setFormData((prev) => ({
+      ...prev,
+      specialties: checked
+        ? Array.from(new Set([...prev.specialties, value]))
+        : prev.specialties.filter((item) => item !== value),
+    }))
   }
 
   const approvalStatus = (profile as any)?.verificationStatus ?? (profile?.isApproved ? "APPROVED" : "PENDING")
@@ -384,6 +416,12 @@ export default function ChefProfilePage() {
         </div>
       ) : null}
 
+      {approvalStatus === "CHANGES_REQUESTED" ? (
+        <div className="w-full rounded-xl border border-orange-200 bg-orange-50 px-4 py-3 text-orange-700">
+          <p className="text-sm">Admin has requested changes. You can update your profile here and resubmit for review.</p>
+        </div>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-8 items-start lg:grid-cols-3">
         <div className="w-full min-w-0 lg:col-span-1">
           <div className="w-full rounded-2xl border border-gray-200 bg-white p-8 shadow-md transition-all duration-300 hover:-translate-y-1 hover:scale-[1.03] hover:shadow-xl dark:bg-gray-900">
@@ -407,12 +445,31 @@ export default function ChefProfilePage() {
                   />
                 </label>
               </div>
+              <Button type="button" variant="outline" disabled={uploadingImage} asChild>
+                <label className="cursor-pointer">
+                  {uploadingImage ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
+                  {formData.profileImage ? "Replace profile photo" : "Upload profile photo"}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleImageUpload}
+                    disabled={uploadingImage}
+                  />
+                </label>
+              </Button>
               {uploadingImage ? <p className="text-xs text-gray-500">Uploading profile image...</p> : null}
+              <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
+                Use a clear face-visible photo that presents you professionally as a chef, such as in a chef coat, apron, or chef cap where appropriate.
+              </p>
 
               <div className="mt-16 text-center">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{displayName}</h3>
                 <div className="mt-2 flex items-center justify-center gap-2">
                   <Badge variant="secondary" className="text-xs">Chef</Badge>
+                  {formData.careerStage ? (
+                    <Badge variant="outline" className="text-xs">{getChefCareerStageShortLabel(formData.careerStage)}</Badge>
+                  ) : null}
                   {profile?.user.verified ? (
                     <div className="flex items-center gap-1 text-green-600">
                       <CheckCircle className="h-3 w-3" />
@@ -420,6 +477,15 @@ export default function ChefProfilePage() {
                     </div>
                   ) : null}
                 </div>
+                {formData.specialties.length > 0 ? (
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    {formData.specialties.map((specialty) => (
+                      <Badge key={specialty} variant="outline" className="text-xs">
+                        {getChefSpecialtyLabel(specialty)}
+                      </Badge>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -446,7 +512,7 @@ export default function ChefProfilePage() {
                 </div>
               </div>
               <div className="rounded-xl bg-gray-50 p-3 text-center transition-all duration-200 hover:scale-[1.02] hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700">
-                <span className="block text-sm text-gray-500 dark:text-gray-300">Experience</span>
+                <span className="block text-sm text-gray-500 dark:text-gray-300">Years of Experience</span>
                 <span className="block text-lg font-semibold text-gray-800 dark:text-white">{profile?.experience || 0} years</span>
               </div>
               <div className="rounded-xl bg-gray-50 p-3 text-center transition-all duration-200 hover:scale-[1.02] hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-700">
@@ -461,8 +527,8 @@ export default function ChefProfilePage() {
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-gray-900">
               <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50 dark:bg-indigo-900/20">
-                  <User className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <User className="h-5 w-5 text-primary" />
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Account</h2>
               </div>
@@ -471,11 +537,11 @@ export default function ChefProfilePage() {
                 <div className="grid gap-5 md:grid-cols-2">
                   <div>
                     <Label htmlFor="firstName" className="text-sm text-gray-500 dark:text-gray-300">First name</Label>
-                    <Input id="firstName" name="firstName" value={formData.firstName} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500" />
+                    <Input id="firstName" name="firstName" value={formData.firstName} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/30" />
                   </div>
                   <div>
                     <Label htmlFor="surname" className="text-sm text-gray-500 dark:text-gray-300">Surname</Label>
-                    <Input id="surname" name="surname" value={formData.surname} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500" />
+                    <Input id="surname" name="surname" value={formData.surname} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/30" />
                   </div>
                 </div>
 
@@ -493,15 +559,15 @@ export default function ChefProfilePage() {
 
                 <div>
                   <Label htmlFor="phone" className="text-sm text-gray-500 dark:text-gray-300">Phone number</Label>
-                  <Input id="phone" name="phone" placeholder="For account support only. Phone numbers are not shown publicly." value={formData.phone} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500" />
+                  <Input id="phone" name="phone" placeholder="For account support only. Phone numbers are not shown publicly." value={formData.phone} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/30" />
                 </div>
               </div>
             </div>
 
             <div className="w-full rounded-2xl border border-gray-200 bg-white p-6 shadow-md transition-all duration-300 hover:-translate-y-1 hover:shadow-xl dark:bg-gray-900">
               <div className="mb-6 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-50 dark:bg-purple-900/20">
-                  <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <FileText className="h-5 w-5 text-primary" />
                 </div>
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Professional Summary</h2>
               </div>
@@ -509,7 +575,7 @@ export default function ChefProfilePage() {
               <div className="space-y-5">
                 <div>
                   <Label htmlFor="bio" className="text-sm text-gray-500 dark:text-gray-300">Bio</Label>
-                  <Textarea id="bio" name="bio" placeholder="Tell clients about your cooking style, specialties, and experience..." value={formData.bio} onChange={handleChange} rows={4} className="mt-1 min-h-[100px] resize-none rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500" />
+                  <Textarea id="bio" name="bio" placeholder="Tell clients about your cooking style, specialties, and experience..." value={formData.bio} onChange={handleChange} rows={4} className="mt-1 min-h-[100px] resize-none rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/30" />
                   <p className="mt-1 text-xs text-gray-400">Share your culinary background and what makes you unique.</p>
                 </div>
               </div>
@@ -526,38 +592,69 @@ export default function ChefProfilePage() {
               <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
                 <div>
                   <Label htmlFor="experience" className="text-sm text-gray-500 dark:text-gray-300">Years of experience</Label>
-                  <Input id="experience" name="experience" type="number" min="0" placeholder="e.g., 5" value={formData.experience} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500" />
+                  <Input id="experience" name="experience" type="number" min="0" placeholder="e.g., 5" value={formData.experience} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/30" />
                 </div>
 
-                <div>
-                  <Label htmlFor="chefType" className="text-sm text-gray-500 dark:text-gray-300">Chef type</Label>
-                  <Select value={formData.chefType || undefined} onValueChange={(value) => setFormData((prev) => ({ ...prev, chefType: value }))}>
-                    <SelectTrigger className="mt-1 rounded-xl border-gray-200 bg-gray-50 focus:bg-white">
-                      <SelectValue placeholder="Select your chef type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="PRIVATE_CHEF">Private Chef</SelectItem>
-                      <SelectItem value="EVENT_CHEF">Event Chef</SelectItem>
-                      <SelectItem value="MEAL_PREP">Meal Prep Specialist</SelectItem>
-                      <SelectItem value="CULINARY_INSTRUCTOR">Culinary Instructor</SelectItem>
-                      <SelectItem value="PASTRY_CHEF">Pastry Chef</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="md:col-span-2">
+                  <Label className="text-sm text-gray-500 dark:text-gray-300">Chef career stage / background</Label>
+                  <div className="mt-2 grid gap-3">
+                    {CHEF_CAREER_STAGE_OPTIONS.map((option) => (
+                      <label
+                        key={option.value}
+                        className={`flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition-colors ${
+                          formData.careerStage === option.value
+                            ? "border-primary bg-primary/5"
+                            : "border-gray-200 bg-gray-50 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-950/40"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="careerStage"
+                          value={option.value}
+                          checked={formData.careerStage === option.value}
+                          onChange={() => setFormData((prev) => ({ ...prev, careerStage: option.value }))}
+                          className="mt-1 h-4 w-4"
+                        />
+                        <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="md:col-span-2">
+                  <Label className="text-sm text-gray-500 dark:text-gray-300">Chef specialties</Label>
+                  <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                    {CHEF_SPECIALTY_OPTIONS.map((option) => (
+                      <label
+                        key={option.value}
+                        className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 transition-colors hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-950/40"
+                      >
+                        <Checkbox
+                          checked={formData.specialties.includes(option.value)}
+                          onCheckedChange={(checked) => handleSpecialtyChange(option.value, checked === true)}
+                        />
+                        <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{option.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-xs text-gray-400">
+                    Choose every service area that genuinely applies. This replaces the old single Chef type dropdown.
+                  </p>
                 </div>
 
                 <div>
                   <Label htmlFor="cuisineType" className="text-sm text-gray-500 dark:text-gray-300">Cuisine focus</Label>
-                  <Input id="cuisineType" name="cuisineType" placeholder="e.g., Modern British" value={formData.cuisineType} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500" />
+                  <Input id="cuisineType" name="cuisineType" placeholder="e.g., Modern British" value={formData.cuisineType} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/30" />
                 </div>
 
                 <div>
                   <Label htmlFor="eventsPerMonth" className="text-sm text-gray-500 dark:text-gray-300">Events per month</Label>
-                  <Input id="eventsPerMonth" name="eventsPerMonth" type="number" min="0" placeholder="e.g., 12" value={formData.eventsPerMonth} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500" />
+                  <Input id="eventsPerMonth" name="eventsPerMonth" type="number" min="0" placeholder="e.g., 12" value={formData.eventsPerMonth} onChange={handleChange} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/30" />
                 </div>
 
                 <div className="md:col-span-2">
                   <Label htmlFor="certifications" className="text-sm text-gray-500 dark:text-gray-300">Additional professional certifications</Label>
-                  <Textarea id="certifications" name="certifications" placeholder="Optional: add extra professional certifications that support your profile. Do not use this for right-to-work or food hygiene confirmations." value={formData.certifications} onChange={handleChange} rows={3} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500" />
+                  <Textarea id="certifications" name="certifications" placeholder="Optional: add extra professional certifications that support your profile. Do not use this for right-to-work or food hygiene confirmations." value={formData.certifications} onChange={handleChange} rows={3} className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/30" />
                 </div>
               </div>
             </div>
@@ -573,13 +670,13 @@ export default function ChefProfilePage() {
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
                   <Label htmlFor="location" className="text-sm text-gray-500 dark:text-gray-300">Base location</Label>
-                  <Input id="location" name="location" placeholder="e.g., New York, NY" value={formData.location} onChange={handleChange} required className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500" />
+                  <Input id="location" name="location" placeholder="e.g., London" value={formData.location} onChange={handleChange} required className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/30" />
                   <p className="mt-1 text-xs text-gray-400">Your base location is used for travel and request matching.</p>
                 </div>
 
                 <div>
                   <Label htmlFor="radius" className="text-sm text-gray-500 dark:text-gray-300">Saved service radius (km)</Label>
-                  <Input id="radius" name="radius" type="number" min="1" max="500" step="0.5" placeholder="e.g., 25" value={formData.radius} onChange={handleChange} required className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-indigo-500 focus:bg-white focus:ring-2 focus:ring-indigo-500" />
+                  <Input id="radius" name="radius" type="number" min="1" max="500" step="0.5" placeholder="e.g., 25" value={formData.radius} onChange={handleChange} required className="mt-1 rounded-xl border-gray-200 bg-gray-50 transition-all duration-200 focus:scale-[1.01] focus:border-primary focus:bg-white focus:ring-2 focus:ring-primary/30" />
                   <p className="mt-1 text-xs text-gray-400">This saved radius controls which open customer requests are matched to you. The Requests page slider only narrows the current view temporarily.</p>
                 </div>
 
@@ -636,8 +733,13 @@ export default function ChefProfilePage() {
                       ? "Approved"
                       : approvalStatus === "REJECTED"
                       ? "Rejected"
+                      : approvalStatus === "CHANGES_REQUESTED"
+                      ? "Changes requested"
                       : "Pending"}
                   </p>
+                  {profile?.reviewNotes ? (
+                    <p className="mt-2 rounded-lg bg-white p-3 text-xs text-gray-600 dark:bg-gray-900 dark:text-gray-300">{profile.reviewNotes}</p>
+                  ) : null}
                   {profile?.approvedAt ? (
                     <p className="mt-1 text-xs">Approved at: {new Date(profile.approvedAt).toLocaleString()}</p>
                   ) : null}

@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import bcrypt from 'bcrypt';
+import { calculateMarketplaceFinancials } from '../lib/marketplace-rules';
 
 const normalizeDatabaseUrl = (url?: string) => {
   if (!url) return url;
@@ -33,6 +34,36 @@ const getSeedDatabaseUrl = () => {
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: getSeedDatabaseUrl() }),
 });
+
+const countryFromCurrency = (currency?: string | null) => {
+  if (currency === 'USD') return 'US';
+  if (currency === 'EUR') return 'IT';
+  if (currency === 'KES') return 'KE';
+  return 'GB';
+};
+
+const paymentSnapshot = (booking: any) => {
+  const currency = booking.currency || 'GBP';
+  const finance = calculateMarketplaceFinancials({
+    grossAmount: booking.totalPrice,
+    countryCode: countryFromCurrency(currency),
+    currency,
+  });
+
+  return {
+    totalAmount: booking.totalPrice,
+    commissionAmount: finance.platformCommissionAmount,
+    chefAmount: finance.chefNetPayout,
+    platformCommissionRate: finance.platformCommissionRate,
+    serviceChargeTaxRate: finance.serviceChargeTaxRate,
+    serviceChargeTaxAmount: finance.serviceChargeTaxAmount,
+    serviceChargeTaxDeductionEnabled: finance.serviceChargeTaxDeductionEnabled,
+    totalPlatformDeduction: finance.totalPlatformDeduction,
+    taxJurisdiction: finance.taxJurisdiction,
+    serviceChargeTaxStatus: finance.serviceChargeTaxStatus,
+    currency,
+  };
+};
 
 // Clear database in reverse dependency order
 async function clearDatabase() {
@@ -304,18 +335,18 @@ async function seedPayments(bookings: any[]) {
   const payments = [];
 
   for (const booking of completedBookings) {
-    const payment = await prisma.payment.create({ data: { bookingId: booking.id, totalAmount: booking.totalPrice, commissionAmount: booking.totalPrice * 0.2, chefAmount: booking.totalPrice * 0.8, status: Math.random() > 0.3 ? 'COMPLETED' : 'RELEASED', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}`, stripeChargeId: `ch_${booking.id.slice(0, 8)}_${Date.now()}`, releasedAt: new Date(booking.createdAt.getTime() + 24 * 60 * 60 * 1000), releasedBy: 'system' } });
+    const payment = await prisma.payment.create({ data: { bookingId: booking.id, ...paymentSnapshot(booking), status: Math.random() > 0.3 ? 'COMPLETED' : 'RELEASED', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}`, stripeChargeId: `ch_${booking.id.slice(0, 8)}_${Date.now()}`, releasedAt: new Date(booking.createdAt.getTime() + 24 * 60 * 60 * 1000), releasedBy: 'system' } });
     payments.push(payment);
   }
 
   for (const booking of confirmedBookings) {
-    const payment = await prisma.payment.create({ data: { bookingId: booking.id, totalAmount: booking.totalPrice, commissionAmount: booking.totalPrice * 0.2, chefAmount: booking.totalPrice * 0.8, status: 'HELD', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}` } });
+    const payment = await prisma.payment.create({ data: { bookingId: booking.id, ...paymentSnapshot(booking), status: 'HELD', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}` } });
     payments.push(payment);
   }
 
   // Create payments for cancelled bookings so refunds can be generated
   for (const booking of cancelledBookings) {
-    const payment = await prisma.payment.create({ data: { bookingId: booking.id, totalAmount: booking.totalPrice, commissionAmount: booking.totalPrice * 0.2, chefAmount: booking.totalPrice * 0.8, status: 'REFUNDED', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}`, stripeChargeId: `ch_${booking.id.slice(0, 8)}_${Date.now()}` } });
+    const payment = await prisma.payment.create({ data: { bookingId: booking.id, ...paymentSnapshot(booking), status: 'REFUNDED', stripePaymentIntentId: `pi_${booking.id.slice(0, 8)}_${Date.now()}`, stripeChargeId: `ch_${booking.id.slice(0, 8)}_${Date.now()}` } });
     payments.push(payment);
   }
 

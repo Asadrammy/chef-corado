@@ -17,6 +17,7 @@ import Link from "next/link"
 import { UserActivationFlow } from "@/components/onboarding/UserActivationFlow"
 import { ConversionSignals } from "@/components/conversion/ConversionSignals"
 import { TrustSignals } from "@/components/trust/TrustSignals"
+import { getConfiguredAppBaseUrl } from "@/lib/site-config"
 
 type DashboardRequest = {
   id: string
@@ -74,7 +75,7 @@ export default async function ClientDashboardPage() {
 
   // Fetch real data for dashboard
   const cookieHeader = (await cookies()).toString()
-  const baseUrl = process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"
+  const baseUrl = getConfiguredAppBaseUrl()
 
   // Fetch requests, proposals, and bookings with error handling
   let requests: DashboardRequest[] = []
@@ -126,10 +127,10 @@ export default async function ClientDashboardPage() {
   return (
     <div className="space-y-10">
       {/* Hero Section - Premium SaaS Style */}
-      <header className="relative bg-gradient-to-br from-slate-50 via-white to-blue-50/20 dark:from-slate-900 dark:via-gray-900 dark:to-blue-900/10 rounded-3xl border border-border/60 shadow-lg shadow-black/5 overflow-hidden">
+      <header className="brand-surface relative overflow-hidden rounded-3xl shadow-lg shadow-black/5">
         {/* Decorative background element */}
         <div className="absolute right-0 top-0 w-1/2 h-full opacity-5 dark:opacity-10">
-          <div className="absolute inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 blur-3xl"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/40 via-primary/20 to-[hsl(var(--brand-chocolate)/0.30)] blur-3xl"></div>
         </div>
         
         <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 p-8 lg:p-12">
@@ -149,12 +150,12 @@ export default async function ClientDashboardPage() {
                 <span className="bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent"> next event</span>
               </h1>
               <p className="text-lg text-muted-foreground leading-relaxed max-w-lg">
-                Submit event requests, collect proposals from talented chefs, and manage your bookings—all in one beautiful workspace.
+                Submit event requests, collect proposals from talented chefs, and manage your bookings - all in one beautiful workspace.
               </p>
             </div>
             
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <Button asChild size="lg" className="bg-primary hover:bg-primary/90 shadow-lg hover:shadow-xl transition-all duration-200 text-white px-8 py-3">
+              <Button asChild size="lg" className="brand-gradient-button shadow-lg hover:shadow-xl transition-all duration-200 px-8 py-3">
                 <Link href="/dashboard/client/create-request">
                   <ArrowRight className="mr-2 h-5 w-5" />
                   Create Request
@@ -173,22 +174,22 @@ export default async function ClientDashboardPage() {
           <div className="relative hidden lg:flex items-center justify-center">
             <div className="relative w-full max-w-sm aspect-square">
               {/* Gradient circles */}
-              <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-3xl blur-2xl"></div>
-              <div className="absolute inset-4 bg-gradient-to-br from-blue-500/30 to-purple-500/30 rounded-2xl blur-xl"></div>
+              <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-primary/20 to-[hsl(var(--brand-chocolate)/0.20)] blur-2xl"></div>
+              <div className="absolute inset-4 rounded-2xl bg-gradient-to-br from-primary/30 to-[hsl(var(--brand-chocolate)/0.30)] blur-xl"></div>
               
               {/* Central decorative element */}
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-32 h-32 bg-gradient-to-br from-blue-500 to-purple-600 rounded-3xl shadow-2xl flex items-center justify-center">
-                  <Calendar className="h-16 w-16 text-white" />
+                <div className="brand-gradient-button flex h-32 w-32 items-center justify-center rounded-3xl shadow-2xl">
+                  <Calendar className="h-16 w-16" />
                 </div>
               </div>
               
               {/* Floating elements */}
               <div className="absolute top-8 right-8 w-16 h-16 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg flex items-center justify-center">
-                <Users className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                <Users className="h-8 w-8 text-primary" />
               </div>
               <div className="absolute bottom-8 left-8 w-16 h-16 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg flex items-center justify-center">
-                <Star className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                <Star className="h-8 w-8 text-[hsl(var(--brand-chocolate))] dark:text-primary" />
               </div>
             </div>
           </div>
@@ -202,15 +203,15 @@ export default async function ClientDashboardPage() {
 
       {/* Stats Overview - Premium Analytics Cards */}
       <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="group bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-800/30 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+        <div className="group overflow-hidden rounded-2xl border border-primary/15 bg-primary/5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
           <div className="p-7">
             <div className="flex items-center justify-between mb-5">
-              <div className="w-13 h-13 rounded-xl bg-blue-100 dark:bg-blue-800/30 shadow-sm flex items-center justify-center">
-                <FileText className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+              <div className="w-13 h-13 flex items-center justify-center rounded-xl bg-primary/10 shadow-sm">
+                <FileText className="h-7 w-7 text-primary" />
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">+{totalRequests}</span>
-                <span className="text-xs text-blue-500 dark:text-blue-500">new</span>
+                <span className="text-sm font-semibold text-primary">+{totalRequests}</span>
+                <span className="text-xs text-muted-foreground">new</span>
               </div>
             </div>
             <div className="space-y-2">
@@ -220,15 +221,15 @@ export default async function ClientDashboardPage() {
           </div>
         </div>
         
-        <div className="group bg-orange-50 dark:bg-orange-900/10 rounded-2xl border border-orange-100 dark:border-orange-800/30 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+        <div className="group overflow-hidden rounded-2xl border border-primary/15 bg-primary/5 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
           <div className="p-7">
             <div className="flex items-center justify-between mb-5">
-              <div className="w-13 h-13 rounded-xl bg-orange-100 dark:bg-orange-800/30 shadow-sm flex items-center justify-center">
-                <Users className="h-7 w-7 text-orange-600 dark:text-orange-400" />
+              <div className="w-13 h-13 flex items-center justify-center rounded-xl bg-primary/10 shadow-sm">
+                <Users className="h-7 w-7 text-primary" />
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-sm font-semibold text-orange-600 dark:text-orange-400">+{pendingProposals}</span>
-                <span className="text-xs text-orange-500 dark:text-orange-500">pending</span>
+                <span className="text-sm font-semibold text-primary">+{pendingProposals}</span>
+                <span className="text-xs text-muted-foreground">pending</span>
               </div>
             </div>
             <div className="space-y-2">
@@ -238,13 +239,13 @@ export default async function ClientDashboardPage() {
           </div>
         </div>
         
-        <div className="group bg-green-50 dark:bg-green-900/10 rounded-2xl border border-green-100 dark:border-green-800/30 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 overflow-hidden">
+        <div className="group overflow-hidden rounded-2xl border border-emerald-500/15 bg-emerald-500/10 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md">
           <div className="p-7">
             <div className="flex items-center justify-between mb-5">
-              <div className="w-13 h-13 rounded-xl bg-green-100 dark:bg-green-800/30 shadow-sm flex items-center justify-center">
-                <Calendar className="h-7 w-7 text-green-600 dark:text-green-400" />
+              <div className="w-13 h-13 flex items-center justify-center rounded-xl bg-emerald-500/10 shadow-sm">
+                <Calendar className="h-7 w-7 text-emerald-700 dark:text-emerald-300" />
               </div>
-              <Badge className="bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:border-green-700 dark:text-green-300">
+              <Badge className="border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
                 {activeBookings} active
               </Badge>
             </div>
@@ -293,8 +294,8 @@ export default async function ClientDashboardPage() {
             <div className="group bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer hover:scale-[1.02]">
               <div className="p-8">
                 <div className="flex flex-col items-center text-center space-y-4">
-                  <div className="w-16 h-16 rounded-xl bg-blue-50 dark:bg-blue-900/20 shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <FileText className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                  <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                    <FileText className="h-8 w-8 text-primary" />
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Create Request</h3>
@@ -302,7 +303,7 @@ export default async function ClientDashboardPage() {
                       Submit a new event request and get proposals from talented chefs
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 text-sm font-medium text-blue-600 dark:text-blue-400">
+                  <div className="flex items-center gap-2 text-sm font-medium text-primary">
                     <span>Get Started</span>
                     <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
                   </div>
@@ -315,8 +316,8 @@ export default async function ClientDashboardPage() {
             <div className="group bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer hover:scale-[1.02]">
               <div className="p-8">
                 <div className="flex flex-col items-center text-center space-y-4">
-                  <div className="w-16 h-16 rounded-xl bg-purple-50 dark:bg-purple-900/20 shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <Calendar className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                  <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                    <Calendar className="h-8 w-8 text-primary" />
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white">My Requests</h3>
@@ -324,7 +325,7 @@ export default async function ClientDashboardPage() {
                       View and manage all your event requests in one place
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 text-sm font-medium text-purple-600 dark:text-purple-400">
+                  <div className="flex items-center gap-2 text-sm font-medium text-primary">
                     <span>{totalRequests} requests</span>
                     <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
                   </div>
@@ -359,8 +360,8 @@ export default async function ClientDashboardPage() {
             <div className="group bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer hover:scale-[1.02]">
               <div className="p-8">
                 <div className="flex flex-col items-center text-center space-y-4">
-                  <div className="w-16 h-16 rounded-xl bg-indigo-50 dark:bg-indigo-900/20 shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <Search className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />
+                  <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary/10 shadow-sm transition-transform duration-300 group-hover:scale-110">
+                    <Search className="h-8 w-8 text-primary" />
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Browse Experiences</h3>
@@ -368,7 +369,7 @@ export default async function ClientDashboardPage() {
                       Discover amazing culinary experiences from talented chefs
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                  <div className="flex items-center gap-2 text-sm font-medium text-primary">
                     <span>Explore</span>
                     <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform duration-300" />
                   </div>
@@ -421,8 +422,8 @@ export default async function ClientDashboardPage() {
         {experiences.length === 0 ? (
           <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-lg p-16 text-center">
             <div className="space-y-6">
-              <div className="w-20 h-20 mx-auto rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-                <span className="text-3xl">🍳</span>
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <Calendar className="h-9 w-9" />
               </div>
               <div className="space-y-3">
                 <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
@@ -434,7 +435,7 @@ export default async function ClientDashboardPage() {
               </div>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link href="/experiences">
-                  <Button size="lg" className="bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all duration-200 text-white px-8 py-3 rounded-xl">
+                  <Button size="lg" className="brand-gradient-button rounded-xl px-8 py-3 shadow-lg transition-all duration-200 hover:shadow-xl">
                     <Search className="mr-2 h-5 w-5" />
                     Browse Marketplace
                   </Button>
@@ -463,18 +464,18 @@ export default async function ClientDashboardPage() {
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-blue-400 via-purple-400 to-pink-400"></div>
+                      <div className="h-full w-full bg-gradient-to-br from-primary/70 via-primary/45 to-[hsl(var(--brand-chocolate)/0.55)]"></div>
                     )}
                     
                     {/* Gradient overlay for text readability */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none"></div>
 
                     {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-blue-600/80 via-blue-600/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-auto">
+                    <div className="pointer-events-auto absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                       <div className="absolute inset-0 flex items-center justify-center">
                         <Link
                           href={`/experiences/${experience.id}`}
-                          className="relative z-10 inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 text-sm font-semibold text-blue-600 shadow-lg hover:bg-blue-50 transition-colors"
+                          className="relative z-10 inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 text-sm font-semibold text-primary shadow-lg transition-colors hover:bg-primary/10"
                         >
                           View Details
                         </Link>

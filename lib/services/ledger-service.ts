@@ -101,6 +101,7 @@ export const ledgerService = {
     await this.recordTransaction({
       transactionType: "PAYMENT",
       amount: totalAmount,
+      currency,
       paymentId,
       bookingId,
       fromAccount: "CLIENT_STRIPE",
@@ -113,10 +114,11 @@ export const ledgerService = {
     // Record commission fee
     if (commissionAmount > 0) {
       await this.recordTransaction({
-        transactionType: "COMMISSION",
-        amount: commissionAmount,
-        paymentId,
-        bookingId,
+      transactionType: "COMMISSION",
+      amount: commissionAmount,
+      currency,
+      paymentId,
+      bookingId,
         fromAccount: "PLATFORM_HOLDING",
         toAccount: "PLATFORM_FEE",
         description: `Platform commission: ${formatCurrency(commissionAmount, currency)}`,

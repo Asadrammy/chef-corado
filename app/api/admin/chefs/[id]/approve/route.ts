@@ -12,7 +12,8 @@ export async function POST(
   try {
     const actor = await requireAdminPermission("chefs.approve")
     const { id } = await params
-    const chef = await adminChefService.approveChef(id, actor.userId)
+    const body = await request.json().catch(() => ({}))
+    const chef = await adminChefService.approveChef(id, actor.userId, body.reason)
 
     return NextResponse.json({ 
       message: "Chef approved successfully",

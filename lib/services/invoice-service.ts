@@ -75,6 +75,14 @@ export const invoiceService = {
           chefName: payment.booking.chef.user.name,
           commissionAmount: payment.commissionAmount,
           chefAmount: payment.chefAmount,
+          serviceChargeTax: {
+            rate: payment.serviceChargeTaxRate,
+            amount: payment.serviceChargeTaxAmount,
+            status: payment.serviceChargeTaxStatus,
+            deductionEnabled: Boolean(payment.serviceChargeTaxDeductionEnabled),
+            totalPlatformDeduction: payment.totalPlatformDeduction,
+            taxJurisdiction: payment.taxJurisdiction,
+          },
           taxPolicy: {
             country: taxPolicy.countryName,
             rate: taxPolicy.rate,

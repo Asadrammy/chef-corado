@@ -1,6 +1,8 @@
+import Redis from "ioredis"
+
 /**
- * Redis client for distributed locking and caching
- * Falls back to in-memory if Redis not available (development mode)
+ * Redis client for distributed locking and caching.
+ * Development may use in-memory fallback; production must use a durable Redis provider.
  */
 
 interface RedisClient {
@@ -80,25 +82,25 @@ class MemoryRedis implements RedisClient {
 
 class UpstashRedis implements RedisClient {
   private redisUrl: string
+  private token: string
 
   constructor() {
-    this.redisUrl = process.env.UPSTASH_REDIS_REST_URL || process.env.REDIS_URL || ''
-    if (!this.redisUrl) {
-      throw new Error('Redis URL not configured')
+    this.redisUrl = (process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/$/, '')
+    this.token = process.env.UPSTASH_REDIS_REST_TOKEN || ''
+    if (!this.redisUrl || !this.token) {
+      throw new Error('UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must both be configured')
     }
   }
 
-  private async command(cmd: string, ...args: (string | number)[]): Promise<any> {
-    const stringArgs: string[] = args.map(arg => String(arg))
-    const url = `${this.redisUrl}/${cmd}/${stringArgs.join('/')}`
-    
+  private async command(args: (string | number)[]): Promise<any> {
     try {
-      const response = await fetch(url, {
+      const response = await fetch(this.redisUrl, {
         method: 'POST',
         headers: {
+          Authorization: `Bearer ${this.token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(stringArgs),
+        body: JSON.stringify(args.map(arg => String(arg))),
       })
 
       if (!response.ok) {
@@ -106,6 +108,9 @@ class UpstashRedis implements RedisClient {
       }
 
       const result = await response.json()
+      if (result.error) {
+        throw new Error(`Redis command failed: ${result.error}`)
+      }
       return result.result
     } catch (error) {
       console.error('Redis command error:', error)
@@ -114,45 +119,124 @@ class UpstashRedis implements RedisClient {
   }
 
   async get(key: string): Promise<string | null> {
-    return await this.command('GET', key)
+    return await this.command(['GET', key])
   }
 
   async set(key: string, value: string, mode?: string, duration?: number): Promise<string | null> {
-    const args = [key, value]
+    const args: (string | number)[] = ['SET', key, value]
     if (mode === 'NX' && duration) {
-      args.push('NX', 'EX', duration.toString())
+      args.push('EX', duration, 'NX')
     } else if (mode === 'EX' && duration) {
-      args.push('EX', duration.toString())
+      args.push('EX', duration)
     }
-    return await this.command('SET', ...args)
+    return await this.command(args)
   }
 
   async del(key: string): Promise<number> {
-    return await this.command('DEL', key)
+    return await this.command(['DEL', key])
   }
 
   async exists(key: string): Promise<number> {
-    return await this.command('EXISTS', key)
+    return await this.command(['EXISTS', key])
   }
 
   async expire(key: string, seconds: number): Promise<number> {
-    return await this.command('EXPIRE', key, seconds.toString())
+    return await this.command(['EXPIRE', key, seconds])
   }
 }
 
-// Create Redis client instance
-let redisClient: RedisClient
+class IORedisClient implements RedisClient {
+  private client: Redis
 
-try {
-  // Try Upstash Redis first (production)
-  redisClient = new UpstashRedis()
-  console.log('Redis client initialized (Upstash)')
-} catch (error) {
-  // Fallback to memory Redis (development)
-  redisClient = new MemoryRedis()
-  console.log('Redis client initialized (Memory fallback)')
+  constructor(redisUrl: string) {
+    this.client = new Redis(redisUrl, {
+      enableReadyCheck: true,
+      maxRetriesPerRequest: 2,
+      lazyConnect: true,
+    })
+  }
+
+  async get(key: string): Promise<string | null> {
+    return this.client.get(key)
+  }
+
+  async set(key: string, value: string, mode?: string, duration?: number): Promise<string | null> {
+    if (mode === 'NX' && duration) {
+      return this.client.set(key, value, 'EX', duration, 'NX')
+    }
+    if (mode === 'EX' && duration) {
+      return this.client.set(key, value, 'EX', duration)
+    }
+    return this.client.set(key, value)
+  }
+
+  async del(key: string): Promise<number> {
+    return this.client.del(key)
+  }
+
+  async exists(key: string): Promise<number> {
+    return this.client.exists(key)
+  }
+
+  async expire(key: string, seconds: number): Promise<number> {
+    return this.client.expire(key, seconds)
+  }
 }
 
+class UnavailableRedis implements RedisClient {
+  private fail(): never {
+    throw new Error('REDIS_REQUIRED_IN_PRODUCTION')
+  }
+
+  async get(): Promise<string | null> {
+    this.fail()
+  }
+
+  async set(): Promise<string | null> {
+    this.fail()
+  }
+
+  async del(): Promise<number> {
+    this.fail()
+  }
+
+  async exists(): Promise<number> {
+    this.fail()
+  }
+
+  async expire(): Promise<number> {
+    this.fail()
+  }
+}
+
+export function isDistributedRedisConfigured() {
+  return Boolean(
+    (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) ||
+    process.env.REDIS_URL
+  )
+}
+
+function createRedisClient(): RedisClient {
+  if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
+    console.log('Redis client initialized (Upstash REST)')
+    return new UpstashRedis()
+  }
+
+  if (process.env.REDIS_URL) {
+    console.log('Redis client initialized (Redis URL)')
+    return new IORedisClient(process.env.REDIS_URL)
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    console.error('Redis is required in production for checkout and availability locks. Configure UPSTASH_REDIS_REST_URL/UPSTASH_REDIS_REST_TOKEN or REDIS_URL.')
+    return new UnavailableRedis()
+  }
+
+  console.log('Redis client initialized (Memory fallback for development)')
+  return new MemoryRedis()
+}
+
+const redisClient = createRedisClient()
 export const redis = redisClient
 
 // Production-grade distributed locking
@@ -164,6 +248,9 @@ export const redisLocks = {
       return result === 'OK'
     } catch (error) {
       console.error('Failed to acquire lock:', error)
+      if (process.env.NODE_ENV === 'production' || (error instanceof Error && error.message === 'REDIS_REQUIRED_IN_PRODUCTION')) {
+        throw error
+      }
       return false
     }
   },

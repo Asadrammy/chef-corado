@@ -5,6 +5,7 @@ import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
+import { MENU_IMAGE_ALLOWED_TYPES, MENU_IMAGE_MAX_BYTES } from '@/lib/menu-image-storage';
 
 interface ImageUploadProps {
   value?: string;
@@ -23,15 +24,12 @@ export function ImageUpload({ value, onChange, onRemove, className }: ImageUploa
     if (!file) return;
 
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
+    if (!MENU_IMAGE_ALLOWED_TYPES.includes(file.type as typeof MENU_IMAGE_ALLOWED_TYPES[number])) {
       toast.error('Invalid file type. Only JPEG, PNG, and WebP are allowed.');
       return;
     }
 
-    // Validate file size
-    const maxSize = 5 * 1024 * 1024; // 5MB
-    if (file.size > maxSize) {
+    if (file.size > MENU_IMAGE_MAX_BYTES) {
       toast.error('File too large. Maximum size is 5MB.');
       return;
     }

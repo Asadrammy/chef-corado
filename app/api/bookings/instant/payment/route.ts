@@ -6,7 +6,15 @@ import { getServerSession } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { normalizeCurrency } from '@/lib/currency';
-import { calculateChefPayout, calculatePlatformCommission } from '@/lib/marketplace-rules';
+import { marketConfigurationService } from '@/lib/services/market-configuration-service';
+import { getConfiguredAppBaseUrl } from '@/lib/site-config';
+
+function countryFromCurrency(currency: string) {
+  if (currency === "USD") return "US";
+  if (currency === "EUR") return "IT";
+  if (currency === "KES") return "KE";
+  return "GB";
+}
 
 // Initialize Stripe
 const getStripeClient = () => {
@@ -81,11 +89,20 @@ export async function POST(request: NextRequest) {
       return apiError("BAD_REQUEST", "Invalid booking price", 400);
     }
     const currency = normalizeCurrency((booking as any).currency || "GBP");
+    const countryCode = countryFromCurrency(currency);
 
+    try {
+      await marketConfigurationService.assertPaymentMarketEnabled(countryCode);
+    } catch (error) {
+      return apiError("MARKET_INACTIVE", error instanceof Error ? error.message : "Online booking is not available in this market", 403);
+    }
+    const finance = await marketConfigurationService.calculateFinancials({ grossAmount: amount, countryCode, currency });
+
+    const appBaseUrl = getConfiguredAppBaseUrl();
     const successUrl = process.env.STRIPE_SUCCESS_URL ?? 
-      `${process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/dashboard/client/bookings?status=success`;
+      `${appBaseUrl}/dashboard/client/bookings?status=success`;
     const cancelUrl = process.env.STRIPE_CANCEL_URL ?? 
-      `${process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000"}/dashboard/client/bookings?status=cancelled`;
+      `${appBaseUrl}/dashboard/client/bookings?status=cancelled`;
 
     // Create Stripe checkout session
     const stripe = getStripeClient();
@@ -95,7 +112,7 @@ export async function POST(request: NextRequest) {
       line_items: [
         {
           price_data: {
-            currency,
+            currency: currency.toLowerCase(),
             unit_amount: Math.round(amount * 100),
             product_data: {
               name: `Instant Booking: ${booking.experience?.title || "Experience"}`,
@@ -125,8 +142,15 @@ export async function POST(request: NextRequest) {
       data: {
         bookingId: booking.id,
         totalAmount: amount,
-        commissionAmount: calculatePlatformCommission(amount),
-        chefAmount: calculateChefPayout(amount),
+        commissionAmount: finance.platformCommissionAmount,
+        chefAmount: finance.chefNetPayout,
+        platformCommissionRate: finance.platformCommissionRate,
+        serviceChargeTaxRate: finance.serviceChargeTaxRate,
+        serviceChargeTaxAmount: finance.serviceChargeTaxAmount,
+        serviceChargeTaxDeductionEnabled: finance.serviceChargeTaxDeductionEnabled,
+        totalPlatformDeduction: finance.totalPlatformDeduction,
+        taxJurisdiction: finance.taxJurisdiction,
+        serviceChargeTaxStatus: finance.serviceChargeTaxStatus,
         currency,
         status: "HELD",
         stripeCheckoutSessionId: checkoutSession.id,

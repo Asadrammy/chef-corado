@@ -22,9 +22,33 @@ export const bookingRepository = {
           totalPrice: true,
           currency: true,
           status: true,
+          eventDate: true,
+          location: true,
+          guestCount: true,
+          bookingType: true,
+          serviceType: true,
+          serviceTypeLabel: true,
           createdAt: true,
+          serviceDates: {
+            orderBy: { sortOrder: "asc" },
+            select: {
+              date: true,
+              startTime: true,
+              endTime: true,
+              serviceType: true,
+              serviceTypeLabel: true,
+              cuisineTypes: true,
+              dietaryRequirements: true,
+              adultCount: true,
+              childrenUnder10: true,
+              actualAttendeeCount: true,
+              billableGuestCount: true,
+              notes: true,
+            },
+          },
           client: {
             select: {
+              id: true,
               name: true,
               email: true,
             },
@@ -33,6 +57,7 @@ export const bookingRepository = {
             select: {
               user: {
                 select: {
+                  id: true,
                   name: true,
                 },
               },
@@ -45,6 +70,12 @@ export const bookingRepository = {
           },
           proposal: {
             select: {
+              id: true,
+              price: true,
+              currency: true,
+              lineItems: {
+                orderBy: { sortOrder: "asc" },
+              },
               menu: {
                 select: {
                   title: true,
@@ -52,9 +83,23 @@ export const bookingRepository = {
               },
               request: {
                 select: {
+                  title: true,
+                  eventType: true,
+                  requestMode: true,
+                  serviceType: true,
+                  serviceTypeLabel: true,
                   eventDate: true,
+                  eventDates: true,
+                  eventTime: true,
                   details: true,
                   location: true,
+                  guestCount: true,
+                  budgetMode: true,
+                  totalBudget: true,
+                  defaultDailyBudget: true,
+                  multiDayDates: {
+                    orderBy: { sortOrder: "asc" },
+                  },
                 },
               },
             },
@@ -91,7 +136,12 @@ export const bookingRepository = {
         },
         proposal: {
           include: {
-            request: true,
+            lineItems: { orderBy: { sortOrder: "asc" } },
+            request: {
+              include: {
+                multiDayDates: { orderBy: { sortOrder: "asc" } },
+              },
+            },
             menu: {
               select: {
                 id: true,
@@ -104,7 +154,16 @@ export const bookingRepository = {
           },
         },
         experience: true,
+        serviceDates: { orderBy: { sortOrder: "asc" } },
         payments: true,
+        paymentPlan: {
+          include: {
+            installments: { orderBy: { createdAt: "asc" } },
+            splitShares: { orderBy: { createdAt: "asc" } },
+          },
+        },
+        pricingSnapshot: true,
+        guestAmendments: { orderBy: { createdAt: "desc" } },
         review: true,
       },
     })
@@ -135,11 +194,17 @@ export const bookingRepository = {
         },
         proposal: {
           include: {
-            request: true,
+            lineItems: { orderBy: { sortOrder: "asc" } },
+            request: {
+              include: {
+                multiDayDates: { orderBy: { sortOrder: "asc" } },
+              },
+            },
             menu: true,
           },
         },
         experience: true,
+        serviceDates: { orderBy: { sortOrder: "asc" } },
         payments: true,
         review: true,
       },

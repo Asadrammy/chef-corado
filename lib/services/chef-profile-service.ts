@@ -3,6 +3,11 @@ import { chefProfileRepository } from "@/lib/repositories/chef-profile-repositor
 import { prisma } from "@/lib/prisma"
 import { enforceUserModeration } from "@/lib/security/moderation-guard"
 import { validatePolicyFields } from "@/lib/security/communication-policy"
+import {
+  decodeChefSpecialties,
+  encodeChefSpecialties,
+  normalizeChefCareerStage,
+} from "@/lib/chef-onboarding-options"
 
 export interface ChefProfileInput {
   phone?: string
@@ -16,6 +21,8 @@ export interface ChefProfileInput {
   preferredCurrency?: string
   profileImage?: string
   chefType?: string
+  careerStage?: string
+  specialties?: string[]
   certifications?: string
   cuisineType?: string
   eventsPerMonth?: number
@@ -33,17 +40,26 @@ function mapChefProfile(profile: Awaited<ReturnType<typeof chefProfileRepository
 
   const totalRatings = profile.reviews.reduce((sum, review) => sum + review.rating, 0)
   const avgRating = profile.reviews.length > 0 ? totalRatings / profile.reviews.length : 0
+  const legacyNameParts = profile.user.name.trim().split(/\s+/)
+  const firstName = profile.user.firstName ?? legacyNameParts[0] ?? ""
+  const surname = profile.user.surname ?? legacyNameParts.slice(1).join(" ") ?? ""
+  const careerStage = normalizeChefCareerStage((profile as any).careerStage, profile.chefType)
+  const specialties = decodeChefSpecialties((profile as any).specialties, profile.chefType)
 
   return {
     ...profile,
     avgRating,
     phone: profile.user.phone,
+    firstName,
+    surname,
     termsAcceptedAt: profile.user.termsAcceptedAt,
     termsVersion: profile.user.termsVersion,
     acceptedVia: (profile.user as any).acceptedVia ?? null,
     baseCountryCode: (profile as any).baseCountryCode,
     preferredCurrency: (profile as any).preferredCurrency,
     chefType: profile.chefType,
+    careerStage,
+    specialties,
     certifications: profile.certifications,
     cuisineType: (profile as any).cuisineType,
     eventsPerMonth: profile.eventsPerMonth,
@@ -59,6 +75,9 @@ function mapChefProfile(profile: Awaited<ReturnType<typeof chefProfileRepository
     verificationStatus: (profile as any).verificationStatus ?? "PENDING",
     approvedAt: (profile as any).approvedAt ?? null,
     approvedBy: (profile as any).approvedBy ?? null,
+    reviewedAt: (profile as any).reviewedAt ?? null,
+    reviewedBy: (profile as any).reviewedBy ?? null,
+    reviewNotes: (profile as any).reviewNotes ?? null,
   }
 }
 
@@ -100,6 +119,8 @@ export const chefProfileService = {
     const coordinates = await geocodeAddress(input.location, input.baseCountryCode)
     await chefProfileRepository.createForUser(userId, {
       ...input,
+      careerStage: normalizeChefCareerStage(input.careerStage, input.chefType) ?? null,
+      specialties: encodeChefSpecialties(input.specialties),
       latitude: coordinates?.latitude ?? null,
       longitude: coordinates?.longitude ?? null,
       locationCity: coordinates?.city ?? null,
@@ -127,6 +148,8 @@ export const chefProfileService = {
     const coordinates = await geocodeAddress(input.location, input.baseCountryCode)
     await chefProfileRepository.updateByUserId(userId, {
       ...input,
+      careerStage: normalizeChefCareerStage(input.careerStage, input.chefType) ?? null,
+      specialties: encodeChefSpecialties(input.specialties),
       latitude: coordinates?.latitude ?? null,
       longitude: coordinates?.longitude ?? null,
       locationCity: coordinates?.city ?? null,

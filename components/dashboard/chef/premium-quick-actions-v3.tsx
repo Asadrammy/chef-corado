@@ -18,7 +18,7 @@ export function PremiumQuickActionsV3({ availableRequests, activeBookings }: Pre
       color: 'blue' as const
     },
     {
-      title: 'Manage Experiences',
+      title: 'Manage Bookable Services',
       icon: <ChefHat className="h-5 w-5" />,
       href: '/dashboard/chef/experiences',
       badge: null,

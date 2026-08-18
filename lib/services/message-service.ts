@@ -119,6 +119,10 @@ export const messageService = {
               totalPrice: latestBooking.totalPrice,
               currency: latestBooking.currency,
               status: latestBooking.status,
+              clientId: latestBooking.clientId,
+              guestCount: latestBooking.guestCount,
+              adultCount: latestBooking.adultCount,
+              childrenUnder10: latestBooking.childrenUnder10,
             }
           : null,
       },

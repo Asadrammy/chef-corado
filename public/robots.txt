@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://chefmarketplace.com/sitemap.xml
+Sitemap: https://chefachef.co.uk/sitemap.xml

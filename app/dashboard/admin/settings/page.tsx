@@ -1,15 +1,25 @@
+import { AdminActionForm } from "@/components/admin/admin-action-form"
 import { AdminDataTable, AdminMetricGrid, AdminPageHeader, AdminStatusBadge } from "@/components/admin/admin-workspace"
 import { requireAdminPagePermission } from "@/lib/admin-rbac"
 import { prisma } from "@/lib/prisma"
+import { marketConfigurationService } from "@/lib/services/market-configuration-service"
 
 export default async function AdminSettingsPage() {
-  await requireAdminPagePermission("platformSettings.manage")
-  const [activeRules, draftRules, activeAssets, adminRoles] = await Promise.all([
+  const actor = await requireAdminPagePermission("platformSettings.manage")
+  const [activeRules, draftRules, activeAssets, adminRoles, markets, pricingByCountry] = await Promise.all([
     prisma.servicePricingRule.count({ where: { status: "ACTIVE" } }),
     prisma.servicePricingRule.count({ where: { status: { in: ["DRAFT", "REVIEW"] } } }),
     prisma.serviceAsset.count({ where: { status: "ACTIVE" } }),
     prisma.user.groupBy({ by: ["adminRole"], where: { role: "ADMIN" }, _count: { _all: true } }),
+    marketConfigurationService.listMarketConfigurations(),
+    prisma.servicePricingRule.groupBy({
+      by: ["countryCode"],
+      where: { status: "ACTIVE" },
+      _count: { _all: true },
+    }),
   ])
+
+  const activePricingByCountry = new Map(pricingByCountry.map((row) => [row.countryCode, row._count._all]))
 
   const settings = [
     { id: "platform-currency", group: "Platform", setting: "Default operating market", value: "GB / GBP", state: "CODE_BACKED", effect: "Used by request and pricing defaults." },
@@ -27,7 +37,7 @@ export default async function AdminSettingsPage() {
       <AdminPageHeader
         eyebrow="Platform"
         title="Settings"
-        description="Real platform settings and operational state only. Code-backed configuration is shown read-only instead of creating controls with no backend effect."
+        description="Operational settings, market activation, pricing readiness, and permission-protected configuration state."
       />
       <AdminMetricGrid
         metrics={[
@@ -46,6 +56,64 @@ export default async function AdminSettingsPage() {
           { key: "value", label: "Current value", render: (row) => row.value },
           { key: "state", label: "Persistence", render: (row) => <AdminStatusBadge status={row.state} /> },
           { key: "effect", label: "Effect", render: (row) => row.effect },
+        ]}
+      />
+      <AdminDataTable
+        rows={markets.map((market) => ({
+          id: market.countryCode,
+          ...market,
+          activePricingRules: activePricingByCountry.get(market.countryCode) ?? 0,
+        }))}
+        emptyTitle="No market configuration found."
+        columns={[
+          {
+            key: "country",
+            label: "Country",
+            render: (market) => (
+              <div>
+                <p className="font-medium text-foreground">{market.countryName}</p>
+                <p className="text-xs text-muted-foreground">{market.countryCode} / {market.currency} / {market.source}</p>
+              </div>
+            ),
+          },
+          { key: "status", label: "Market", render: (market) => <AdminStatusBadge status={market.marketStatus} /> },
+          { key: "booking", label: "Bookings", render: (market) => <AdminStatusBadge status={market.bookingEnabled ? "ENABLED" : "DISABLED"} /> },
+          { key: "payments", label: "Payments", render: (market) => <AdminStatusBadge status={market.paymentsEnabled ? "ENABLED" : "DISABLED"} /> },
+          { key: "legal", label: "Legal", render: (market) => <AdminStatusBadge status={market.legalEnabled ? "ENABLED" : "PENDING"} /> },
+          {
+            key: "pricing",
+            label: "Pricing",
+            render: (market) => (
+              <div>
+                <p className="font-medium">{market.activePricingRules} active rules</p>
+                <p className="text-xs text-muted-foreground">Pricing does not activate the market.</p>
+              </div>
+            ),
+          },
+          {
+            key: "controls",
+            label: "Super Admin controls",
+            className: "min-w-[300px]",
+            render: (market) => actor.adminRole === "SUPER_ADMIN" ? (
+              <AdminActionForm
+                endpoint="/api/admin/markets"
+                method="PATCH"
+                compact
+                submitLabel="Update market"
+                fields={[
+                  { name: "countryCode", type: "hidden", defaultValue: market.countryCode },
+                  { name: "active", type: "checkbox", label: "Active", defaultValue: market.marketStatus === "ACTIVE" },
+                  { name: "legalEnabled", type: "checkbox", label: "Legal enabled", defaultValue: market.legalEnabled },
+                  { name: "bookingEnabled", type: "checkbox", label: "Bookings enabled", defaultValue: market.bookingEnabled },
+                  { name: "paymentsEnabled", type: "checkbox", label: "Payments enabled", defaultValue: market.paymentsEnabled },
+                  { name: "internalNotes", type: "textarea", label: "Internal notes", defaultValue: market.internalNotes ?? "", nullable: true },
+                  { name: "reason", type: "textarea", label: "Audit reason", placeholder: "Legal/business approval reference", nullable: true },
+                ]}
+              />
+            ) : (
+              <p className="text-xs leading-5 text-muted-foreground">Read-only. Only Super Admin can change market activation.</p>
+            ),
+          },
         ]}
       />
     </div>

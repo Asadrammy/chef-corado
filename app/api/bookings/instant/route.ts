@@ -35,6 +35,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(booking, { status: 201 });
   } catch (error) {
     logger.error('Error creating instant booking', error);
+    if (error instanceof Error && error.message.startsWith("MARKET_BOOKING_INACTIVE:")) {
+      return NextResponse.json({ error: "ChefaChef is preparing to launch bookings in this market. Instant booking is not yet available." }, { status: 403 });
+    }
     return handleApiError(error, 'Instant Booking');
   }
 }

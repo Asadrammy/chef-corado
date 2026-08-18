@@ -5,6 +5,7 @@ import { publicExactRoutes, publicRoutePrefixes } from '@/lib/public-routes'
 
 const getAppBaseUrl = () => process.env.NEXTAUTH_URL ?? process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000'
 const legalAcceptancePath = '/legal/acceptance'
+const emailVerificationPath = '/verify-email'
 const publicGetApiRoutes = [
   /^\/api\/chefs$/,
   /^\/api\/chefs\/search$/,
@@ -32,6 +33,24 @@ export default async function proxy(request: NextRequest) {
 
   if (token?.isBanned && pathname !== '/account-banned' && !isApiRoute) {
     return NextResponse.redirect(new URL('/account-banned', appBaseUrl))
+  }
+
+  const needsEmailVerification = token?.needsEmailVerification
+  if (
+    token &&
+    needsEmailVerification &&
+    !pathname.startsWith(emailVerificationPath) &&
+    !isApiRoute
+  ) {
+    const redirectUrl = new URL('/verify-email/pending', appBaseUrl)
+    if (typeof token.role === 'string') {
+      redirectUrl.searchParams.set('role', token.role)
+    }
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  if (token && needsEmailVerification && isApiRoute && !isAuthApiRoute) {
+    return NextResponse.json({ error: 'Email verification required' }, { status: 403 })
   }
 
   const needsTermsAcceptance = token?.needsTermsAcceptance
