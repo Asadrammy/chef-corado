@@ -25,6 +25,7 @@ export default function UserDropdown() {
   };
 
   const userInitial = session?.user?.name?.slice(0, 1).toUpperCase() || "U";
+  const userImage = session?.user?.image || "";
 
   return (
     <div className="relative">
@@ -36,7 +37,7 @@ export default function UserDropdown() {
             className="h-10 w-10 rounded-xl border border-border/60 bg-background/80 shadow-sm transition-all duration-200 hover:border-border hover:bg-muted/70 hover:shadow-md hover:-translate-y-0.5"
           >
             <Avatar className="h-6 w-6 rounded-lg">
-              <AvatarImage src="" alt={session?.user?.name || ""} />
+              <AvatarImage src={userImage} alt={session?.user?.name || ""} />
               <AvatarFallback className="bg-background text-foreground text-xs">
                 {userInitial}
               </AvatarFallback>
@@ -51,7 +52,7 @@ export default function UserDropdown() {
           <div className="px-2 py-2">
             <div className="flex items-center gap-3">
               <Avatar className="h-9 w-9 rounded-xl border border-border/60">
-                <AvatarImage src="" alt={session?.user?.name || ""} />
+                <AvatarImage src={userImage} alt={session?.user?.name || ""} />
                 <AvatarFallback className="bg-background text-foreground">
                   {userInitial}
                 </AvatarFallback>

@@ -3,8 +3,10 @@
 import * as React from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
+import { toast } from "sonner"
 import {
   Camera,
+  Loader2,
   Plus,
   Trash2,
   Key,
@@ -25,10 +27,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { MENU_IMAGE_ALLOWED_TYPES, MENU_IMAGE_MAX_BYTES } from "@/lib/menu-image-storage"
 
 type SettingsSection = "profile" | "account" | "security" | "notifications" | "appearance"
 
@@ -40,11 +43,20 @@ const tabs = [
   { id: "appearance" as const, label: "Appearance" },
 ]
 
-export function SettingsDashboard() {
-  const { data: session } = useSession()
+type InitialProfile = {
+  name: string
+  email: string
+  image: string | null
+  profileCompletion: number
+} | null
+
+export function SettingsDashboard({ initialProfile = null }: { initialProfile?: InitialProfile }) {
+  const { data: session, update } = useSession()
   const [activeSection, setActiveSection] = React.useState<SettingsSection>("profile")
-  const displayName = session?.user?.name || "ChefaChef member"
-  const displayEmail = session?.user?.email || "Email unavailable"
+  const [profileImage, setProfileImage] = React.useState<string | null>(initialProfile?.image ?? session?.user?.image ?? null)
+  const [profileCompletion, setProfileCompletion] = React.useState(initialProfile?.profileCompletion ?? 0)
+  const displayName = initialProfile?.name || session?.user?.name || "ChefaChef member"
+  const displayEmail = initialProfile?.email || session?.user?.email || "Email unavailable"
   const initials = displayName
     .split(" ")
     .map((part) => part[0])
@@ -52,6 +64,21 @@ export function SettingsDashboard() {
     .slice(0, 2)
     .toUpperCase() || "CC"
   const profileHref = session?.user?.role === "CHEF" ? "/dashboard/chef/profile" : "/dashboard/settings/account"
+
+  React.useEffect(() => {
+    setProfileImage(initialProfile?.image ?? session?.user?.image ?? null)
+  }, [initialProfile?.image, session?.user?.image])
+
+  const handleProfileImageUpdated = React.useCallback(
+    async (image: string, nextProfileCompletion?: number) => {
+      setProfileImage(image)
+      if (typeof nextProfileCompletion === "number") {
+        setProfileCompletion(nextProfileCompletion)
+      }
+      await update({ user: { image } })
+    },
+    [update]
+  )
 
   return (
     <div className="w-full pb-10">
@@ -69,7 +96,13 @@ export function SettingsDashboard() {
           </Button>
         </div>
 
-        <ProfileOverviewCard displayName={displayName} displayEmail={displayEmail} initials={initials} profileHref={profileHref} />
+        <ProfileOverviewCard
+          displayName={displayName}
+          displayEmail={displayEmail}
+          initials={initials}
+          profileHref={profileHref}
+          profileImage={profileImage}
+        />
 
         <Tabs
           value={activeSection}
@@ -93,7 +126,12 @@ export function SettingsDashboard() {
           <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
             <div className="lg:col-span-8 xl:col-span-8">
               <TabsContent value="profile" className="mt-0">
-                <ProfileSection />
+                <ProfileSection
+                  displayName={displayName}
+                  initials={initials}
+                  profileImage={profileImage}
+                  onProfileImageUpdated={handleProfileImageUpdated}
+                />
               </TabsContent>
               <TabsContent value="account" className="mt-0">
                 <AccountSection />
@@ -111,7 +149,7 @@ export function SettingsDashboard() {
 
             <div className="lg:col-span-4 xl:col-span-4">
               <div className="lg:sticky lg:top-6">
-                <RightRail />
+                <RightRail profileCompletion={profileCompletion} />
               </div>
             </div>
           </div>
@@ -126,17 +164,20 @@ function ProfileOverviewCard({
   displayEmail,
   initials,
   profileHref,
+  profileImage,
 }: {
   displayName: string
   displayEmail: string
   initials: string
   profileHref: string
+  profileImage?: string | null
 }) {
   return (
     <Card className="rounded-xl border-border/60 bg-background shadow-sm">
       <CardContent className="flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
         <div className="flex items-center gap-4">
           <Avatar className="h-16 w-16 border border-border/60">
+            <AvatarImage src={profileImage ?? undefined} alt={`${displayName} profile photo`} />
             <AvatarFallback className="bg-muted text-sm font-medium text-foreground">{initials}</AvatarFallback>
           </Avatar>
           <div className="space-y-1">
@@ -154,7 +195,80 @@ function ProfileOverviewCard({
   )
 }
 
-function ProfileSection() {
+function ProfileSection({
+  displayName,
+  initials,
+  profileImage,
+  onProfileImageUpdated,
+}: {
+  displayName: string
+  initials: string
+  profileImage?: string | null
+  onProfileImageUpdated: (image: string, profileCompletion?: number) => Promise<void>
+}) {
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const [uploadingPhoto, setUploadingPhoto] = React.useState(false)
+  const [photoError, setPhotoError] = React.useState("")
+
+  const handleEditPhotoClick = () => {
+    if (uploadingPhoto) return
+    setPhotoError("")
+    fileInputRef.current?.click()
+  }
+
+  const handlePhotoSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    if (!MENU_IMAGE_ALLOWED_TYPES.includes(file.type as typeof MENU_IMAGE_ALLOWED_TYPES[number])) {
+      const message = "Invalid file type. Only JPEG, PNG, and WebP are allowed."
+      setPhotoError(message)
+      toast.error(message)
+      event.target.value = ""
+      return
+    }
+
+    if (file.size > MENU_IMAGE_MAX_BYTES) {
+      const message = "File too large. Maximum size is 5MB."
+      setPhotoError(message)
+      toast.error(message)
+      event.target.value = ""
+      return
+    }
+
+    setUploadingPhoto(true)
+    setPhotoError("")
+
+    try {
+      const payload = new FormData()
+      payload.append("file", file)
+
+      const response = await fetch("/api/user/profile-photo", {
+        method: "POST",
+        body: payload,
+      })
+      const result = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(result?.error || "Unable to update profile photo. Please try again.")
+      }
+
+      if (!result?.image || typeof result.image !== "string") {
+        throw new Error("Unable to update profile photo. Please try again.")
+      }
+
+      await onProfileImageUpdated(result.image, result.user?.profileCompletion)
+      toast.success("Profile photo updated")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update profile photo. Please try again."
+      setPhotoError(message)
+      toast.error(message)
+    } finally {
+      setUploadingPhoto(false)
+      event.target.value = ""
+    }
+  }
+
   return (
     <div className="space-y-8">
       <Card className="rounded-xl border-border/60 bg-background shadow-sm">
@@ -170,18 +284,28 @@ function ProfileSection() {
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <Avatar className="h-14 w-14 border border-border/60">
-                <AvatarFallback className="bg-muted text-sm font-medium text-foreground">CC</AvatarFallback>
+                <AvatarImage src={profileImage ?? undefined} alt={`${displayName} profile photo`} />
+                <AvatarFallback className="bg-muted text-sm font-medium text-foreground">{initials}</AvatarFallback>
               </Avatar>
               <div className="space-y-1">
                 <p className="font-medium text-foreground">Profile photo</p>
                 <p className="text-sm text-muted-foreground">This will be shown on your profile.</p>
               </div>
             </div>
-            <Button variant="outline" className="h-10 rounded-lg px-4">
-              <Camera className="h-4 w-4" />
-              Edit photo
+            <Button type="button" variant="outline" className="h-10 rounded-lg px-4" onClick={handleEditPhotoClick} disabled={uploadingPhoto}>
+              {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+              {uploadingPhoto ? "Uploading..." : "Edit photo"}
             </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={handlePhotoSelected}
+              disabled={uploadingPhoto}
+            />
           </div>
+          {photoError ? <p className="text-sm text-destructive" role="alert">{photoError}</p> : null}
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-4">
@@ -429,7 +553,9 @@ function AppearanceSection() {
   )
 }
 
-function RightRail() {
+function RightRail({ profileCompletion }: { profileCompletion: number }) {
+  const safeProfileCompletion = Math.max(0, Math.min(100, Math.round(profileCompletion)))
+
   return (
     <div className="space-y-4">
       <Card className="rounded-xl border-border/60 bg-background shadow-sm">
@@ -444,9 +570,9 @@ function RightRail() {
           <Separator />
           <div className="flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Progress</span>
-            <span className="font-medium text-foreground">72%</span>
+            <span className="font-medium text-foreground">{safeProfileCompletion}%</span>
           </div>
-          <Progress value={72} className="h-2" />
+          <Progress value={safeProfileCompletion} className="h-2" />
           <p className="text-sm text-muted-foreground">Complete your bio and add social links to improve visibility.</p>
         </CardContent>
       </Card>

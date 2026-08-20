@@ -208,7 +208,7 @@ export function MarketplaceSidebar() {
         <NavUser user={{
           name: session?.user?.name || "User",
           email: session?.user?.email || "user@example.com",
-          avatar: "",
+          avatar: session?.user?.image || "",
         }} />
       </SidebarFooter>
     </SidebarContent>

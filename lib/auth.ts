@@ -7,6 +7,7 @@ import { isPrismaConnectionError, prisma, withPrismaReconnect } from "@/lib/pris
 import { TERMS_VERSION } from "@/lib/request-options"
 import { roleDashboardPath } from "@/lib/role-routes"
 import { requiresEmailVerification } from "@/lib/email-verification"
+import { getUserImageByEmail, getUserImageById } from "@/lib/user-profile-image"
 import { Role } from "@/types"
 
 // Extend NextAuth types to include isBanned
@@ -36,6 +37,7 @@ declare module "next-auth" {
     needsChefCompliance?: boolean
     adminRole?: string | null
     adminPermissions?: string | null
+    picture?: string | null
     insuranceStatus?: string | null
     needsInsuranceVerification?: boolean
   }
@@ -59,6 +61,7 @@ type AuthUser = {
   id: string
   name: string
   email: string
+  image?: string | null
   role: Role
 }
 
@@ -70,6 +73,7 @@ export type SessionComplianceRecord = {
   termsVersion: string | null
   acceptedVia: string | null
   role: Role | string
+  image?: string | null
   adminRole?: string | null
   adminPermissions?: string | null
   chefProfile: {
@@ -107,6 +111,12 @@ const localDemoUsers: Record<string, AuthUser & { password: string }> = {
   },
 }
 
+const localDemoBackedEmails: Record<string, string> = {
+  "admin@example.com": "admin@example.com",
+  "chef@example.com": "chef@example.com",
+  "client@example.com": "michael.thompson@example.com",
+}
+
 const localDemoUserById = Object.values(localDemoUsers).reduce<Record<string, AuthUser & { password: string }>>(
   (acc, user) => {
     acc[user.id] = user
@@ -127,6 +137,46 @@ function getLocalDemoUser(email: string, password: string): AuthUser | null {
 
   const { password: _password, ...authUser } = demoUser
   return authUser
+}
+
+async function getPersistedLocalDemoUser(email: string, fallbackUser: AuthUser): Promise<AuthUser> {
+  const backedEmail = localDemoBackedEmails[email.toLowerCase()]
+  if (!backedEmail) {
+    return fallbackUser
+  }
+
+  try {
+    const persistedUser = await withPrismaReconnect(() =>
+      prisma.user.findUnique({
+        where: { email: backedEmail },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      }),
+      1
+    )
+
+    if (!persistedUser || persistedUser.role !== fallbackUser.role) {
+      return fallbackUser
+    }
+
+    return {
+      id: persistedUser.id,
+      name: persistedUser.name,
+      email: persistedUser.email,
+      image: await getUserImageById(persistedUser.id),
+      role: persistedUser.role as Role,
+    }
+  } catch (error) {
+    if (isPrismaConnectionError(error)) {
+      return fallbackUser
+    }
+
+    throw error
+  }
 }
 
 export function isLocalDemoSessionUser(userId?: string | null, email?: string | null) {
@@ -203,8 +253,9 @@ export const authOptions: AuthOptions = {
         const localDemoUser = getLocalDemoUser(normalizedEmail, credentials.password)
 
         if (localDemoUser) {
-          console.log("Local demo login successful for:", localDemoUser.email)
-          return localDemoUser
+          const backedLocalDemoUser = await getPersistedLocalDemoUser(normalizedEmail, localDemoUser)
+          console.log("Local demo login successful for:", backedLocalDemoUser.email)
+          return backedLocalDemoUser
         }
 
         let user
@@ -258,10 +309,16 @@ export const authOptions: AuthOptions = {
           throw new Error("EMAIL_NOT_VERIFIED")
         }
 
+        const userImage = await getUserImageById(user.id).catch((error) => {
+          if (isPrismaConnectionError(error)) return null
+          throw error
+        })
+
         const authUser: AuthUser = {
           id: user.id,
           name: user.name,
           email: user.email,
+          image: userImage,
           role: user.role as Role,
         }
 
@@ -278,12 +335,18 @@ export const authOptions: AuthOptions = {
     maxAge: 30 * 24 * 60 * 60,
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user?.role) {
         token.role = user.role
       }
       if (user?.id) {
         token.sub = user.id
+      }
+      if (user?.image !== undefined) {
+        token.picture = user.image
+      }
+      if (trigger === "update" && typeof session?.user?.image === "string") {
+        token.picture = session.user.image
       }
       const tokenUserId = user?.id ?? token.sub
       // Refresh legal/compliance flags whenever the JWT callback runs so re-acceptance updates are reflected.
@@ -349,6 +412,24 @@ export const authOptions: AuthOptions = {
           token.insuranceStatus = null
           token.needsInsuranceVerification = false
         }
+
+        try {
+          token.picture = await getUserImageById(tokenUserId)
+        } catch (error) {
+          if (!isPrismaConnectionError(error)) {
+            throw error
+          }
+        }
+
+        if (isLocalDemoSessionUser(tokenUserId, token.email) && token.email) {
+          try {
+            token.picture = await getUserImageByEmail(token.email)
+          } catch (error) {
+            if (!isPrismaConnectionError(error)) {
+              throw error
+            }
+          }
+        }
       }
       return token
     },
@@ -358,6 +439,9 @@ export const authOptions: AuthOptions = {
       }
       if (token.sub) {
         session.user.id = token.sub
+      }
+      if (token.picture !== undefined) {
+        session.user.image = token.picture
       }
       if (token.isBanned !== undefined) {
         session.user.isBanned = token.isBanned

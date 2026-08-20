@@ -3,7 +3,9 @@ import { cookies } from "next/headers"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 
-import { authOptions } from "@/lib/auth"
+import { authOptions, isLocalDemoSessionUser } from "@/lib/auth"
+import { isPrismaConnectionError, prisma } from "@/lib/prisma"
+import { getUserImageByEmail, getUserImageById } from "@/lib/user-profile-image"
 import { generateMeta } from "@/lib/utils"
 import { SettingsDashboard } from "@/components/settings-dashboard"
 
@@ -20,7 +22,38 @@ export default async function SettingsPage() {
 
   cookies()
 
+  let profile: {
+    name: string
+    email: string
+    image: string | null
+    profileCompletion: number
+  } | null = null
+  try {
+    const user = await prisma.user.findUnique({
+      where: isLocalDemoSessionUser(session.user.id, session.user.email) && session.user.email
+        ? { email: session.user.email }
+        : { id: session.user.id },
+      select: {
+        name: true,
+        email: true,
+        profileCompletion: true,
+      },
+    })
+    if (user) {
+      profile = {
+        ...user,
+        image: isLocalDemoSessionUser(session.user.id, session.user.email) && session.user.email
+          ? await getUserImageByEmail(session.user.email)
+          : await getUserImageById(session.user.id),
+      }
+    }
+  } catch (error) {
+    if (!isPrismaConnectionError(error)) {
+      throw error
+    }
+  }
+
   return (
-    <SettingsDashboard />
+    <SettingsDashboard initialProfile={profile} />
   )
 }
