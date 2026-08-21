@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 
 import { authOptions, isLocalDemoSessionUser } from "@/lib/auth"
-import { deleteUploadedImage, uploadImageFile } from "@/lib/image-upload-storage"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
-import { hasUserImageColumn } from "@/lib/user-profile-image"
+import { fileToUserProfileImageData, userProfilePhotoUrl } from "@/lib/user-profile-photo-storage"
+import { ensureUserProfileImageColumns } from "@/lib/user-profile-image"
 
 type PersistedProfilePhoto = {
   id: string
@@ -35,10 +35,10 @@ function uploadErrorResponse(error: unknown) {
   return NextResponse.json({ error: "Unable to update profile photo. Please try again." }, { status: 500 })
 }
 
-async function persistProfilePhoto(userId: string, image: string): Promise<PersistedProfilePhoto | null> {
+async function persistProfilePhotoData(userId: string, image: string, imageData: string): Promise<PersistedProfilePhoto | null> {
   const rows = await prisma.$queryRaw<PersistedProfilePhoto[]>`
     UPDATE "User"
-    SET "image" = ${image}, "updatedAt" = NOW()
+    SET "image" = ${image}, "imageData" = ${imageData}, "updatedAt" = NOW()
     WHERE "id" = ${userId} AND "role" = 'CLIENT'
     RETURNING "id", "image", "name", "email", "profileCompletion"
   `
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    if (!(await hasUserImageColumn())) {
+    if (!(await ensureUserProfileImageColumns())) {
       return NextResponse.json({ error: "Profile photo storage is not configured. Please apply the latest database migration." }, { status: 503 })
     }
 
@@ -123,26 +123,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 })
     }
 
-    const uploaded = await uploadImageFile({
-      file: submittedFile,
-      ownerId: persistedClientId,
-      purpose: "profile",
-    })
-
-    let persistedUser: PersistedProfilePhoto | null = null
-    try {
-      persistedUser = await persistProfilePhoto(persistedClientId, uploaded.url)
-    } catch (error) {
-      await deleteUploadedImage(uploaded.publicId, uploaded.storage).catch((cleanupError) => {
-        console.error("Failed to clean up unpersisted client profile photo", cleanupError)
-      })
-      throw error
-    }
+    const imageData = await fileToUserProfileImageData(submittedFile)
+    const imageUrl = userProfilePhotoUrl(persistedClientId)
+    const persistedUser = await persistProfilePhotoData(persistedClientId, imageUrl, imageData)
 
     if (!persistedUser) {
-      await deleteUploadedImage(uploaded.publicId, uploaded.storage).catch((cleanupError) => {
-        console.error("Failed to clean up unauthorized client profile photo", cleanupError)
-      })
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 

@@ -3,19 +3,12 @@ import path from "path"
 import { NextRequest } from "next/server"
 
 const mockGetServerSession = jest.fn()
-const mockUploadImageFile = jest.fn()
-const mockDeleteUploadedImage = jest.fn()
 const mockUpdateMany = jest.fn()
 const mockFindUnique = jest.fn()
 const mockQueryRaw = jest.fn()
 
 jest.mock("next-auth", () => ({
   getServerSession: (...args: unknown[]) => mockGetServerSession(...args),
-}))
-
-jest.mock("../../lib/image-upload-storage", () => ({
-  deleteUploadedImage: (...args: unknown[]) => mockDeleteUploadedImage(...args),
-  uploadImageFile: (...args: unknown[]) => mockUploadImageFile(...args),
 }))
 
 jest.mock("../../lib/prisma", () => ({
@@ -53,22 +46,28 @@ describe("client profile photo upload flow", () => {
         email: "client@example.com",
       },
     })
-    mockUploadImageFile.mockResolvedValue({
-      url: "https://res.cloudinary.com/demo/image/upload/chefachef/profile/client-user-1/photo.webp",
-      publicId: "chefachef/profile/client-user-1/photo",
-      storage: { provider: "cloudinary", durable: true },
-    })
-    mockDeleteUploadedImage.mockResolvedValue(true)
-    mockQueryRaw.mockImplementation((strings: TemplateStringsArray) => {
+    mockQueryRaw.mockImplementation((strings: TemplateStringsArray, ...values: unknown[]) => {
       const query = Array.from(strings).join("")
       if (query.includes("information_schema.columns")) {
         return Promise.resolve([{ exists: true }])
       }
 
+      if (query.includes('UPDATE "User"')) {
+        return Promise.resolve([
+          {
+            id: "client-user-1",
+            image: values[0],
+            name: "Olivia Parker",
+            email: "client@example.com",
+            profileCompletion: 72,
+          },
+        ])
+      }
+
       return Promise.resolve([
         {
           id: "client-user-1",
-          image: "https://res.cloudinary.com/demo/image/upload/chefachef/profile/client-user-1/photo.webp",
+          image: "/api/user/profile-photo/client-user-1?v=123",
           name: "Olivia Parker",
           email: "client@example.com",
           profileCompletion: 72,
@@ -86,7 +85,7 @@ describe("client profile photo upload flow", () => {
 
       return Promise.resolve({
         id: "client-user-1",
-        image: "https://res.cloudinary.com/demo/image/upload/chefachef/profile/client-user-1/photo.webp",
+        image: "/api/user/profile-photo/client-user-1?v=123",
         name: "Olivia Parker",
         email: "client@example.com",
         profileCompletion: 72,
@@ -117,11 +116,10 @@ describe("client profile photo upload flow", () => {
     const response = await POST(requestWithFormData(formData))
 
     expect(response.status).toBe(401)
-    expect(mockUploadImageFile).not.toHaveBeenCalled()
     expect(mockUpdateMany).not.toHaveBeenCalled()
   })
 
-  it("allows an authenticated client to upload and persist their own canonical image", async () => {
+  it("allows an authenticated client to upload and persist their own database-backed image", async () => {
     const { POST } = await import("../../app/api/user/profile-photo/route")
     const formData = new FormData()
     formData.append("file", imageFile())
@@ -130,13 +128,9 @@ describe("client profile photo upload flow", () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(mockUploadImageFile).toHaveBeenCalledWith({
-      file: expect.any(File),
-      ownerId: "client-user-1",
-      purpose: "profile",
-    })
     expect(mockQueryRaw).toHaveBeenCalled()
-    expect(body.image).toBe("https://res.cloudinary.com/demo/image/upload/chefachef/profile/client-user-1/photo.webp")
+    expect(body.image).toMatch(/^\/api\/user\/profile-photo\/client-user-1\?v=\d+$/)
+    expect(JSON.stringify(mockQueryRaw.mock.calls)).toContain("data:image/png;base64,")
     expect(JSON.stringify(body)).not.toContain("publicId")
     expect(JSON.stringify(body)).not.toContain("api_secret")
   })
@@ -150,7 +144,6 @@ describe("client profile photo upload flow", () => {
     const response = await POST(requestWithFormData(formData))
 
     expect(response.status).toBe(403)
-    expect(mockUploadImageFile).not.toHaveBeenCalled()
   })
 
   it("rejects arbitrary remote image URLs instead of persisting them", async () => {
@@ -161,7 +154,6 @@ describe("client profile photo upload flow", () => {
     const response = await POST(requestWithFormData(formData))
 
     expect(response.status).toBe(400)
-    expect(mockUploadImageFile).not.toHaveBeenCalled()
     expect(mockUpdateMany).not.toHaveBeenCalled()
   })
 
@@ -169,7 +161,6 @@ describe("client profile photo upload flow", () => {
     const { POST } = await import("../../app/api/user/profile-photo/route")
     const invalidMime = new FormData()
     invalidMime.append("file", imageFile("image/gif"))
-    mockUploadImageFile.mockRejectedValueOnce(new Error("INVALID_IMAGE_TYPE"))
 
     const invalidMimeResponse = await POST(requestWithFormData(invalidMime))
     expect(invalidMimeResponse.status).toBe(400)
@@ -178,8 +169,7 @@ describe("client profile photo upload flow", () => {
     })
 
     const oversized = new FormData()
-    oversized.append("file", imageFile("image/png"))
-    mockUploadImageFile.mockRejectedValueOnce(new Error("IMAGE_TOO_LARGE"))
+    oversized.append("file", imageFile("image/png", 5 * 1024 * 1024 + 1))
 
     const oversizedResponse = await POST(requestWithFormData(oversized))
     expect(oversizedResponse.status).toBe(400)

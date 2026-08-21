@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma"
+import { isAppLocalMenuImageReference } from "@/lib/menu-image-storage"
 
 type UserImageRow = {
   image: string | null
 }
 
 let userImageColumnAvailable: boolean | null = null
+let userImageDataColumnAvailable: boolean | null = null
 
 function isUserImageColumnUnavailable(error: unknown) {
   const message = error instanceof Error ? error.message : String(error)
@@ -16,22 +18,36 @@ function isUserImageColumnUnavailable(error: unknown) {
   )
 }
 
+function isUserImageDataColumnUnavailable(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+
+  return (
+    message.includes("Unknown field `imageData`") ||
+    message.includes("column \"imageData\" does not exist") ||
+    message.includes("column User.imageData does not exist")
+  )
+}
+
+async function hasUserColumn(columnName: string) {
+  const rows = await prisma.$queryRaw<{ exists: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name = 'User'
+        AND column_name = ${columnName}
+    ) AS "exists"
+  `
+  return Boolean(rows[0]?.exists)
+}
+
 export async function hasUserImageColumn() {
   if (userImageColumnAvailable !== null) {
     return userImageColumnAvailable
   }
 
   try {
-    const rows = await prisma.$queryRaw<{ exists: boolean }[]>`
-      SELECT EXISTS (
-        SELECT 1
-        FROM information_schema.columns
-        WHERE table_schema = 'public'
-          AND table_name = 'User'
-          AND column_name = 'image'
-      ) AS "exists"
-    `
-    const exists = Boolean(rows[0]?.exists)
+    const exists = await hasUserColumn("image")
     if (exists) {
       userImageColumnAvailable = true
     }
@@ -45,6 +61,56 @@ export async function hasUserImageColumn() {
   }
 }
 
+export async function hasUserImageDataColumn() {
+  if (userImageDataColumnAvailable !== null) {
+    return userImageDataColumnAvailable
+  }
+
+  try {
+    const exists = await hasUserColumn("imageData")
+    if (exists) {
+      userImageDataColumnAvailable = true
+    }
+    return exists
+  } catch (error) {
+    if (isUserImageDataColumnUnavailable(error)) {
+      return false
+    }
+
+    throw error
+  }
+}
+
+export async function hasUserProfileImageColumns() {
+  const [hasImage, hasImageData] = await Promise.all([
+    hasUserImageColumn(),
+    hasUserImageDataColumn(),
+  ])
+
+  return hasImage && hasImageData
+}
+
+export async function ensureUserProfileImageColumns() {
+  if (await hasUserProfileImageColumns()) {
+    return true
+  }
+
+  try {
+    await prisma.$executeRaw`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "image" TEXT`
+    await prisma.$executeRaw`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "imageData" TEXT`
+    userImageColumnAvailable = true
+    userImageDataColumnAvailable = true
+    return true
+  } catch (error) {
+    if (isUserImageColumnUnavailable(error) || isUserImageDataColumnUnavailable(error)) {
+      return false
+    }
+
+    console.error("Unable to ensure user profile image columns", error)
+    return false
+  }
+}
+
 async function readUserImage(query: () => Promise<UserImageRow[]>) {
   try {
     if (!(await hasUserImageColumn())) {
@@ -52,7 +118,12 @@ async function readUserImage(query: () => Promise<UserImageRow[]>) {
     }
 
     const rows = await query()
-    return rows[0]?.image ?? null
+    const image = rows[0]?.image ?? null
+    if (process.env.NODE_ENV === "production" && image && isAppLocalMenuImageReference(image)) {
+      return null
+    }
+
+    return image
   } catch (error) {
     if (isUserImageColumnUnavailable(error)) {
       return null
