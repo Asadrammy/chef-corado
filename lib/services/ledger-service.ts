@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { formatCurrency } from "@/lib/currency"
 import { logger } from "@/lib/logger"
+import type { Prisma } from "@prisma/client"
 
 export type TransactionType = 
   | "PAYMENT" 
@@ -38,9 +39,9 @@ export const ledgerService = {
    * This is CRITICAL for money safety - every money movement MUST be recorded
    * LEDGER FAILURES NOW BLOCK TRANSACTIONS - No silent failures allowed
    */
-  async recordTransaction(input: LedgerEntryInput) {
+  async recordTransaction(input: LedgerEntryInput, client: Prisma.TransactionClient | typeof prisma = prisma) {
     try {
-      const ledgerEntry = await prisma.ledger.create({
+      const ledgerEntry = await client.ledger.create({
         data: {
           transactionType: input.transactionType,
           amount: input.amount,
@@ -163,21 +164,23 @@ export const ledgerService = {
     amount: number,
     createdBy: string,
     stripeTransferId?: string,
-    currency = "GBP"
+    currency = "GBP",
+    client: Prisma.TransactionClient | typeof prisma = prisma
   ) {
-    const existingPayout = await prisma.payout.findUnique({ where: { id: payoutId }, select: { id: true, currency: true } }).catch(() => null)
+    const existingPayout = await client.payout.findUnique({ where: { id: payoutId }, select: { id: true, currency: true } }).catch(() => null)
     const payoutCurrency = existingPayout?.currency || currency
 
     await this.recordTransaction({
       transactionType: "PAYOUT",
       amount: -amount, // Negative for money leaving platform
+      currency: payoutCurrency,
       payoutId: existingPayout ? payoutId : undefined,
       fromAccount: "PLATFORM_HOLDING",
       toAccount: "CHEF_PAYOUT",
       description: `Payout to chef ${chefId}: ${formatCurrency(amount, payoutCurrency)}${stripeTransferId ? ` (Transfer: ${stripeTransferId})` : ""}`,
       createdBy,
       metadata: { chefId, stripeTransferId, payoutReference: payoutId },
-    })
+    }, client)
   },
 
   /**

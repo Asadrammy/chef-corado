@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { isLocalDemoSessionUser } from '@/lib/auth';
 import { isPrismaConnectionError, prisma } from '@/lib/prisma';
+import { buildNotificationVisibilityWhere } from '@/lib/notification-schema';
 
 const createNotificationSchema = z.object({
   userId: z.string(),
@@ -78,13 +79,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const where = {
-      userId,
-      ...(unreadOnly && { isRead: false }),
-    };
+    const where = await buildNotificationVisibilityWhere(userId, unreadOnly);
 
     const notifications = await (prisma as any).notification.findMany({
       where,
+      select: {
+        id: true,
+        userId: true,
+        type: true,
+        message: true,
+        isRead: true,
+        createdAt: true,
+      },
       orderBy: {
         createdAt: 'desc',
       },
@@ -92,10 +98,7 @@ export async function GET(request: NextRequest) {
     });
 
     const unreadCount = await (prisma as any).notification.count({
-      where: {
-        userId,
-        isRead: false,
-      },
+      where: await buildNotificationVisibilityWhere(userId, true),
     });
 
     return NextResponse.json({

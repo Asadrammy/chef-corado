@@ -4,8 +4,9 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { requireAdminPagePermission } from "@/lib/admin-rbac"
 import { formatCurrency } from "@/lib/currency"
-import { isPrismaConnectionError, prisma } from "@/lib/prisma"
+import { prisma } from "@/lib/prisma"
 import { COUNTRY_OPTIONS, SERVICE_TYPE_OPTIONS } from "@/lib/request-options"
+import { buildServicePricingRuleOrderBy, buildServicePricingRuleSelect, isServicePricingSchemaMismatch } from "@/lib/service-pricing-schema"
 import { generateMeta } from "@/lib/utils"
 
 export const metadata: Metadata = generateMeta({
@@ -31,24 +32,31 @@ export default async function AdminPricingPage() {
   }> = []
 
   try {
-    persistedRules = await prisma.servicePricingRule.findMany({
-      orderBy: [{ serviceType: "asc" }, { countryCode: "asc" }, { tier: "asc" }],
-      select: {
-        id: true,
-        serviceType: true,
-        countryCode: true,
-        currency: true,
-        tier: true,
-        minimumSpend: true,
-        pricePerPersonMin: true,
-        pricePerPersonMax: true,
-        status: true,
-        version: true,
-        evidenceSource: true,
-      },
-    })
+    const select = await buildServicePricingRuleSelect([
+      "id",
+      "serviceType",
+      "countryCode",
+      "currency",
+      "tier",
+      "minimumSpend",
+      "pricePerPersonMin",
+      "pricePerPersonMax",
+      "status",
+      "version",
+      "evidenceSource",
+    ])
+    const orderBy = await buildServicePricingRuleOrderBy(["serviceType", "countryCode", "tier"])
+
+    if (!select) {
+      persistedRules = []
+    } else {
+      persistedRules = await prisma.servicePricingRule.findMany({
+        ...(orderBy ? { orderBy } : {}),
+        select,
+      })
+    }
   } catch (error) {
-    if (!isPrismaConnectionError(error)) {
+    if (!isServicePricingSchemaMismatch(error)) {
       throw error
     }
   }

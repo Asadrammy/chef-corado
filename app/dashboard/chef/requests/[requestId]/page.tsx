@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth"
 import { ChefRequestDetail } from "@/components/chef-request-detail"
 import { authOptions } from "@/lib/auth"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
+import { buildChefRequestView } from "@/lib/chef-request-view"
+import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
 
 interface ChefRequestDetailPageProps {
   params: Promise<{ requestId: string }>
@@ -21,7 +23,7 @@ function getLocalDemoRequest(requestId: string) {
       budget: 1450,
       guestCount: 10,
       details: "Client wants a refined tasting menu with seafood, a vegetarian course, and a memorable dessert.",
-      client: { name: "Maya R.", email: "local-demo@example.com" },
+      client: { name: "Maya R." },
     },
     "local-request-tasting": {
       title: "Modern Italian tasting menu",
@@ -33,7 +35,7 @@ function getLocalDemoRequest(requestId: string) {
       budget: 2200,
       guestCount: 14,
       details: "Client prefers handmade pasta, lighter sauces, and a tableside finishing moment.",
-      client: { name: "Daniel K.", email: "local-demo@example.com" },
+      client: { name: "Daniel K." },
     },
     "local-request-brunch": {
       title: "Private family brunch",
@@ -45,7 +47,7 @@ function getLocalDemoRequest(requestId: string) {
       budget: 980,
       guestCount: 8,
       details: "Client asked for a comforting menu with fresh pastries, eggs, fruit, and coffee service.",
-      client: { name: "Avery P.", email: "local-demo@example.com" },
+      client: { name: "Avery P." },
     },
     "local-request-corporate": {
       title: "Executive chef's table",
@@ -57,7 +59,7 @@ function getLocalDemoRequest(requestId: string) {
       budget: 3100,
       guestCount: 12,
       details: "Client wants premium ingredients, tight timing, and a calm restaurant-level service flow.",
-      client: { name: "Sutton Group", email: "local-demo@example.com" },
+      client: { name: "Sutton Group" },
     },
   } as const
 
@@ -67,10 +69,18 @@ function getLocalDemoRequest(requestId: string) {
   return {
     id: requestId,
     ...demo,
+    requestMode: "STANDARD",
     status: "OPEN",
     eventDate,
     currency: "USD",
     totalProposalCount: 3,
+    clientName: demo.client.name,
+    clientGreetingName: demo.client.name,
+    cuisinePreferences: [],
+    dietaryRequirements: [],
+    serviceSpecificAnswerSummary: [],
+    photos: [],
+    multiDayDates: [],
     proposals: [],
   }
 }
@@ -97,84 +107,96 @@ export default async function ChefRequestDetailPage({ params }: ChefRequestDetai
       redirect("/dashboard/chef/profile")
     }
 
-    const request = await prisma.request.findUnique({
-      where: { id: requestId },
-      include: {
-        client: {
-          select: {
-            name: true,
-            email: true,
+    const request = await withRequestPhotoFallback(
+      () => prisma.request.findUnique({
+        where: { id: requestId },
+        include: {
+          client: {
+            select: {
+              name: true,
+              firstName: true,
+            },
+          },
+          _count: {
+            select: {
+              proposals: true,
+            },
+          },
+          proposals: {
+            where: {
+              chefId: chefProfile.id,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            select: {
+              id: true,
+              price: true,
+              message: true,
+              status: true,
+              createdAt: true,
+              lineItems: { orderBy: { sortOrder: "asc" } },
+            },
+          },
+          multiDayDates: { orderBy: { sortOrder: "asc" } },
+          photos: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            select: {
+              id: true,
+              url: true,
+              originalName: true,
+            },
           },
         },
-        _count: {
-          select: {
-            proposals: true,
+      }),
+      () => prisma.request.findUnique({
+        where: { id: requestId },
+        include: {
+          client: {
+            select: {
+              name: true,
+              firstName: true,
+            },
           },
+          _count: {
+            select: {
+              proposals: true,
+            },
+          },
+          proposals: {
+            where: {
+              chefId: chefProfile.id,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            select: {
+              id: true,
+              price: true,
+              message: true,
+              status: true,
+              createdAt: true,
+              lineItems: { orderBy: { sortOrder: "asc" } },
+            },
+          },
+          multiDayDates: { orderBy: { sortOrder: "asc" } },
         },
-        proposals: {
-          where: {
-            chefId: chefProfile.id,
-          },
-          orderBy: {
-            createdAt: "desc",
-          },
-          select: {
-            id: true,
-            price: true,
-            message: true,
-            status: true,
-            createdAt: true,
-            lineItems: { orderBy: { sortOrder: "asc" } },
-          },
-        },
-        multiDayDates: { orderBy: { sortOrder: "asc" } },
-      },
-    })
+      })
+    )
 
     if (!request) {
       notFound()
     }
 
     const requestForView = {
-      id: request.id,
-      title: request.title,
-      eventType: request.eventType,
-      requestMode: request.requestMode,
-      serviceType: request.serviceType,
-      serviceTypeLabel: request.serviceTypeLabel,
-      description: request.description ?? request.details ?? "",
+      ...buildChefRequestView({
+        ...request,
+        client: request.client,
+        createdAt: request.createdAt,
+        submittedAt: request.createdAt,
+      }),
       status: request.proposals[0]?.status ?? "OPEN",
-      eventDate: request.eventDate.toISOString(),
-      location: request.location,
-      budget: request.budget,
-      currency: request.currency,
-      guestCount: request.guestCount,
       totalProposalCount: request._count.proposals,
-      details: request.details,
-      budgetMode: request.budgetMode,
-      totalBudget: request.totalBudget,
-      defaultDailyBudget: request.defaultDailyBudget,
-      multiDayDates: request.multiDayDates.map((date) => ({
-        id: date.id,
-        date: date.date.toISOString(),
-        startTime: date.startTime,
-        endTime: date.endTime,
-        serviceType: date.serviceType,
-        serviceTypeLabel: date.serviceTypeLabel,
-        serviceTier: date.serviceTier,
-        cuisineTypes: date.cuisineTypes,
-        dietaryRequirements: date.dietaryRequirements,
-        adultCount: date.adultCount,
-        childrenUnder10: date.childrenUnder10,
-        actualAttendeeCount: date.actualAttendeeCount,
-        billableGuestCount: date.billableGuestCount,
-        budget: date.budget,
-        notes: date.notes,
-      })),
-      client: {
-        name: request.client.name,
-        email: request.client.email,
-      },
       proposals: request.proposals.map((proposal) => ({
         id: proposal.id,
         price: proposal.price,
@@ -195,7 +217,7 @@ export default async function ChefRequestDetailPage({ params }: ChefRequestDetai
     return <ChefRequestDetail request={requestForView} session={session} />
   } catch (error) {
     if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
-      return <ChefRequestDetail request={getLocalDemoRequest(requestId)} session={session} />
+      return <ChefRequestDetail request={getLocalDemoRequest(requestId) as any} session={session} />
     }
 
     throw error

@@ -2,22 +2,64 @@ import { AdminActionForm } from "@/components/admin/admin-action-form"
 import { AdminDataTable, AdminMetricGrid, AdminPageHeader, AdminStatusBadge } from "@/components/admin/admin-workspace"
 import { requireAdminPagePermission } from "@/lib/admin-rbac"
 import { prisma } from "@/lib/prisma"
+import { buildServicePricingRuleSelect, getServicePricingRuleColumnAvailability, isServicePricingSchemaMismatch } from "@/lib/service-pricing-schema"
 import { marketConfigurationService } from "@/lib/services/market-configuration-service"
 
 export default async function AdminSettingsPage() {
   const actor = await requireAdminPagePermission("platformSettings.manage")
-  const [activeRules, draftRules, activeAssets, adminRoles, markets, pricingByCountry] = await Promise.all([
-    prisma.servicePricingRule.count({ where: { status: "ACTIVE" } }),
-    prisma.servicePricingRule.count({ where: { status: { in: ["DRAFT", "REVIEW"] } } }),
+  let activeRules = 0
+  let draftRules = 0
+  let pricingByCountry: Array<{ countryCode: string; _count: { _all: number } }> = []
+
+  const availability = await getServicePricingRuleColumnAvailability()
+  const activeRulesSelect = await buildServicePricingRuleSelect(["id", "status", "countryCode"])
+  const countrySelect = availability.countryCode ? await buildServicePricingRuleSelect(["countryCode"]) : null
+
+  const [activeAssets, adminRoles, markets] = await Promise.all([
     prisma.serviceAsset.count({ where: { status: "ACTIVE" } }),
     prisma.user.groupBy({ by: ["adminRole"], where: { role: "ADMIN" }, _count: { _all: true } }),
     marketConfigurationService.listMarketConfigurations(),
-    prisma.servicePricingRule.groupBy({
-      by: ["countryCode"],
-      where: { status: "ACTIVE" },
-      _count: { _all: true },
-    }),
   ])
+
+  if (activeRulesSelect && availability.status) {
+    try {
+      const activeWhere = { status: "ACTIVE" as const }
+      const draftWhere = { status: { in: ["DRAFT", "REVIEW"] } }
+      const countryWhere = availability.status ? { status: "ACTIVE" as const } : {}
+      const [activeRows, draftRows, countryRows] = await Promise.all([
+        prisma.servicePricingRule.findMany({
+          where: activeWhere,
+          select: activeRulesSelect,
+        }),
+        prisma.servicePricingRule.findMany({
+          where: draftWhere,
+          select: activeRulesSelect,
+        }),
+        countrySelect
+          ? prisma.servicePricingRule.findMany({
+            where: countryWhere,
+            select: countrySelect,
+          })
+          : Promise.resolve([]),
+      ])
+
+      activeRules = activeRows.length
+      draftRules = draftRows.length
+      const byCountry = new Map<string, number>()
+      for (const row of countryRows) {
+        const countryCode = row.countryCode ?? "GB"
+        byCountry.set(countryCode, (byCountry.get(countryCode) ?? 0) + 1)
+      }
+      pricingByCountry = Array.from(byCountry.entries()).map(([countryCode, count]) => ({
+        countryCode,
+        _count: { _all: count },
+      }))
+    } catch (error) {
+      if (!isServicePricingSchemaMismatch(error)) {
+        throw error
+      }
+    }
+  }
 
   const activePricingByCountry = new Map(pricingByCountry.map((row) => [row.countryCode, row._count._all]))
 

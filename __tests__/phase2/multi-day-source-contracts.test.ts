@@ -125,15 +125,15 @@ describe("Phase 2 Multi-Day source contracts", () => {
   })
 
   it("uses Multi-Day-aware emails and notifications without replacing single-day templates", () => {
-    expect(emailSource).toContain("newMultiDayRequest")
     expect(emailSource).toContain("newMultiDayProposal")
     expect(emailSource).toContain("multiDayProposalAccepted")
     expect(emailSource).toContain("renderMultiDayEmailDetails")
     expect(notificationsSource).toContain("MultiDayNotificationContext")
     expect(notificationsSource).toContain("formatServiceDateSummary")
+    expect(proposalServiceSource).toContain("getSafeClientGreetingName(existing.request.client)")
     expect(proposalServiceSource).toContain("emailTemplates.newMultiDayProposal")
     expect(proposalServiceSource).toContain("emailTemplates.multiDayProposalAccepted")
-    expect(requestServiceSource).toContain("emailTemplates.newMultiDayRequest")
+    expect(requestServiceSource).toContain("notifyEligibleChefsAboutRequest")
     expect(paymentServiceSource).toContain("triggerPaymentSuccessNotification")
     expect(paymentWorkerSource).toContain("Payment ${paymentAmount} confirmed")
   })

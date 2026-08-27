@@ -12,7 +12,7 @@ export type SortableChefRequest = {
   eventDate?: string | Date | null
   createdAt?: string | Date | null
   submittedAt?: string | Date | null
-  multiDayDates?: Array<string | Date | null>
+  multiDayDates?: Array<unknown>
   budget: number
   distanceKm?: number | null
 }
@@ -22,6 +22,21 @@ function toTime(value?: string | Date | null) {
   const date = value instanceof Date ? value : new Date(value)
   const time = date.getTime()
   return Number.isFinite(time) ? time : null
+}
+
+function extractDateValue(value: unknown) {
+  if (value instanceof Date || typeof value === "string") {
+    return value
+  }
+
+  if (value && typeof value === "object" && "date" in value) {
+    const date = (value as { date?: unknown }).date
+    if (date instanceof Date || typeof date === "string") {
+      return date
+    }
+  }
+
+  return null
 }
 
 function compareNullableNumber(a: number | null | undefined, b: number | null | undefined, direction: "asc" | "desc") {
@@ -44,7 +59,7 @@ export function getRequestSubmittedAt(request: SortableChefRequest) {
 export function getEarliestUpcomingRequestEventAt(request: SortableChefRequest, now: Date = new Date()) {
   const nowTime = now.getTime()
   const serviceDateTimes = (request.multiDayDates ?? [])
-    .map((date) => toTime(date))
+    .map((date) => toTime(extractDateValue(date)))
     .filter((time): time is number => typeof time === "number")
     .sort((a, b) => a - b)
 

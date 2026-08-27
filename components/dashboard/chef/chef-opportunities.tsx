@@ -8,10 +8,53 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ProposalModal } from "@/components/proposal-modal"
 import { ChefDashboardRequestItem } from "@/lib/chef-dashboard"
 import { formatCurrency } from "@/lib/currency"
+import type { ChefRequestView } from "@/lib/chef-request-view"
 
 interface ChefOpportunitiesProps {
   requests: ChefDashboardRequestItem[]
   availableRequestsCount: number
+}
+
+function toProposalRequestView(request: ChefDashboardRequestItem): ChefRequestView {
+  const clientGreetingName = request.clientName?.trim() || "Client"
+
+  return {
+    id: request.id,
+    title: request.title,
+    eventType: "Event",
+    requestMode: "STANDARD",
+    serviceType: null,
+    serviceTypeLabel: "Service type not specified",
+    serviceTier: null,
+    clientName: clientGreetingName,
+    clientGreetingName,
+    location: request.location ?? "Location pending",
+    currency: request.currency ?? "GBP",
+    budget: request.budget,
+    eventDate: request.eventDate ?? new Date().toISOString(),
+    eventDates: [],
+    guestCount: null,
+    adultCount: null,
+    childrenUnder10: null,
+    actualAttendeeCount: null,
+    billableGuestCount: null,
+    pricingGuestCount: null,
+    description: null,
+    details: request.title,
+    cuisinePreferences: [],
+    dietaryRequirements: [],
+    serviceSpecificAnswers: null,
+    serviceSpecificAnswerSummary: [],
+    budgetMode: null,
+    totalBudget: null,
+    defaultDailyBudget: null,
+    distanceKm: request.distanceKm ?? null,
+    broaderMatching: request.distanceKm == null,
+    photos: [],
+    multiDayDates: [],
+    createdAt: request.createdAt,
+    submittedAt: request.createdAt,
+  }
 }
 
 export function ChefOpportunities({ requests, availableRequestsCount }: ChefOpportunitiesProps) {
@@ -102,16 +145,7 @@ export function ChefOpportunities({ requests, availableRequestsCount }: ChefOppo
                   >
                     <Link href={`/dashboard/chef/requests/${request.id}`}>Details</Link>
                   </Button>
-                  <ProposalModal 
-                    request={{
-                      id: request.id,
-                      eventDate: request.eventDate || new Date().toISOString(),
-                      location: request.location || "",
-                      budget: request.budget,
-                      currency: request.currency,
-                      details: request.title,
-                    }}
-                  >
+                  <ProposalModal request={toProposalRequestView(request)}>
                     <Button className="brand-gradient-button rounded-2xl px-4 shadow-lg shadow-primary/20 transition-all duration-300 group-hover:-translate-y-0.5">
                       <Send className="mr-1.5 h-4 w-4" />
                       Send Quote

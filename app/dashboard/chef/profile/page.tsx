@@ -304,11 +304,33 @@ export default function ChefProfilePage() {
       }
 
       const result = await response.json()
-      setFormData((prev) => ({ ...prev, profileImage: result.url as string }))
+      const profileImage = result.url as string
+
+      if (profile?.id) {
+        const saveResponse = await fetch("/api/chef/profile/photo", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ profileImage }),
+        })
+
+        if (!saveResponse.ok) {
+          const saveResult = await saveResponse.json().catch(() => null)
+          throw new Error(saveResult?.error || "Profile image uploaded, but could not be saved. Please try again.")
+        }
+
+        setProfile((current) => current ? { ...current, profileImage } : current)
+        setSuccess(true)
+        setTimeout(() => setSuccess(false), 3000)
+      }
+
+      setFormData((prev) => ({ ...prev, profileImage }))
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Failed to upload profile image")
     } finally {
       setUploadingImage(false)
+      e.target.value = ""
     }
   }
 

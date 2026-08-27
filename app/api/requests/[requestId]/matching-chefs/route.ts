@@ -2,7 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
-import { calculateDistance } from '@/lib/geo';
+import {
+  filterEligibleChefsForRequest,
+  getChefRequestDistanceKm,
+} from '@/lib/chef-request-matching';
+import { requestRepository } from '@/lib/repositories/request-repository';
+
+function parseEventDates(value: string | null) {
+  if (!value) return undefined;
+
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export async function GET(
   request: NextRequest,
@@ -16,16 +31,12 @@ export async function GET(
 
     const { requestId } = await params;
 
-    // Get the request details
     const request = await prisma.request.findUnique({
       where: { id: requestId },
       include: {
-        client: {
-          select: {
-            id: true,
-            name: true
-          }
-        }
+        multiDayDates: {
+          orderBy: [{ date: 'asc' }, { sortOrder: 'asc' }],
+        },
       }
     });
 
@@ -38,110 +49,53 @@ export async function GET(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Find matching chefs based on request criteria
-    const matchingChefs = await prisma.chefProfile.findMany({
-      where: {
-        isApproved: true,
-        isBanned: false,
-        latitude: { not: null },
-        longitude: { not: null },
-        // Match by experiences
-        experiences: {
-          some: {
-            isActive: true
-          }
-        }
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true
-          }
-        },
-        experiences: {
-          where: {
-            isActive: true
-          },
-          select: {
-            id: true,
-            title: true,
-            price: true,
-            eventType: true,
-            cuisineType: true
-          }
-        }
-      }
-    });
+    const candidateChefs = await requestRepository.findApprovedChefsWithCoordinates();
+    const eligibleChefs = await filterEligibleChefsForRequest(
+      {
+        ...request,
+        eventDates: parseEventDates(request.eventDates),
+        multiDayDates: request.multiDayDates.map((date) => ({
+          date: date.date,
+          serviceType: date.serviceType,
+          cuisineTypes: date.cuisineTypes,
+          dietaryRequirements: date.dietaryRequirements,
+        })),
+      } as any,
+      candidateChefs
+    );
 
-    // Filter and score chefs based on matching criteria
-    const scoredChefs = matchingChefs.map(chef => {
-      let score = 0;
+    const safeChefs = eligibleChefs
+      .map((chef) => {
+        const distanceKm =
+          request.latitude != null &&
+          request.longitude != null &&
+          chef.latitude != null &&
+          chef.longitude != null
+            ? getChefRequestDistanceKm(
+                request.latitude,
+                request.longitude,
+                chef.latitude,
+                chef.longitude
+              )
+            : null;
 
-      // Base score for being approved
-      score += 10;
-
-      // Location match using real distance calculation
-      if (request.latitude && request.longitude && chef.latitude && chef.longitude) {
-        const distance = calculateDistance(
-          request.latitude,
-          request.longitude,
-          chef.latitude,
-          chef.longitude
-        );
-        if (distance <= chef.radius) {
-          score += 20;
-        }
-      }
-
-      // Cuisine type match (based on chef's experiences and request description)
-      const hasCuisineMatch = chef.experiences.some(exp => 
-        exp.cuisineType && request.description && 
-        request.description.toLowerCase().includes(exp.cuisineType.toLowerCase())
-      );
-      if (hasCuisineMatch) {
-        score += 15;
-      }
-
-      // Event type match (using description field to extract event type)
-      const hasMatchingExperience = chef.experiences.some(exp => 
-        exp.eventType && request.description && 
-        request.description.toLowerCase().includes(exp.eventType.toLowerCase())
-      );
-      if (hasMatchingExperience) {
-        score += 15;
-      }
-
-      // Budget match (if specified)
-      if (request.budget) {
-        const hasAffordableExperience = chef.experiences.some(exp => 
-          exp.price <= request.budget!
-        );
-        if (hasAffordableExperience) {
-          score += 10;
-        }
-      }
-
-      // Experience level bonus
-      if (chef.experienceLevel === 'EXPERT') score += 5;
-      else if (chef.experienceLevel === 'INTERMEDIATE') score += 3;
-
-      // Verification bonus
-      if (chef.verified) score += 5;
-
-      return {
-        ...chef,
-        matchScore: score
-      };
-    });
-
-    // Sort by match score and return count
-    const sortedChefs = scoredChefs.sort((a, b) => b.matchScore - a.matchScore);
+        return {
+          id: chef.id,
+          name: chef.user?.name ?? 'Chef',
+          distanceKm: distanceKm == null ? null : Number(distanceKm.toFixed(1)),
+          radiusKm: chef.radius,
+        };
+      })
+      .sort((a, b) => {
+        if (a.distanceKm == null && b.distanceKm == null) return a.name.localeCompare(b.name);
+        if (a.distanceKm == null) return 1;
+        if (b.distanceKm == null) return -1;
+        return a.distanceKm - b.distanceKm || a.name.localeCompare(b.name);
+      });
     
     return NextResponse.json({
-      count: sortedChefs.length,
-      matchingChefs: sortedChefs.slice(0, 10) // Return top 10 for preview
+      count: safeChefs.length,
+      matchingChefs: safeChefs.slice(0, 10)
     });
   } catch (error) {
     console.error('Error fetching matching chefs:', error);

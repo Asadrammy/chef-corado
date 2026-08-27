@@ -427,7 +427,9 @@ export const payoutService = {
           updatedPayout.chefId,
           updatedPayout.amount,
           input.processedBy || "SYSTEM",
-          input.externalReference
+          input.externalReference,
+          updatedPayout.currency,
+          tx
         )
       }
 

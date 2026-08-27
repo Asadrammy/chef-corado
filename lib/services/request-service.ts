@@ -1,5 +1,4 @@
 import { calculateDistance, geocodeAddress } from "@/lib/geo"
-import { emailTemplates, sendPreferenceAwareEmail } from "@/lib/email"
 import {
   SERVICE_TYPE_REGISTRY_VERSION,
   calculateGuestComposition,
@@ -13,44 +12,17 @@ import {
 import { assertPricingRuleMatchesRequest, findActivePricingRule } from "@/lib/services/pricing-rule-service"
 import { requestRepository } from "@/lib/repositories/request-repository"
 import { prisma } from "@/lib/prisma"
-import { createNotification } from "@/lib/notifications"
+import { hasLockedRequestProposalStatus } from "@/lib/request-lifecycle"
+import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
 import { enforceUserModeration } from "@/lib/security/moderation-guard"
 import { enforceClientCompliance } from "@/lib/security/legal-compliance"
 import { validatePolicyFields } from "@/lib/security/communication-policy"
 import { marketConfigurationService } from "@/lib/services/market-configuration-service"
 import { Role } from "@/types"
+import { filterEligibleChefsForRequest } from "@/lib/chef-request-matching"
+import { notifyEligibleChefsAboutRequest } from "@/lib/services/request-notification-service"
 
 const toDateKey = (date: Date | string) => new Date(date).toISOString().slice(0, 10)
-
-async function filterChefsWithoutAvailabilityConflicts<T extends { id: string }>(chefs: T[], dates: Array<Date | string>) {
-  const uniqueDateKeys = [...new Set(dates.map(toDateKey))]
-  if (chefs.length === 0 || uniqueDateKeys.length === 0) return chefs
-
-  const availability = await prisma.availability.findMany({
-    where: {
-      chefId: { in: chefs.map((chef) => chef.id) },
-      date: { in: uniqueDateKeys.map((date) => new Date(date)) },
-    },
-    select: {
-      chefId: true,
-      date: true,
-      isAvailable: true,
-      currentBookings: true,
-      maxBookings: true,
-    },
-  })
-
-  const availabilityByChefDate = new Map(
-    availability.map((slot) => [`${slot.chefId}:${toDateKey(slot.date)}`, slot])
-  )
-
-  return chefs.filter((chef) =>
-    uniqueDateKeys.every((date) => {
-      const slot = availabilityByChefDate.get(`${chef.id}:${date}`)
-      return !slot || (slot.isAvailable && slot.currentBookings < slot.maxBookings)
-    })
-  )
-}
 
 async function requestHasAvailabilityConflictForChef(chefId: string, dates: Array<Date | string>) {
   const uniqueDateKeys = [...new Set(dates.map(toDateKey))]
@@ -243,83 +215,299 @@ export const requestService = {
       details: input.details,
     })
 
-    const createdTitle = created.title ?? title
-
     if (created.latitude != null && created.longitude != null) {
+      const requestForAlerts = await withRequestPhotoFallback(
+        () => prisma.request.findUnique({
+          where: { id: created.id },
+          include: {
+            client: {
+              select: {
+                name: true,
+                firstName: true,
+              },
+            },
+            photos: {
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              take: 3,
+              select: {
+                id: true,
+                url: true,
+                originalName: true,
+              },
+            },
+            multiDayDates: {
+              orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+            },
+          },
+        }),
+        () => prisma.request.findUnique({
+          where: { id: created.id },
+          include: {
+            client: {
+              select: {
+                name: true,
+                firstName: true,
+              },
+            },
+            multiDayDates: {
+              orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+            },
+          },
+        })
+      )
+
       const matchingChefs = await requestRepository.findApprovedChefsWithCoordinates()
-
-      const requestedCuisines = input.cuisinePreferences.map((value) => value.toLowerCase())
-      const requestedServiceType = input.serviceType
-      const eligibleChefs = matchingChefs.filter((chef) => {
-        if (chef.latitude == null || chef.longitude == null || chef.radius <= 0) {
-          return false
-        }
-
-        const distance = calculateDistance(
-          created.latitude as number,
-          created.longitude as number,
-          chef.latitude,
-          chef.longitude
-        )
-
-        if (distance > chef.radius) {
-          return false
-        }
-
-        const chefText = [
-          (chef as any).cuisineType,
-          (chef as any).cuisineTypes,
-          (chef as any).specialties,
-          (chef as any).bio,
-          ...((chef as any).menus ?? []).flatMap((menu: any) => [menu.cuisineType, menu.eventType]),
-          ...((chef as any).experiences ?? []).flatMap((experience: any) => [experience.serviceType, experience.cuisineType, experience.eventType]),
-        ].filter(Boolean).join(" ").toLowerCase()
-
-        const hasStructuredExperienceData = ((chef as any).experiences ?? []).length > 0
-        if (requestedServiceType && hasStructuredExperienceData) {
-          const serviceMatch = ((chef as any).experiences ?? []).some((experience: any) => experience.serviceType === requestedServiceType) ||
-            chefText.includes(requestedServiceType.toLowerCase().replaceAll("_", " "))
-          if (!serviceMatch) return false
-        }
-
-        if (requestedCuisines.length > 0 && chefText) {
-          const cuisineMatch = requestedCuisines.some((cuisine) => chefText.includes(cuisine))
-          if (!cuisineMatch) return false
-        }
-
-        const guestCapacityConflict = ((chef as any).experiences ?? []).some((experience: any) =>
-          experience.serviceType === requestedServiceType &&
-          ((experience.minGuests != null && guestComposition.pricingGuestCount < experience.minGuests) ||
-            (experience.maxGuests != null && guestComposition.pricingGuestCount > experience.maxGuests))
-        )
-
-        return !guestCapacityConflict
-      })
-      const conflictCheckedChefs = await filterChefsWithoutAvailabilityConflicts(
-        eligibleChefs,
-        input.eventDates?.length ? input.eventDates : [input.eventDate]
+      const eligibleChefs = await filterEligibleChefsForRequest(
+        {
+          ...created,
+          clientId: userId,
+          requestMode: "STANDARD",
+          cuisineTypes: input.cuisinePreferences,
+          dietaryRequirements: input.dietaryRequirements,
+          eventDates: input.eventDates,
+          eventDate: input.eventDate,
+          latitude: created.latitude,
+          longitude: created.longitude,
+          pricingGuestCount: guestComposition.pricingGuestCount,
+          billableGuestCount: guestComposition.billableGuestCount,
+          actualAttendeeCount: guestComposition.actualAttendeeCount,
+          guestCount: guestComposition.actualAttendeeCount,
+        } as any,
+        matchingChefs
       )
 
-      await Promise.allSettled(
-        conflictCheckedChefs.map((chef) =>
-          sendPreferenceAwareEmail({
-            userId: chef.userId,
-            topic: "requests",
-            email: chef.user.email,
-            subject: `New Service Request: ${createdTitle}`,
-            html: emailTemplates.newRequest(
-              chef.user.name,
-              createdTitle,
-              created.location,
-              created.budget,
-              created.currency
-            ),
-          })
-        )
-      )
+      if (requestForAlerts) {
+        await notifyEligibleChefsAboutRequest({
+          request: requestForAlerts,
+          chefs: eligibleChefs,
+        })
+      }
     }
 
     return created
+  },
+
+  async updateRequest(userId: string, requestId: string, input: {
+    title?: string
+    eventType: string
+    serviceType: string
+    cuisinePreferences: string[]
+    dietaryRequirements: string[]
+    serviceSpecificAnswers?: Record<string, unknown>
+    serviceTier?: string
+    pricingRuleVersion?: string
+    adultCount?: number
+    childrenUnder10?: number
+    billableGuestCount?: number
+    actualAttendeeCount?: number
+    pricingGuestCount?: number
+    eventDates?: string[]
+    description?: string
+    eventDate: string
+    eventTime: string
+    location: string
+    country: string
+    guestCount: number
+    latitude?: number
+    longitude?: number
+    budget: number
+    details?: string
+  }) {
+    await enforceUserModeration(userId)
+    await enforceClientCompliance(userId)
+
+    const existingRequest = await prisma.request.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        clientId: true,
+        requestMode: true,
+        _count: {
+          select: {
+            proposals: true,
+          },
+        },
+      },
+    })
+
+    if (!existingRequest) {
+      throw new Error("REQUEST_NOT_FOUND")
+    }
+
+    if (existingRequest.clientId !== userId) {
+      throw new Error("FORBIDDEN")
+    }
+
+    if (existingRequest.requestMode !== "STANDARD") {
+      throw new Error("REQUEST_EDIT_NOT_SUPPORTED")
+    }
+
+    if (existingRequest._count.proposals > 0) {
+      throw new Error("REQUEST_HAS_PROPOSALS")
+    }
+
+    await marketConfigurationService.assertBookingMarketEnabled(input.country)
+
+    validatePolicyFields({
+      title: input.title,
+      description: input.description,
+      location: input.location,
+      details: input.details,
+    })
+
+    const guestComposition = calculateGuestComposition({
+      adultCount: input.adultCount,
+      childrenUnder10: input.childrenUnder10,
+      fallbackGuestCount: input.guestCount,
+    })
+
+    const serviceConfig = getServiceTypeOption(input.serviceType)
+    if (!serviceConfig?.enabled) {
+      throw new Error("INVALID_SERVICE_TYPE")
+    }
+
+    if (!serviceConfig.supportedCountries.includes(input.country as never)) {
+      throw new Error("SERVICE_COUNTRY_NOT_SUPPORTED")
+    }
+
+    const missingServiceAnswers = validateServiceSpecificAnswers(input.serviceType, input.serviceSpecificAnswers)
+    if (missingServiceAnswers.length > 0) {
+      throw new Error(`SERVICE_REQUIRED_QUESTIONS_MISSING:${missingServiceAnswers.map((question) => question.id).join(",")}`)
+    }
+
+    const currency = getCurrencyForCountry(input.country)
+    const dbPricingRule = await findActivePricingRule({
+      serviceType: input.serviceType,
+      countryCode: input.country,
+      tier: input.serviceTier,
+    })
+    const registryPricingRule = getPricingRule(input.serviceType, input.country, input.serviceTier)
+    const pricingRule = dbPricingRule ?? registryPricingRule
+    const pricingState = resolvePricingState({
+      serviceType: input.serviceType,
+      countryCode: input.country,
+      tier: input.serviceTier,
+      budget: input.budget,
+      activeRule: pricingRule,
+    })
+
+    if (pricingRule) {
+      assertPricingRuleMatchesRequest({
+        rule: pricingRule,
+        request: {
+          currency,
+          pricingGuestCount: guestComposition.pricingGuestCount,
+          billableGuestCount: guestComposition.billableGuestCount,
+        },
+      })
+    }
+
+    const title = buildRequestTitle({
+      title: input.title,
+      eventType: input.eventType,
+      serviceType: input.serviceType,
+      guestCount: input.guestCount,
+      actualAttendeeCount: guestComposition.actualAttendeeCount,
+      eventDate: input.eventDate,
+      location: input.location,
+    })
+    const coordinates = input.latitude != null && input.longitude != null
+      ? {
+          latitude: input.latitude,
+          longitude: input.longitude,
+          provider: "client",
+          status: "VERIFIED" as const,
+        }
+      : await geocodeAddress(input.location, input.country)
+
+    return prisma.request.update({
+      where: {
+        id: requestId,
+      },
+      data: {
+        title,
+        eventType: input.eventType,
+        serviceType: input.serviceType,
+        serviceTypeLabel: getServiceTypeLabel(input.serviceType),
+        serviceTypeVersion: SERVICE_TYPE_REGISTRY_VERSION,
+        serviceTier: input.serviceTier,
+        cuisineTypes: JSON.stringify(input.cuisinePreferences),
+        dietaryRequirements: JSON.stringify(input.dietaryRequirements),
+        serviceSpecificAnswers: input.serviceSpecificAnswers ? JSON.stringify(input.serviceSpecificAnswers) : undefined,
+        pricingRuleVersion: pricingRule?.version ?? input.pricingRuleVersion ?? pricingState.pricingStatus,
+        pricingRuleId: dbPricingRule?.id,
+        pricingStatus: pricingState.pricingStatus,
+        budgetStatus: pricingState.budgetStatus,
+        budgetWarning: pricingState.budgetWarning,
+        adultCount: guestComposition.adultCount,
+        childrenUnder10: guestComposition.childrenUnder10,
+        actualAttendeeCount: guestComposition.actualAttendeeCount,
+        billableGuestCount: guestComposition.billableGuestCount,
+        pricingGuestCount: guestComposition.pricingGuestCount,
+        eventDates: input.eventDates?.length ? JSON.stringify(input.eventDates) : undefined,
+        description: input.description,
+        eventDate: new Date(input.eventDate),
+        eventTime: input.eventTime,
+        location: input.location,
+        countryCode: input.country,
+        currency,
+        guestCount: guestComposition.actualAttendeeCount,
+        latitude: coordinates?.latitude,
+        longitude: coordinates?.longitude,
+        locationCity: coordinates?.city,
+        locationRegion: coordinates?.region,
+        formattedAddress: coordinates?.formattedAddress,
+        geocodingProvider: coordinates?.provider,
+        geocodingStatus: coordinates ? "VERIFIED" : "UNAVAILABLE",
+        budget: input.budget,
+        details: input.details,
+      },
+    })
+  },
+
+  async updateRequestNotes(userId: string, requestId: string, input: {
+    details?: string
+  }) {
+    await enforceUserModeration(userId)
+    await enforceClientCompliance(userId)
+
+    const existingRequest = await prisma.request.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        clientId: true,
+        requestMode: true,
+        details: true,
+        proposals: {
+          select: {
+            status: true,
+          },
+        },
+      },
+    })
+
+    if (!existingRequest) {
+      throw new Error("REQUEST_NOT_FOUND")
+    }
+
+    if (existingRequest.clientId !== userId) {
+      throw new Error("FORBIDDEN")
+    }
+
+    if (existingRequest.requestMode !== "STANDARD") {
+      throw new Error("REQUEST_EDIT_NOT_SUPPORTED")
+    }
+
+    if (hasLockedRequestProposalStatus(existingRequest.proposals)) {
+      throw new Error("REQUEST_SUPPORT_ONLY")
+    }
+
+    return prisma.request.update({
+      where: { id: requestId },
+      data: {
+        details: input.details != null ? input.details.trim() || null : existingRequest.details,
+      },
+    })
   },
 
   async createMultiDayRequest(userId: string, input: {
@@ -521,88 +709,77 @@ export const requestService = {
     })
 
     if (created.latitude != null && created.longitude != null) {
-      const matchingChefs = await requestRepository.findApprovedChefsWithCoordinates()
-      const requestedCuisines = [
-        ...new Set(
-          mergedDateRequirements
-            .flatMap((day) => day.cuisinePreferences)
-            .map((value) => value.toLowerCase())
-        ),
-      ]
-      const requestedServiceTypes = [...new Set(mergedDateRequirements.map((day) => day.serviceType))]
-      const eligibleChefs = matchingChefs.filter((chef) => {
-        if (chef.latitude == null || chef.longitude == null || chef.radius <= 0) {
-          return false
-        }
-
-        const distance = calculateDistance(
-          created.latitude as number,
-          created.longitude as number,
-          chef.latitude,
-          chef.longitude
-        )
-
-        if (distance > chef.radius) {
-          return false
-        }
-
-        const chefText = [
-          (chef as any).cuisineType,
-          (chef as any).cuisineTypes,
-          (chef as any).specialties,
-          (chef as any).bio,
-          ...((chef as any).menus ?? []).flatMap((menu: any) => [menu.cuisineType, menu.eventType]),
-          ...((chef as any).experiences ?? []).flatMap((experience: any) => [experience.serviceType, experience.cuisineType, experience.eventType]),
-        ].filter(Boolean).join(" ").toLowerCase()
-
-        const chefExperiences = (chef as any).experiences ?? []
-        const hasStructuredExperienceData = chefExperiences.length > 0
-        if (hasStructuredExperienceData) {
-          const serviceMatch = requestedServiceTypes.every((serviceType) =>
-            chefExperiences.some((experience: any) => experience.serviceType === serviceType) ||
-            chefText.includes(serviceType.toLowerCase().replaceAll("_", " "))
-          )
-          if (!serviceMatch) return false
-        }
-
-        if (requestedCuisines.length > 0 && chefText) {
-          const cuisineMatch = requestedCuisines.some((cuisine) => chefText.includes(cuisine))
-          if (!cuisineMatch) return false
-        }
-
-        return true
-      })
-
-      const conflictCheckedChefs = await filterChefsWithoutAvailabilityConflicts(eligibleChefs, sortedDates)
-
-      await Promise.allSettled(
-        conflictCheckedChefs.map(async (chef) => {
-          await Promise.allSettled([
-            sendPreferenceAwareEmail({
-              userId: chef.userId,
-              topic: "requests",
-              email: chef.user.email,
-              subject: `New Multi-Day Chef Hire Request: ${created.title}`,
-            html: emailTemplates.newMultiDayRequest(
-                chef.user.name ?? "Chef",
-                created.title ?? "Multi-Day Chef Hire",
-                created.location,
-                created.budget,
-                created.currency,
-                {
-                  serviceDates: created.multiDayDates,
-                  budgetMode: created.budgetMode,
-                }
-              ),
-            }),
-            createNotification(
-              chef.userId,
-              "NEW_REQUEST_ALERT",
-              `New Multi-Day Chef Hire request in ${created.location}: ${created.multiDayDates.length} selected service days.`
-            ),
-          ])
+      const requestForAlerts = await withRequestPhotoFallback(
+        () => prisma.request.findUnique({
+          where: { id: created.id },
+          include: {
+            client: {
+              select: {
+                name: true,
+                firstName: true,
+              },
+            },
+            photos: {
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              take: 3,
+              select: {
+                id: true,
+                url: true,
+                originalName: true,
+              },
+            },
+            multiDayDates: {
+              orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+            },
+          },
+        }),
+        () => prisma.request.findUnique({
+          where: { id: created.id },
+          include: {
+            client: {
+              select: {
+                name: true,
+                firstName: true,
+              },
+            },
+            multiDayDates: {
+              orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+            },
+          },
         })
       )
+
+      const matchingChefs = await requestRepository.findApprovedChefsWithCoordinates()
+      const eligibleChefs = await filterEligibleChefsForRequest(
+        {
+          ...created,
+          clientId: userId,
+          requestMode: "MULTI_DAY",
+          serviceType: input.serviceType,
+          cuisineTypes: input.cuisinePreferences,
+          eventDates: sortedDates,
+          multiDayDates: mergedDateRequirements.map((day) => ({
+            date: day.date,
+            serviceType: day.serviceType,
+            cuisineTypes: day.cuisinePreferences,
+            dietaryRequirements: day.dietaryRequirements,
+          })),
+          latitude: created.latitude,
+          longitude: created.longitude,
+          pricingGuestCount: guestComposition.pricingGuestCount,
+          billableGuestCount: guestComposition.billableGuestCount,
+          actualAttendeeCount: guestComposition.actualAttendeeCount,
+          guestCount: guestComposition.actualAttendeeCount,
+        } as any,
+        matchingChefs
+      )
+
+      if (requestForAlerts) {
+        await notifyEligibleChefsAboutRequest({
+          request: requestForAlerts,
+          chefs: eligibleChefs,
+        })
+      }
     }
 
     return created

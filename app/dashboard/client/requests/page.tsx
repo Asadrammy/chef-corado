@@ -2,6 +2,7 @@ import { Metadata } from "next"
 import { generateMeta } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
+import Image from "next/image"
 import Link from "next/link"
 import { format } from "date-fns"
 import {
@@ -18,6 +19,8 @@ import { formatCurrency } from "@/lib/currency"
 import { localDemoClientRequests } from "@/lib/local-demo-data"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { getServiceTypeLabel } from "@/lib/request-options"
+import { getClientRequestStatusLabel } from "@/lib/request-lifecycle"
+import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 
@@ -46,6 +49,11 @@ type RequestRow = {
     endTime: string | null
     serviceType: string | null
     serviceTypeLabel: string | null
+  }>
+  photos?: Array<{
+    id: string
+    url: string
+    originalName: string | null
   }>
 }
 
@@ -83,41 +91,87 @@ export default async function ClientRequestsPage() {
     requests = localDemoClientRequests
   } else {
     try {
-      requests = await prisma.request.findMany({
-        where: { clientId: session.user.id as string },
-        orderBy: { eventDate: "desc" },
-        select: {
-          id: true,
-          title: true,
-          eventType: true,
-          requestMode: true,
-          serviceType: true,
-          serviceTypeLabel: true,
-          cuisineTypes: true,
-          dietaryRequirements: true,
-          eventDate: true,
-          location: true,
-          budget: true,
-          currency: true,
-          guestCount: true,
-          _count: {
-            select: {
-              proposals: true,
+      requests = await withRequestPhotoFallback(
+        () => prisma.request.findMany({
+          where: { clientId: session.user.id as string },
+          orderBy: { eventDate: "desc" },
+          select: {
+            id: true,
+            title: true,
+            eventType: true,
+            requestMode: true,
+            serviceType: true,
+            serviceTypeLabel: true,
+            cuisineTypes: true,
+            dietaryRequirements: true,
+            eventDate: true,
+            location: true,
+            budget: true,
+            currency: true,
+            guestCount: true,
+            _count: {
+              select: {
+                proposals: true,
+              },
+            },
+            multiDayDates: {
+              orderBy: { sortOrder: "asc" },
+              select: {
+                id: true,
+                date: true,
+                startTime: true,
+                endTime: true,
+                serviceType: true,
+                serviceTypeLabel: true,
+              },
+            },
+            photos: {
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              take: 3,
+              select: {
+                id: true,
+                url: true,
+                originalName: true,
+              },
             },
           },
-          multiDayDates: {
-            orderBy: { sortOrder: "asc" },
-            select: {
-              id: true,
-              date: true,
-              startTime: true,
-              endTime: true,
-              serviceType: true,
-              serviceTypeLabel: true,
+        }),
+        () => prisma.request.findMany({
+          where: { clientId: session.user.id as string },
+          orderBy: { eventDate: "desc" },
+          select: {
+            id: true,
+            title: true,
+            eventType: true,
+            requestMode: true,
+            serviceType: true,
+            serviceTypeLabel: true,
+            cuisineTypes: true,
+            dietaryRequirements: true,
+            eventDate: true,
+            location: true,
+            budget: true,
+            currency: true,
+            guestCount: true,
+            _count: {
+              select: {
+                proposals: true,
+              },
+            },
+            multiDayDates: {
+              orderBy: { sortOrder: "asc" },
+              select: {
+                id: true,
+                date: true,
+                startTime: true,
+                endTime: true,
+                serviceType: true,
+                serviceTypeLabel: true,
+              },
             },
           },
-        },
-      })
+        })
+      )
     } catch (error) {
       if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
         requests = localDemoClientRequests
@@ -181,7 +235,7 @@ export default async function ClientRequestsPage() {
                       {getServiceTypeLabel(request.serviceType, request.serviceTypeLabel)}
                     </Badge>
                     <Badge variant="outline" className="rounded-full px-2 py-0.5 text-xs">
-                      {request.status ?? "Pending"}
+                      {getClientRequestStatusLabel(request._count.proposals)}
                     </Badge>
                   </div>
                   <h3 className="font-semibold text-base text-foreground truncate">
@@ -237,6 +291,22 @@ export default async function ClientRequestsPage() {
                     <Badge key={diet} variant="secondary" className="text-xs">
                       {diet}
                     </Badge>
+                  ))}
+                </div>
+              ) : null}
+
+              {request.photos?.length ? (
+                <div className="mt-4 grid grid-cols-3 gap-2">
+                  {request.photos.map((photo) => (
+                    <div key={photo.id} className="relative h-16 overflow-hidden rounded-xl">
+                      <Image
+                        src={photo.url}
+                        alt={photo.originalName ?? "Request photo"}
+                        fill
+                        sizes="120px"
+                        className="object-cover"
+                      />
+                    </div>
                   ))}
                 </div>
               ) : null}

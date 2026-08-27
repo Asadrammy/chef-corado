@@ -32,7 +32,6 @@ interface Experience {
     id: string;
     user: {
       name: string;
-      experienceLevel: string;
     };
     location?: string;
   };

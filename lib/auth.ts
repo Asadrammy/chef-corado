@@ -139,6 +139,10 @@ function getLocalDemoUser(email: string, password: string): AuthUser | null {
   return authUser
 }
 
+function matchesRequestedRole(role: Role, requestedRole?: string | null) {
+  return !requestedRole || requestedRole === role
+}
+
 async function getPersistedLocalDemoUser(email: string, fallbackUser: AuthUser): Promise<AuthUser> {
   const backedEmail = localDemoBackedEmails[email.toLowerCase()]
   if (!backedEmail) {
@@ -240,6 +244,7 @@ export const authOptions: AuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        role: { label: "Role", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -250,9 +255,14 @@ export const authOptions: AuthOptions = {
         console.log("Attempting login for:", credentials.email.toLowerCase())
 
         const normalizedEmail = credentials.email.toLowerCase()
+        const requestedRole = credentials.role
+        const isRequestedRole = requestedRole === Role.CLIENT || requestedRole === Role.CHEF || requestedRole === Role.ADMIN
         const localDemoUser = getLocalDemoUser(normalizedEmail, credentials.password)
 
         if (localDemoUser) {
+          if (!matchesRequestedRole(localDemoUser.role, requestedRole)) {
+            return null
+          }
           const backedLocalDemoUser = await getPersistedLocalDemoUser(normalizedEmail, localDemoUser)
           console.log("Local demo login successful for:", backedLocalDemoUser.email)
           return backedLocalDemoUser
@@ -302,6 +312,11 @@ export const authOptions: AuthOptions = {
         console.log("Password valid:", isValidPassword)
 
         if (!isValidPassword) {
+          return null
+        }
+
+        if (isRequestedRole && user.role !== requestedRole) {
+          console.log("Role mismatch for login attempt:", { email: normalizedEmail, requestedRole, actualRole: user.role })
           return null
         }
 

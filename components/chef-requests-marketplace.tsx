@@ -4,10 +4,10 @@ import * as React from "react"
 import { ArrowUpDown, Calendar, Filter, Search, Sparkles, Users, MapPin, SlidersHorizontal, Wallet } from "lucide-react"
 import Link from "next/link"
 
-import { ChefRequestRow } from "@/components/chef-request-table"
 import { ChefRequestCard } from "@/components/dashboard/chef/chef-request-card"
 import { MatchResult } from "@/lib/services/smart-matching-service"
 import { ChefRequestSortKey, sortChefMarketplaceRequests } from "@/lib/chef-request-marketplace"
+import type { ChefRequestView } from "@/lib/chef-request-view"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,7 +18,7 @@ import { Slider } from "@/components/ui/slider"
 import { formatCurrency } from "@/lib/currency"
 
 export type ChefRequestsMarketplaceProps = {
-  requests: ChefRequestRow[]
+  requests: ChefRequestView[]
   serviceRadiusKm?: number
   baseLocation?: string
   useSmartMatching?: boolean
@@ -88,7 +88,7 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
     }))
   }, [filteredRequests, smartMatches, useSmartMatching])
   const upcomingRequestsCount = requests.filter((request) => new Date(request.eventDate) >= new Date()).length
-  const highestBudgetRequest = requests.reduce<ChefRequestRow | null>((highest, request) => {
+  const highestBudgetRequest = requests.reduce<ChefRequestView | null>((highest, request) => {
     if (!highest || request.budget > highest.budget) {
       return request
     }

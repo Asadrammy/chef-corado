@@ -53,7 +53,7 @@ export function RequestTable({ data }: { data: RequestRow[] }) {
             <TableCell>{format(new Date(request.eventDate), "MMM d, yyyy")}</TableCell>
             <TableCell>{request.location}</TableCell>
             <TableCell>{formatCurrency(request.budget, request.currency)}</TableCell>
-            <TableCell>{request.status ?? "Pending"}</TableCell>
+            <TableCell>{request.status ?? "Live"}</TableCell>
           </TableRow>
         ))}
       </TableBody>

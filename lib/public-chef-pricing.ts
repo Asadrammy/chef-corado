@@ -1,5 +1,6 @@
 import { normalizeCurrency } from "@/lib/currency"
 import { prisma } from "@/lib/prisma"
+import { buildServicePricingRuleSelect, getServicePricingRuleColumnAvailability, isServicePricingSchemaMismatch } from "@/lib/service-pricing-schema"
 
 type MinimumSpendSource = {
   id: string
@@ -17,19 +18,29 @@ type ServicePricingRuleSummary = {
 
 export async function getActivePublicMinimumSpendRules() {
   const now = new Date()
-  const rules = await prisma.servicePricingRule.findMany({
-    where: {
-      status: "ACTIVE",
-      minimumSpend: { not: null },
-      effectiveFrom: { lte: now },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
-    },
-    select: {
-      countryCode: true,
-      currency: true,
-      minimumSpend: true,
-    },
-  })
+  const availability = await getServicePricingRuleColumnAvailability()
+  const select = await buildServicePricingRuleSelect(["countryCode", "currency", "minimumSpend"])
+  if (!select || !availability.status || !availability.minimumSpend || !availability.effectiveFrom || !availability.effectiveTo) {
+    return new Map<string, ServicePricingRuleSummary>()
+  }
+
+  let rules: Array<ServicePricingRuleSummary> = []
+  try {
+    rules = await prisma.servicePricingRule.findMany({
+      where: {
+        status: "ACTIVE",
+        minimumSpend: { not: null },
+        effectiveFrom: { lte: now },
+        OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }],
+      },
+      select,
+    })
+  } catch (error) {
+    if (!isServicePricingSchemaMismatch(error)) {
+      throw error
+    }
+    return new Map<string, ServicePricingRuleSummary>()
+  }
 
   const byMarket = new Map<string, ServicePricingRuleSummary>()
   for (const rule of rules) {

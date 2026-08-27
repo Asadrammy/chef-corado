@@ -47,6 +47,12 @@ services:
         sync: false
       - key: REDIS_URL
         sync: false
+      - key: GOOGLE_GEOCODING_API_KEY
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
       - key: NODE_ENV
         value: production
       - key: PRISMA_ENGINE_BINARY

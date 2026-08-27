@@ -71,6 +71,15 @@ describe("role-aware auth navigation", () => {
     expect(loginFormSource).not.toContain("/register?role=ADMIN")
   })
 
+  it("pins explicit login roles through the sign-in submit and redirect path", () => {
+    expect(loginFormSource).toContain("const explicitRole = isKnownRole(requestedRole) ? requestedRole : null")
+    expect(loginFormSource).toContain("role: explicitRole ?? \"\"")
+    expect(loginFormSource).toContain("const resolvedRole = explicitRole ?? (isKnownRole(session?.user?.role) ? session.user.role : null)")
+    expect(loginFormSource).toContain("Opening chef dashboard...")
+    expect(loginFormSource).toContain("Opening client dashboard...")
+    expect(loginFormSource).toContain("Opening admin dashboard...")
+  })
+
   it("keeps proxy cross-dashboard blocking in place", () => {
     expect(proxySource).toContain("pathname.startsWith('/dashboard/admin') && role !== 'ADMIN'")
     expect(proxySource).toContain("pathname.startsWith('/dashboard/chef') && role !== 'CHEF'")

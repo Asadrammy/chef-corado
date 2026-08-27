@@ -93,6 +93,11 @@ export default async function proxy(request: NextRequest) {
       return NextResponse.redirect(redirectUrl)
     }
 
+    const requestedRole = request.nextUrl.searchParams.get('role')
+    if (requestedRole === 'CLIENT' || requestedRole === 'CHEF' || requestedRole === 'ADMIN') {
+      return NextResponse.next()
+    }
+
     const role = token.role as string
     const dashboardPath = {
       CLIENT: '/dashboard/client',

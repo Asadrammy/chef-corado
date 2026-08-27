@@ -21,7 +21,6 @@ type SearchChef = {
   location?: string | null;
   radius?: number | null;
   profileImage?: string | null;
-  chefType?: string | null;
   cuisineType?: string | null;
   displayName?: string;
   experience?: number | null;
@@ -34,7 +33,6 @@ type SearchChef = {
   user: {
     id: string;
     name: string;
-    experienceLevel?: string | null;
   };
   menus?: Array<{
     title?: string | null;

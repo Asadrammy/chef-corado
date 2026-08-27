@@ -31,7 +31,6 @@ interface Experience {
     user: {
       name: string;
       verified: boolean;
-      experienceLevel: string;
     };
     location: string;
   };
@@ -208,7 +207,6 @@ export function InstantBookingDialog({
                     <Badge className="bg-green-500 text-white text-xs">Verified</Badge>
                   )}
                 </div>
-                <Badge variant="outline">{experience.chef.user.experienceLevel}</Badge>
               </div>
             </CardContent>
           </Card>

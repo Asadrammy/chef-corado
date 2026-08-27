@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { isPrismaConnectionError, prisma } from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth';
+import { buildNotificationVisibilityWhere } from '@/lib/notification-schema';
 
 const POLL_INTERVAL = 1500;
 const KEEP_ALIVE_INTERVAL = 20000;
@@ -44,19 +45,24 @@ export async function GET(request: NextRequest) {
           let unreadCount = 0;
 
           try {
+            const visibilityWhere = await buildNotificationVisibilityWhere(userId)
             newNotifications = await (prisma as any).notification.findMany({
               where: {
-                userId,
+                ...visibilityWhere,
                 createdAt: { gt: since },
+              },
+              select: {
+                id: true,
+                type: true,
+                message: true,
+                isRead: true,
+                createdAt: true,
               },
               orderBy: { createdAt: 'asc' },
             });
 
             unreadCount = await (prisma as any).notification.count({
-              where: {
-                userId,
-                isRead: false,
-              },
+              where: await buildNotificationVisibilityWhere(userId, true),
             });
           } catch (error) {
             if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {

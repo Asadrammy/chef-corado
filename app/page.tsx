@@ -26,7 +26,6 @@ type ChefApiRecord = {
   location?: string | null;
   radius?: number | null;
   profileImage?: string | null;
-  chefType?: string | null;
   cuisineType?: string | null;
   experience?: number | null;
   isApproved?: boolean;
@@ -34,7 +33,6 @@ type ChefApiRecord = {
     id: string;
     name: string;
     verified?: boolean;
-    experienceLevel?: string | null;
   };
 };
 
@@ -113,7 +111,7 @@ function HomepageFeaturedChefCard({ chef }: { chef: PublicChefCardData }) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
         <div className="absolute inset-x-0 bottom-0 p-5 text-white">
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-white/72">
-            {chef.cuisineType || chef.chefType || "Private dining"}
+            {chef.cuisineType || "Private dining"}
           </p>
           <h3 className="mt-2 text-2xl font-semibold tracking-tight">{chef.user.name}</h3>
         </div>

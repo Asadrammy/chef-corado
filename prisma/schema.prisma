@@ -13,6 +13,10 @@ model User {
   name                        String
   firstName                   String?
   surname                     String?
+  username                    String?                 @unique
+  bio                         String?
+  website                     String?
+  socialProfile               String?
   image                       String?
   imageData                   String?
   email                       String                  @unique
@@ -45,6 +49,7 @@ model User {
   notifications               Notification[]
   notificationPreference      NotificationPreference?
   requests                    Request[]               @relation("ClientRequests")
+  requestPhotos               RequestPhoto[]          @relation("RequestPhotoUploader")
   fullTimeChefEnquiries       FullTimeChefEnquiry[]
   reviews                     Review[]                @relation("ClientReviews")
   accounts                    Account[]
@@ -294,12 +299,31 @@ model Request {
   client                 User                  @relation("ClientRequests", fields: [clientId], references: [id])
   invitations            RequestInvitation[]
   multiDayDates          MultiDayRequestDate[]
+  photos                 RequestPhoto[]
 
   @@index([serviceType])
   @@index([requestMode])
   @@index([pricingRuleId])
   @@index([pricingStatus])
   @@index([budgetStatus])
+}
+
+model RequestPhoto {
+  id           String   @id @default(cuid())
+  requestId    String
+  uploaderId   String
+  url          String
+  publicId     String?
+  originalName String?
+  contentType  String?
+  sizeBytes    Int?
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  request      Request  @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  uploader     User     @relation("RequestPhotoUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, sortOrder])
+  @@index([uploaderId])
 }
 
 model ServicePricingRule {
@@ -999,13 +1023,22 @@ model Review {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  type      String
-  message   String
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  id             String    @id @default(cuid())
+  userId         String
+  type           String
+  message        String
+  isRead         Boolean   @default(false)
+  deliveryOnly   Boolean   @default(false)
+  deliveryStatus String    @default("PENDING")
+  deliverySentAt DateTime?
+  deliveryError  String?
+  dedupeKey      String?   @unique
+  requestId      String?
+  createdAt      DateTime  @default(now())
+  user           User      @relation(fields: [userId], references: [id])
+
+  @@index([requestId])
+  @@index([deliveryOnly])
 }
 
 model NotificationPreference {
@@ -1190,6 +1223,7 @@ model Ledger {
   payout          Payout?  @relation(fields: [payoutId], references: [id])
   refund          Refund?  @relation(fields: [refundId], references: [id])
 
+  @@unique([transactionType, payoutId])
   @@index([transactionType])
   @@index([createdAt])
   @@index([bookingId])

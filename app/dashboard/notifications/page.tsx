@@ -1,5 +1,4 @@
 import { Metadata } from "next"
-import type { Notification } from "@prisma/client"
 import { cookies } from "next/headers"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
@@ -9,6 +8,7 @@ import { Bell, Check, Trash2, Filter } from "lucide-react"
 import { authOptions } from "@/lib/auth"
 import { generateMeta } from "@/lib/utils"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
+import { buildNotificationVisibilityWhere } from "@/lib/notification-schema"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -26,11 +26,24 @@ export default async function NotificationsPage() {
 
   cookies()
 
-  let notifications: Notification[]
+  let notifications: Array<{
+    id: string
+    type: string
+    message: string
+    isRead: boolean
+    createdAt: Date
+  }> = []
 
   try {
     notifications = await prisma.notification.findMany({
-      where: { userId: session.user.id },
+      where: await buildNotificationVisibilityWhere(session.user.id),
+      select: {
+        id: true,
+        type: true,
+        message: true,
+        isRead: true,
+        createdAt: true,
+      },
       orderBy: { createdAt: "desc" },
       take: 50,
     })

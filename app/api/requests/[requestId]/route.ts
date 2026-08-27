@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from "next/server"
+import { z } from "zod"
 import { getServerSession } from "next-auth"
 
 import { authOptions } from "@/lib/auth"
+import { getChefRequestDistanceKm } from "@/lib/chef-request-matching"
 import { prisma } from "@/lib/prisma"
+import { requestService } from "@/lib/services/request-service"
+import { requestSchema } from "@/lib/validation-schemas"
 import { Role } from "@/types"
+import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
+
+const requestNotesUpdateSchema = z.object({
+  mode: z.literal("notes"),
+  details: z.string().max(5000).optional(),
+}).strict()
 
 export async function GET(
   request: NextRequest,
@@ -19,40 +29,79 @@ export async function GET(
     const userId = session.user.id
     const role = session.user.role
 
-    // Fetch the request
-    const request = await prisma.request.findUnique({
-      where: { id: requestId },
-      include: {
-        client: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
+    const requestRecord = await withRequestPhotoFallback(
+      () => prisma.request.findUnique({
+        where: { id: requestId },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
           },
-        },
-        proposals: role === Role.CHEF ? {
-          where: { chefId: userId },
-          include: {
-            chef: {
-              select: {
-                id: true,
-                user: {
-                  select: {
-                    name: true,
+          proposals: role === Role.CHEF ? {
+            where: { chefId: userId },
+            include: {
+              chef: {
+                select: {
+                  id: true,
+                  user: {
+                    select: {
+                      name: true,
+                    },
                   },
                 },
               },
             },
+          } : false,
+          photos: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            select: {
+              id: true,
+              url: true,
+              originalName: true,
+              contentType: true,
+              sizeBytes: true,
+              sortOrder: true,
+              createdAt: true,
+            },
           },
-        } : false,
-      },
-    })
+        },
+      }),
+      () => prisma.request.findUnique({
+        where: { id: requestId },
+        include: {
+          client: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          proposals: role === Role.CHEF ? {
+            where: { chefId: userId },
+            include: {
+              chef: {
+                select: {
+                  id: true,
+                  user: {
+                    select: {
+                      name: true,
+                    },
+                  },
+                },
+              },
+            },
+          } : false,
+        },
+      })
+    )
 
-    if (!request) {
+    if (!requestRecord) {
       return NextResponse.json({ error: "Request not found" }, { status: 404 })
     }
 
-    // For chefs, check if the request is within their service radius
     if (role === Role.CHEF) {
       const chefProfile = await prisma.chefProfile.findUnique({
         where: { userId },
@@ -62,26 +111,93 @@ export async function GET(
         return NextResponse.json({ error: "Chef profile not found" }, { status: 404 })
       }
 
-      // If request has coordinates and chef has location, check distance
-      if (request.latitude && request.longitude && chefProfile.latitude && chefProfile.longitude) {
-        const distance = Math.sqrt(
-          Math.pow(request.latitude - chefProfile.latitude, 2) + 
-          Math.pow(request.longitude - chefProfile.longitude, 2)
-        )
-        
-        // Convert to approximate miles (1 degree ≈ 69 miles)
-        const distanceInMiles = distance * 69
-        
-        if (distanceInMiles > chefProfile.radius) {
-          return NextResponse.json({ error: "Request not available in your area" }, { status: 403 })
-        }
+      if (
+        chefProfile.radius <= 0 ||
+        requestRecord.latitude == null ||
+        requestRecord.longitude == null ||
+        chefProfile.latitude == null ||
+        chefProfile.longitude == null
+      ) {
+        return NextResponse.json({ error: "Request not available in your area" }, { status: 403 })
+      }
+
+      const distanceKm = getChefRequestDistanceKm(
+        requestRecord.latitude,
+        requestRecord.longitude,
+        chefProfile.latitude,
+        chefProfile.longitude
+      )
+
+      if (distanceKm > chefProfile.radius) {
+        return NextResponse.json({ error: "Request not available in your area" }, { status: 403 })
       }
     }
 
-    return NextResponse.json({ request })
-
+    return NextResponse.json({ request: requestRecord })
   } catch (error) {
     console.error("Request detail API error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ requestId: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id || session.user.role !== Role.CLIENT) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { requestId } = await params
+    const rawBody = await request.json()
+
+    if (rawBody?.mode === "notes") {
+      const body = requestNotesUpdateSchema.parse(rawBody)
+      const updated = await requestService.updateRequestNotes(session.user.id, requestId, {
+        details: body.details,
+      })
+      return NextResponse.json({ request: updated })
+    }
+
+    const body = requestSchema.parse(rawBody)
+    const updated = await requestService.updateRequest(session.user.id, requestId, body)
+    return NextResponse.json({ request: updated })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 422 })
+    }
+    if (error instanceof Error) {
+      if (error.message === "REQUEST_NOT_FOUND") {
+        return NextResponse.json({ error: "Request not found" }, { status: 404 })
+      }
+      if (error.message === "FORBIDDEN") {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+      if (error.message === "REQUEST_EDIT_NOT_SUPPORTED" || error.message === "REQUEST_HAS_PROPOSALS") {
+        return NextResponse.json({ error: "This request can no longer be edited." }, { status: 409 })
+      }
+      if (error.message === "REQUEST_SUPPORT_ONLY") {
+        return NextResponse.json({ error: "This request can now only be updated through support." }, { status: 409 })
+      }
+      if (error.message.startsWith("MARKET_BOOKING_INACTIVE:")) {
+        return NextResponse.json({ error: "ChefaChef is preparing to launch bookings in this market. Online booking is not yet available." }, { status: 403 })
+      }
+      if (error.message === "INVALID_SERVICE_TYPE" || error.message === "SERVICE_COUNTRY_NOT_SUPPORTED") {
+        return NextResponse.json({ error: "Selected service is not supported for this country." }, { status: 422 })
+      }
+      if (error.message.startsWith("SERVICE_REQUIRED_QUESTIONS_MISSING:")) {
+        return NextResponse.json({ error: "Please complete the required questions for the selected service." }, { status: 422 })
+      }
+      if (error.message.startsWith("PRICING_GUEST_COUNT_BELOW_MIN:")) {
+        return NextResponse.json({ error: `Guest count is below the active pricing minimum (${error.message.split(":")[1]}).` }, { status: 422 })
+      }
+      if (error.message.startsWith("PRICING_GUEST_COUNT_ABOVE_MAX:")) {
+        return NextResponse.json({ error: `Guest count exceeds the active pricing maximum (${error.message.split(":")[1]}).` }, { status: 422 })
+      }
+    }
+
+    return NextResponse.json({ error: "Failed to update request" }, { status: 500 })
   }
 }

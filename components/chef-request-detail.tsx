@@ -1,27 +1,48 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { CalendarDays, MapPin, Wallet, Users, Clock, ArrowLeft } from "lucide-react"
+import { CalendarDays, MapPin, Wallet, Users, ArrowLeft } from "lucide-react"
 import Link from "next/link"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { formatCurrency } from "@/lib/currency"
 import { getServiceTypeLabel } from "@/lib/request-options"
+import { PROPOSAL_MESSAGE_MAX_LENGTH, PROPOSAL_MESSAGE_MIN_LENGTH } from "@/lib/proposal-message"
+import type { ChefRequestView } from "@/lib/chef-request-view"
 
 type ProposalErrorPayload = {
   error?: string
 }
 
 interface ChefRequestDetailProps {
-  request: any
-  session: any
+  request: ChefRequestView & {
+    status?: string
+    totalProposalCount?: number
+    proposals?: Array<{
+      id: string
+      price: number
+      message?: string | null
+      status: string
+      createdAt: string
+      lineItems?: Array<{
+        id: string
+        serviceDate?: string | null
+        title: string
+        description?: string | null
+        price: number
+        currency?: string | null
+      }>
+    }>
+  }
+  session?: any
 }
 
-export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) {
+export function ChefRequestDetail({ request }: ChefRequestDetailProps) {
   const [proposalPrice, setProposalPrice] = useState("")
   const [proposalMessage, setProposalMessage] = useState("")
   const [lineItemPrices, setLineItemPrices] = useState<Record<string, string>>(
@@ -29,13 +50,15 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
   )
   const [lineItemNotes, setLineItemNotes] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const trimmedProposalMessageLength = proposalMessage.trim().length
   const isMultiDay = request.requestMode === "MULTI_DAY" && request.multiDayDates?.length > 0
   const lineItemTotal = isMultiDay
     ? request.multiDayDates.reduce((sum: number, date: any) => sum + Number(lineItemPrices[date.id] || 0), 0)
     : Number(proposalPrice || 0)
+  const clientGreetingName = request.clientGreetingName || request.clientName || "Client"
 
   const handleSubmitProposal = async () => {
-    if ((!isMultiDay && !proposalPrice) || !proposalMessage) {
+    if ((!isMultiDay && !proposalPrice) || trimmedProposalMessageLength < PROPOSAL_MESSAGE_MIN_LENGTH) {
       alert("Please fill in all fields")
       return
     }
@@ -87,9 +110,13 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
     day: "numeric",
   })
 
-  const hasProposal = request.proposals && request.proposals.length > 0
+  const proposals = request.proposals ?? []
+  const hasProposal = proposals.length > 0
   const quoteLimitReached = (request.totalProposalCount ?? 0) >= 10
   const serviceTypeLabel = getServiceTypeLabel(request.serviceType, request.serviceTypeLabel)
+  const cuisineLabels = request.cuisinePreferences ?? []
+  const dietaryLabels = request.dietaryRequirements ?? []
+  const answerSummary = request.serviceSpecificAnswerSummary ?? []
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -109,7 +136,7 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
           <div className="flex items-start justify-between">
             <div>
               <CardTitle className="text-2xl mb-2">{request.title}</CardTitle>
-              <p className="text-gray-600">{request.description}</p>
+              <p className="text-gray-600">{request.description || request.details}</p>
             </div>
             <Badge variant="outline" className="text-sm">
               {request.status}
@@ -155,7 +182,7 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
               </div>
               <div>
                 <p className="text-sm text-gray-500">Guests</p>
-                <p className="font-medium">{request.guestCount ?? "TBD"}</p>
+                <p className="font-medium">{request.actualAttendeeCount ?? request.guestCount ?? "TBD"}</p>
               </div>
             </div>
           </div>
@@ -180,6 +207,60 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
               <p className="text-gray-600">{request.details}</p>
             </div>
           )}
+
+          {request.photos?.length ? (
+            <div className="border-t pt-6">
+              <h3 className="font-semibold mb-3">Request Photos</h3>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {request.photos.map((photo: any) => (
+                  <div key={photo.id} className="relative h-36 overflow-hidden rounded-xl">
+                    <Image
+                      src={photo.url}
+                      alt={photo.originalName ?? "Request photo"}
+                      fill
+                      sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                      className="object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="border-t pt-6 space-y-4">
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Client</p>
+                <p className="mt-1 font-semibold">{clientGreetingName}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Service</p>
+                <p className="mt-1 font-semibold">{serviceTypeLabel}</p>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Cuisine</p>
+                <p className="mt-1">{cuisineLabels.length ? cuisineLabels.join(", ") : "Not specified"}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Dietary</p>
+                <p className="mt-1">{dietaryLabels.length ? dietaryLabels.join(", ") : "None selected"}</p>
+              </div>
+            </div>
+
+            {answerSummary.length ? (
+              <div className="rounded-xl border border-border bg-muted/20 p-4 text-sm">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Request Requirements</p>
+                <div className="mt-2 space-y-1 text-muted-foreground">
+                  {answerSummary.map((item) => (
+                    <p key={item}>{item}</p>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
 
           {isMultiDay ? (
             <div className="border-t pt-6">
@@ -209,12 +290,12 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
                 <span className="text-lg font-medium text-gray-600">
-                  {request.client.name.charAt(0).toUpperCase()}
+                  {clientGreetingName.charAt(0).toUpperCase()}
                 </span>
               </div>
               <div>
-                <p className="font-medium">{request.client.name}</p>
-                <p className="text-sm text-gray-500">{request.client.email}</p>
+                <p className="font-medium">{clientGreetingName}</p>
+                <p className="text-sm text-gray-500">Safe greeting name for proposal personalization</p>
               </div>
             </div>
           </div>
@@ -287,12 +368,17 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
                 placeholder="Describe your proposal, what you'll provide, and why you're the perfect choice..."
                 value={proposalMessage}
                 onChange={(e) => setProposalMessage(e.target.value)}
-                rows={4}
+                rows={7}
+                className="resize-y"
+                maxLength={PROPOSAL_MESSAGE_MAX_LENGTH}
               />
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {trimmedProposalMessageLength}/{PROPOSAL_MESSAGE_MIN_LENGTH} characters minimum {trimmedProposalMessageLength > PROPOSAL_MESSAGE_MAX_LENGTH - 1000 ? `(max ${PROPOSAL_MESSAGE_MAX_LENGTH})` : ""}
             </div>
             <Button 
               onClick={handleSubmitProposal}
-              disabled={isSubmitting || quoteLimitReached}
+              disabled={isSubmitting || quoteLimitReached || trimmedProposalMessageLength < PROPOSAL_MESSAGE_MIN_LENGTH}
               className="w-full md:w-auto"
             >
               {isSubmitting ? "Sending..." : "Send Proposal"}
@@ -307,31 +393,31 @@ export function ChefRequestDetail({ request, session }: ChefRequestDetailProps) 
           <CardHeader>
             <CardTitle>Your Proposal</CardTitle>
             <Badge className="bg-green-100 text-green-800">
-              {request.proposals[0].status}
+              {proposals[0].status}
             </Badge>
           </CardHeader>
-          <CardContent className="space-y-4">
+        <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-gray-500">Price</p>
-                <p className="font-medium text-lg">{formatCurrency(request.proposals[0].price, request.currency ?? "GBP")}</p>
+                <p className="font-medium text-lg">{formatCurrency(proposals[0].price, request.currency ?? "GBP")}</p>
               </div>
               <div>
                 <p className="text-sm text-gray-500">Status</p>
-                <p className="font-medium">{request.proposals[0].status}</p>
+                <p className="font-medium">{proposals[0].status}</p>
               </div>
             </div>
-            {request.proposals[0].message && (
+            {proposals[0].message && (
               <div>
                 <p className="text-sm text-gray-500 mb-2">Message</p>
-                <p className="text-gray-700">{request.proposals[0].message}</p>
+                <p className="text-gray-700">{proposals[0].message}</p>
               </div>
             )}
-            {request.proposals[0].lineItems?.length ? (
+            {proposals[0].lineItems?.length ? (
               <div>
                 <p className="text-sm text-gray-500 mb-2">Daily breakdown</p>
                 <div className="space-y-2">
-                  {request.proposals[0].lineItems.map((item: any) => (
+                  {proposals[0].lineItems.map((item: any) => (
                     <div key={item.id} className="flex items-start justify-between gap-3 rounded-xl border border-border p-3 text-sm">
                       <div>
                         <p className="font-medium">{item.title}</p>

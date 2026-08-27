@@ -7,7 +7,6 @@ import { toast } from "sonner"
 import {
   Camera,
   Loader2,
-  Plus,
   Trash2,
   Key,
   ExternalLink,
@@ -46,6 +45,11 @@ const tabs = [
 type InitialProfile = {
   name: string
   email: string
+  username: string | null
+  bio: string | null
+  phone: string | null
+  website: string | null
+  socialProfile: string | null
   image: string | null
   profileCompletion: number
 } | null
@@ -53,10 +57,19 @@ type InitialProfile = {
 export function SettingsDashboard({ initialProfile = null }: { initialProfile?: InitialProfile }) {
   const { data: session, update } = useSession()
   const [activeSection, setActiveSection] = React.useState<SettingsSection>("profile")
+  const [profileDetails, setProfileDetails] = React.useState({
+    name: initialProfile?.name ?? session?.user?.name ?? "",
+    email: initialProfile?.email ?? session?.user?.email ?? "",
+    username: initialProfile?.username ?? "",
+    bio: initialProfile?.bio ?? "",
+    phone: initialProfile?.phone ?? "",
+    website: initialProfile?.website ?? "",
+    socialProfile: initialProfile?.socialProfile ?? "",
+  })
   const [profileImage, setProfileImage] = React.useState<string | null>(initialProfile?.image ?? session?.user?.image ?? null)
   const [profileCompletion, setProfileCompletion] = React.useState(initialProfile?.profileCompletion ?? 0)
-  const displayName = initialProfile?.name || session?.user?.name || "ChefaChef member"
-  const displayEmail = initialProfile?.email || session?.user?.email || "Email unavailable"
+  const displayName = profileDetails.name || "ChefaChef member"
+  const displayEmail = profileDetails.email || "Email unavailable"
   const initials = displayName
     .split(" ")
     .map((part) => part[0])
@@ -68,6 +81,18 @@ export function SettingsDashboard({ initialProfile = null }: { initialProfile?: 
   React.useEffect(() => {
     setProfileImage(initialProfile?.image ?? session?.user?.image ?? null)
   }, [initialProfile?.image, session?.user?.image])
+
+  React.useEffect(() => {
+    setProfileDetails({
+      name: initialProfile?.name ?? session?.user?.name ?? "",
+      email: initialProfile?.email ?? session?.user?.email ?? "",
+      username: initialProfile?.username ?? "",
+      bio: initialProfile?.bio ?? "",
+      phone: initialProfile?.phone ?? "",
+      website: initialProfile?.website ?? "",
+      socialProfile: initialProfile?.socialProfile ?? "",
+    })
+  }, [initialProfile, session?.user?.email, session?.user?.name])
 
   const handleProfileImageUpdated = React.useCallback(
     async (image: string, nextProfileCompletion?: number) => {
@@ -127,9 +152,21 @@ export function SettingsDashboard({ initialProfile = null }: { initialProfile?: 
             <div className="lg:col-span-8 xl:col-span-8">
               <TabsContent value="profile" className="mt-0">
                 <ProfileSection
-                  displayName={displayName}
+                  profileDetails={profileDetails}
                   initials={initials}
                   profileImage={profileImage}
+                  onProfileSaved={async (nextProfile) => {
+                    setProfileDetails({
+                      name: nextProfile.name ?? "",
+                      email: nextProfile.email ?? profileDetails.email,
+                      username: nextProfile.username ?? "",
+                      bio: nextProfile.bio ?? "",
+                      phone: nextProfile.phone ?? "",
+                      website: nextProfile.website ?? "",
+                      socialProfile: nextProfile.socialProfile ?? "",
+                    })
+                    await update({ user: { name: nextProfile.name } })
+                  }}
                   onProfileImageUpdated={handleProfileImageUpdated}
                 />
               </TabsContent>
@@ -196,19 +233,74 @@ function ProfileOverviewCard({
 }
 
 function ProfileSection({
-  displayName,
+  profileDetails,
   initials,
   profileImage,
+  onProfileSaved,
   onProfileImageUpdated,
 }: {
-  displayName: string
+  profileDetails: {
+    name: string
+    email: string
+    username: string
+    bio: string
+    phone: string
+    website: string
+    socialProfile: string
+  }
   initials: string
   profileImage?: string | null
+  onProfileSaved: (profile: any) => Promise<void>
   onProfileImageUpdated: (image: string, profileCompletion?: number) => Promise<void>
 }) {
   const fileInputRef = React.useRef<HTMLInputElement>(null)
+  const [formData, setFormData] = React.useState(profileDetails)
+  const [savingProfile, setSavingProfile] = React.useState(false)
+  const [profileError, setProfileError] = React.useState("")
   const [uploadingPhoto, setUploadingPhoto] = React.useState(false)
   const [photoError, setPhotoError] = React.useState("")
+
+  React.useEffect(() => {
+    setFormData(profileDetails)
+  }, [profileDetails])
+
+  const updateField = (field: keyof typeof formData, value: string) => {
+    setFormData((current) => ({ ...current, [field]: value }))
+  }
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true)
+    setProfileError("")
+
+    try {
+      const response = await fetch("/api/user/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          username: formData.username || null,
+          bio: formData.bio || null,
+          phone: formData.phone || null,
+          website: formData.website || null,
+          socialProfile: formData.socialProfile || null,
+        }),
+      })
+      const result = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        throw new Error(result?.error || "Unable to save profile. Please try again.")
+      }
+
+      await onProfileSaved(result.user)
+      toast.success("Profile saved")
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to save profile. Please try again."
+      setProfileError(message)
+      toast.error(message)
+    } finally {
+      setSavingProfile(false)
+    }
+  }
 
   const handleEditPhotoClick = () => {
     if (uploadingPhoto) return
@@ -284,7 +376,7 @@ function ProfileSection({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-4">
               <Avatar className="h-14 w-14 border border-border/60">
-                <AvatarImage src={profileImage ?? undefined} alt={`${displayName} profile photo`} />
+                <AvatarImage src={profileImage ?? undefined} alt={`${formData.name || "ChefaChef member"} profile photo`} />
                 <AvatarFallback className="bg-muted text-sm font-medium text-foreground">{initials}</AvatarFallback>
               </Avatar>
               <div className="space-y-1">
@@ -311,7 +403,7 @@ function ProfileSection({
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name</Label>
-                <Input id="fullName" placeholder="Your display name" className="h-11 rounded-lg" />
+                <Input id="fullName" value={formData.name} onChange={(event) => updateField("name", event.target.value)} placeholder="Your display name" className="h-11 rounded-lg" />
                 <p className="text-xs text-muted-foreground">This is your public display name.</p>
               </div>
             </div>
@@ -319,14 +411,14 @@ function ProfileSection({
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
-                <Input id="username" placeholder="your-chefachef-name" className="h-11 rounded-lg" />
+                <Input id="username" value={formData.username} onChange={(event) => updateField("username", event.target.value)} placeholder="your-chefachef-name" className="h-11 rounded-lg" />
                 <p className="text-xs text-muted-foreground">Unique identifier for your profile.</p>
               </div>
             </div>
 
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="bio">Bio</Label>
-              <Textarea id="bio" placeholder="Tell us about yourself..." className="min-h-32 rounded-lg" rows={5} />
+              <Textarea id="bio" value={formData.bio} onChange={(event) => updateField("bio", event.target.value)} placeholder="Tell us about yourself..." className="min-h-32 rounded-lg" rows={5} />
               <p className="text-xs text-muted-foreground">Brief description for your profile. Maximum 200 characters.</p>
             </div>
           </div>
@@ -349,6 +441,8 @@ function ProfileSection({
               <Input
                 id="email"
                 type="email"
+                value={formData.email}
+                disabled
                 placeholder="your.email@example.com"
                 className="h-11 rounded-lg"
               />
@@ -359,6 +453,8 @@ function ProfileSection({
               <Label htmlFor="phone">Phone Number</Label>
               <Input
                 id="phone"
+                value={formData.phone}
+                onChange={(event) => updateField("phone", event.target.value)}
                 placeholder="+44 07942 641878"
                 className="h-11 rounded-lg"
               />
@@ -381,20 +477,21 @@ function ProfileSection({
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="website">Website</Label>
-              <Input id="website" placeholder="https://your-site.example" className="h-11 rounded-lg" />
+              <Input id="website" value={formData.website} onChange={(event) => updateField("website", event.target.value)} placeholder="https://your-site.example" className="h-11 rounded-lg" />
               <p className="text-xs text-muted-foreground">Personal site or portfolio.</p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="socialProfile">Social profile</Label>
-              <Input id="socialProfile" placeholder="Approved public profile URL" className="h-11 rounded-lg" />
+              <Input id="socialProfile" value={formData.socialProfile} onChange={(event) => updateField("socialProfile", event.target.value)} placeholder="Approved public profile URL" className="h-11 rounded-lg" />
               <p className="text-xs text-muted-foreground">Optional social link.</p>
             </div>
           </div>
 
-          <Button variant="outline" className="h-10 w-fit rounded-lg px-4">
-            <Plus className="h-4 w-4" />
-            Add new URL
+          {profileError ? <p className="text-sm text-destructive" role="alert">{profileError}</p> : null}
+          <Button type="button" onClick={handleSaveProfile} disabled={savingProfile} className="h-10 w-fit rounded-lg px-4">
+            {savingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {savingProfile ? "Saving..." : "Save profile"}
           </Button>
         </CardContent>
       </Card>

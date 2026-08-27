@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { calculateDistance } from "@/lib/geo"
 import { subDays } from "date-fns"
+import { getSafeClientGreetingName } from "@/lib/chef-request-view"
 
 export type ChefDashboardRequestItem = {
   id: string
@@ -500,7 +501,7 @@ export async function getChefDashboardData(userId: string): Promise<ChefDashboar
       title: request.title ?? "Untitled request",
       budget: request.budget,
       currency: request.currency,
-      clientName: request.client?.name,
+      clientName: getSafeClientGreetingName(request.client),
       location: request.location,
       createdAt: request.createdAt.toISOString(),
       eventDate: request.eventDate.toISOString(),

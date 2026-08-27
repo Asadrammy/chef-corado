@@ -13,6 +13,8 @@ import { enforceChefCompliance } from "@/lib/security/legal-compliance"
 import { validateMessageContent } from "@/lib/security/communication-policy"
 import { assertRequestCanReceiveQuote } from "@/lib/services/quote-limit-service"
 import { marketConfigurationService } from "@/lib/services/market-configuration-service"
+import { assertProposalMessageLength } from "@/lib/proposal-message"
+import { getSafeClientGreetingName } from "@/lib/chef-request-view"
 
 // Proposal state machine constants
 const PROPOSAL_STATUS = {
@@ -60,6 +62,7 @@ export const proposalService = {
     await enforceChefCompliance(userId)
 
     // Enforce communication policy in proposal message
+    assertProposalMessageLength(input.message)
     validateMessageContent(input.message)
 
     // Enforce unified quote limit (10 quotes per request)
@@ -259,7 +262,7 @@ export const proposalService = {
       throw new Error("PROPOSAL_ALREADY_RESOLVED")
     }
 
-    const clientName = existing.request.client?.name ?? "Client"
+    const clientName = getSafeClientGreetingName(existing.request.client)
 
     if (status === "ACCEPTED") {
       // ATOMIC: Accept proposal and reject all other proposals for this request

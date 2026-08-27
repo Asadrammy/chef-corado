@@ -2,11 +2,13 @@ import { Metadata } from "next"
 import { generateMeta } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { redirect, notFound } from "next/navigation"
+import Image from "next/image"
 import Link from "next/link"
 import { format } from "date-fns"
 import {
   ArrowLeft,
   Calendar,
+  Pencil,
   MapPin,
   Users,
   ChefHat,
@@ -20,6 +22,8 @@ import { formatCurrency } from "@/lib/currency"
 import { localDemoClientRequestDetail } from "@/lib/local-demo-data"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { getServiceTypeLabel } from "@/lib/request-options"
+import { canEditRequestFully, canEditRequestNotes, getClientRequestStatusLabel } from "@/lib/request-lifecycle"
+import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -48,36 +52,77 @@ export default async function RequestDetailsPage({
     request = localDemoClientRequestDetail(requestId)
   } else {
     try {
-      request = await prisma.request.findUnique({
-        where: {
-          id: requestId,
-          clientId: userId,
-        },
-        include: {
-          _count: {
-            select: {
-              proposals: true,
-            },
+      request = await withRequestPhotoFallback(
+        () => prisma.request.findFirst({
+          where: {
+            id: requestId,
+            clientId: userId,
           },
-          proposals: {
-            include: {
-              lineItems: { orderBy: { sortOrder: "asc" } },
-              chef: {
-                include: {
-                  user: {
-                    select: {
-                      name: true,
-                      email: true,
+          include: {
+            _count: {
+              select: {
+                proposals: true,
+              },
+            },
+            proposals: {
+              include: {
+                lineItems: { orderBy: { sortOrder: "asc" } },
+                chef: {
+                  include: {
+                    user: {
+                      select: {
+                        name: true,
+                        email: true,
+                      },
                     },
                   },
                 },
               },
+              orderBy: { createdAt: "desc" },
             },
-            orderBy: { createdAt: "desc" },
+            multiDayDates: { orderBy: { sortOrder: "asc" } },
+            photos: {
+              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+              select: {
+                id: true,
+                url: true,
+                originalName: true,
+                createdAt: true,
+              },
+            },
           },
-          multiDayDates: { orderBy: { sortOrder: "asc" } },
-        },
-      })
+        }),
+        () => prisma.request.findFirst({
+          where: {
+            id: requestId,
+            clientId: userId,
+          },
+          include: {
+            _count: {
+              select: {
+                proposals: true,
+              },
+            },
+            proposals: {
+              include: {
+                lineItems: { orderBy: { sortOrder: "asc" } },
+                chef: {
+                  include: {
+                    user: {
+                      select: {
+                        name: true,
+                        email: true,
+                      },
+                    },
+                  },
+                },
+              },
+              orderBy: { createdAt: "desc" },
+            },
+            multiDayDates: { orderBy: { sortOrder: "asc" } },
+          },
+        })
+      )
     } catch (error) {
       if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
         request = localDemoClientRequestDetail(requestId)
@@ -100,6 +145,10 @@ export default async function RequestDetailsPage({
   const requestAny = request as any
   const multiDayDates = Array.isArray(requestAny.multiDayDates) ? requestAny.multiDayDates : []
   const isMultiDay = requestAny.requestMode === "MULTI_DAY" && multiDayDates.length > 0
+  const photos = Array.isArray(requestAny.photos) ? requestAny.photos : []
+  const canEditRequest = canEditRequestFully(requestAny.requestMode, request._count.proposals)
+  const canAddNotes = canEditRequestNotes(requestAny.requestMode, request.proposals)
+  const requestStatusLabel = getClientRequestStatusLabel(request._count.proposals)
 
   return (
     <div className="space-y-6 lg:space-y-7">
@@ -121,6 +170,21 @@ export default async function RequestDetailsPage({
               View Proposals ({request._count.proposals})
             </Button>
           </Link>
+          {canEditRequest ? (
+            <Link href={`/dashboard/client/requests/${request.id}/edit`}>
+              <Button variant="outline" className="h-11 rounded-2xl px-5">
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit Request
+              </Button>
+            </Link>
+          ) : canAddNotes ? (
+            <Link href={`/dashboard/client/requests/${request.id}/edit?mode=notes`}>
+              <Button variant="outline" className="h-11 rounded-2xl px-5">
+                <Pencil className="mr-2 h-4 w-4" />
+                Add Notes
+              </Button>
+            </Link>
+          ) : null}
         </div>
       </div>
 
@@ -128,7 +192,10 @@ export default async function RequestDetailsPage({
         {/* Request Information */}
         <Card className="brand-card-surface rounded-[30px] shadow-lg shadow-slate-900/5 backdrop-blur-xl">
           <CardHeader>
-            <CardTitle className="text-2xl">{request.title || "Untitled Request"}</CardTitle>
+            <div className="flex flex-wrap items-center gap-2">
+              <CardTitle className="text-2xl">{request.title || "Untitled Request"}</CardTitle>
+              <Badge variant="secondary" className="rounded-full">{requestStatusLabel}</Badge>
+            </div>
             <CardDescription>Request ID: {request.id}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -248,6 +315,30 @@ export default async function RequestDetailsPage({
           </CardContent>
         </Card>
       </div>
+
+      {photos.length > 0 ? (
+        <Card className="brand-card-surface rounded-[30px] shadow-lg shadow-slate-900/5 backdrop-blur-xl">
+          <CardHeader>
+            <CardTitle className="text-2xl">Request Photos</CardTitle>
+            <CardDescription>Images attached to help chefs understand your request.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {photos.map((photo: any) => (
+                <div key={photo.id} className="relative h-36 overflow-hidden rounded-2xl">
+                  <Image
+                    src={photo.url}
+                    alt={photo.originalName ?? "Request photo"}
+                    fill
+                    sizes="(min-width: 1024px) 25vw, (min-width: 640px) 50vw, 100vw"
+                    className="object-cover"
+                  />
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Proposals Summary */}
       {request.proposals.length > 0 && (

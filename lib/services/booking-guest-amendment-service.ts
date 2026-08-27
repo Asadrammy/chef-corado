@@ -15,6 +15,7 @@ import {
   toMinorUnits,
 } from "@/lib/payment-plan-rules"
 import { createNotification } from "@/lib/notifications"
+import { isAdminStaffRole } from "@/lib/admin-permissions"
 
 function assertUpcomingBooking(eventDate: Date) {
   if (eventDate.getTime() <= Date.now()) {
@@ -334,7 +335,7 @@ export const bookingGuestAmendmentService = {
     removeChildrenUnder10?: number
     notes?: string
   }) {
-    if (input.adminRole !== "ADMIN") throw new Error("FORBIDDEN")
+    if (!isAdminStaffRole(input.adminRole)) throw new Error("FORBIDDEN")
     const booking = await getBookingForAmendment(input.bookingId)
     if (booking.status !== "CONFIRMED") throw new Error("BOOKING_NOT_AMENDABLE")
     assertUpcomingBooking(booking.eventDate)

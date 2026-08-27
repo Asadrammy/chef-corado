@@ -1,19 +1,48 @@
 import { NextResponse } from "next/server"
 import { z } from "zod"
 
-import { apiError } from "@/lib/api-response"
 import { getRequiredSession, getSessionUserId } from "@/lib/auth-helpers"
 import { handleApiError } from "@/lib/error-handler"
 import { proposalService } from "@/lib/services/proposal-service"
 import { ProposalStatus, Role } from "@/types"
 import { applyRateLimit } from "@/lib/redis-rate-limiter"
-import { secureSchemas, securityHeaders } from "@/lib/security"
+import { SecurityUtils, secureSchemas, securityHeaders } from "@/lib/security"
 import { isPrismaConnectionError } from "@/lib/prisma"
+import { PROPOSAL_MESSAGE_MAX_LENGTH, PROPOSAL_MESSAGE_MIN_LENGTH, sanitizeProposalMessage } from "@/lib/proposal-message"
 
 const proposalSchema = z.object({
   requestId: z.string().cuid().min(1, "Request ID is required"),
   price: secureSchemas.securePrice,
-  message: secureSchemas.secureMessage,
+  message: z.string().superRefine((value, ctx) => {
+    const sanitized = sanitizeProposalMessage(value)
+
+    if (sanitized.length < PROPOSAL_MESSAGE_MIN_LENGTH) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.too_small,
+        minimum: PROPOSAL_MESSAGE_MIN_LENGTH,
+        inclusive: true,
+        type: "string",
+        message: `Message must be at least ${PROPOSAL_MESSAGE_MIN_LENGTH} characters`,
+      })
+    }
+
+    if (value.length > PROPOSAL_MESSAGE_MAX_LENGTH) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.too_big,
+        maximum: PROPOSAL_MESSAGE_MAX_LENGTH,
+        inclusive: true,
+        type: "string",
+        message: `Message cannot exceed ${PROPOSAL_MESSAGE_MAX_LENGTH} characters`,
+      })
+    }
+
+    if (SecurityUtils.containsSqlInjection(sanitized)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Invalid characters detected",
+      })
+    }
+  }).transform((val) => sanitizeProposalMessage(val)),
   menuId: z.string().cuid().optional().nullable(),
   lineItems: z.array(z.object({
     serviceDate: z.string().refine((date) => !Number.isNaN(Date.parse(date)), "Invalid service date").optional(),

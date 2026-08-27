@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useSearchParams } from "next/navigation"
 import { signIn } from "next-auth/react"
-import { AlertCircle, ArrowRight, LockKeyhole, RefreshCw, Sparkles } from "lucide-react"
+import { AlertCircle, ArrowRight, Loader2, LockKeyhole, RefreshCw, Sparkles } from "lucide-react"
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
     password: "",
   })
   const [loading, setLoading] = useState(false)
+  const [loginStatus, setLoginStatus] = useState("")
   const [error, setError] = useState("")
   const [verificationRequired, setVerificationRequired] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
@@ -41,21 +42,22 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
     ? "This account has been suspended. Contact support if you believe this was a mistake."
     : ""
   const requestedRole = searchParams.get("role")
+  const explicitRole = isKnownRole(requestedRole) ? requestedRole : null
   const callbackUrl = searchParams.get("callbackUrl")
   const safeCallbackUrl = callbackUrl?.startsWith("/") && !callbackUrl.startsWith("//") ? callbackUrl : ""
-  const roleCopy = requestedRole === "CHEF"
+  const roleCopy = explicitRole === "CHEF"
     ? {
         heading: "Chef Login",
         description: "Sign in to manage requests, proposals, menus, bookings, compliance, messages, and payouts.",
         signupHref: "/register?role=CHEF",
       }
-    : requestedRole === "CLIENT"
+    : explicitRole === "CLIENT"
       ? {
           heading: "Customer Login",
           description: "Sign in to create requests, compare chef proposals, manage bookings, and continue conversations.",
           signupHref: "/register?role=CLIENT",
         }
-      : requestedRole === "ADMIN"
+      : explicitRole === "ADMIN"
         ? {
             heading: "Admin Login",
             description: "Sign in with an authorized admin account to review marketplace operations, approvals, and payments.",
@@ -120,6 +122,7 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
     }))
     setVerificationRequired(false)
     setResendMessage("")
+    setLoginStatus("")
 
     if (touchedFields[name as keyof typeof touchedFields]) {
       if (name === "email") {
@@ -208,14 +211,18 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
     }
 
     setLoading(true)
+    setLoginStatus("Signing in...")
     setError("")
     setVerificationRequired(false)
     setResendMessage("")
+
+    let navigating = false
 
     try {
       const result = await signIn("credentials", {
         email: formData.email.trim(),
         password: formData.password.trim(),
+        role: explicitRole ?? "",
         redirect: false,
       })
 
@@ -233,17 +240,33 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
       if (result?.ok) {
         const response = await fetch("/api/auth/session")
         const session = await response.json()
+        const resolvedRole = explicitRole ?? (isKnownRole(session?.user?.role) ? session.user.role : null)
+        const destination = resolvedRole
+          ? getSafePostLoginRedirect(resolvedRole, safeCallbackUrl)
+          : safeCallbackUrl || "/dashboard"
 
-        if (isKnownRole(session?.user?.role)) {
-          router.push(getSafePostLoginRedirect(session.user.role, safeCallbackUrl))
-        } else {
-          router.push(safeCallbackUrl || "/dashboard")
-        }
+        setLoginStatus(
+          resolvedRole === "CHEF"
+            ? "Login successful. Opening chef dashboard..."
+            : resolvedRole === "CLIENT"
+              ? "Login successful. Opening client dashboard..."
+              : resolvedRole === "ADMIN"
+                ? "Login successful. Opening admin dashboard..."
+                : "Login successful. Opening your dashboard..."
+        )
+        navigating = true
+        router.push(destination)
+        return
       }
+
+      setError("Login did not complete. Please try again.")
     } catch {
       setError("Network error. Please try again.")
     } finally {
-      setLoading(false)
+      if (!navigating) {
+        setLoading(false)
+        setLoginStatus("")
+      }
     }
   }
 
@@ -396,10 +419,16 @@ export function LoginForm({ onToggleMode }: LoginFormProps) {
             disabled={loading}
           >
             <span className="inline-flex items-center justify-center gap-2">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
               {loading ? "Signing in..." : "Sign in"}
               {!loading && <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5" />}
             </span>
           </Button>
+          {loginStatus ? (
+            <p role="status" aria-live="polite" className="text-center text-sm font-medium text-[#475467]">
+              {loginStatus}
+            </p>
+          ) : null}
         </form>
 
         <div className="border-t border-[rgba(215,223,235,0.92)] pt-4 text-center text-sm text-[#667085]">

@@ -7,6 +7,8 @@ import { requireAdminPermission } from "@/lib/admin-rbac"
 import { ADMIN_PERMISSIONS, ADMIN_STAFF_ROLES, isAdminStaffRole } from "@/lib/admin-permissions"
 import { handleApiError } from "@/lib/error-handler"
 import { prisma } from "@/lib/prisma"
+import { hashPasswordResetToken } from "@/lib/password-reset"
+import { getConfiguredAppBaseUrl } from "@/lib/site-config"
 
 const createStaffSchema = z.object({
   name: z.string().min(2).max(120),
@@ -67,6 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     const resetToken = randomBytes(32).toString("hex")
+    const resetTokenHash = hashPasswordResetToken(resetToken)
     const resetTokenExpires = new Date(Date.now() + 1000 * 60 * 60 * 24)
     const placeholderPassword = randomBytes(48).toString("hex")
 
@@ -78,7 +81,7 @@ export async function POST(request: NextRequest) {
         role: "ADMIN",
         adminRole: payload.adminRole,
         adminLastPermissionChangeAt: new Date(),
-        resetToken,
+        resetToken: resetTokenHash,
         resetTokenExpires,
         verified: true,
       },
@@ -97,7 +100,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? process.env.NEXTAUTH_URL ?? ""
+    const baseUrl = getConfiguredAppBaseUrl()
     const inviteUrl = `${baseUrl}/reset-password?token=${resetToken}`
 
     return NextResponse.json({ user, inviteUrl }, { status: 201 })

@@ -166,17 +166,18 @@ describe("Phase 1 manual payout workflow", () => {
       chefId: "chef-1",
       chef: { stripeAccountId: "acct_ready", stripeOnboardingComplete: true },
     })
-    const update = jest.fn().mockResolvedValue({ id: "payout-1", status: "PAID", amount: 100, chefId: "chef-1" })
+    const update = jest.fn().mockResolvedValue({ id: "payout-1", status: "PAID", amount: 100, chefId: "chef-1", currency: "GBP" })
+    const tx = {
+      payout: {
+        findUnique: jest.fn().mockResolvedValue({ id: "payout-1", status: "PROCESSING", amount: 100, chefId: "chef-1" }),
+        update,
+      },
+      auditLog: {
+        create: jest.fn().mockResolvedValue({ id: "audit-1" }),
+      },
+    }
     mockedPrisma.$transaction.mockImplementation(async (callback: any) =>
-      callback({
-        payout: {
-          findUnique: jest.fn().mockResolvedValue({ id: "payout-1", status: "PROCESSING", amount: 100, chefId: "chef-1" }),
-          update,
-        },
-        auditLog: {
-          create: jest.fn().mockResolvedValue({ id: "audit-1" }),
-        },
-      })
+      callback(tx)
     )
 
     await expect(
@@ -191,6 +192,15 @@ describe("Phase 1 manual payout workflow", () => {
     expect(update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ status: "PAID" }),
     }))
+    expect(mockedLedgerService.recordPayout).toHaveBeenCalledWith(
+      "payout-1",
+      "chef-1",
+      100,
+      "admin-1",
+      "bank-ref-123",
+      "GBP",
+      tx
+    )
   })
 
   it("prevents a stale concurrent paid update from recording a duplicate release", async () => {

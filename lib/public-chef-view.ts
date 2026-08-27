@@ -50,7 +50,6 @@ export type PublicChefDTO = {
   location?: string | null
   radius?: number | null
   profileImage?: string | null
-  chefType?: string | null
   specialties: string[]
   cuisineType?: string | null
   cuisines: string[]
@@ -171,7 +170,6 @@ export function serializePublicChef(profile: any, options: {
     location: profile.location ?? null,
     radius: profile.radius ?? null,
     profileImage: profile.profileImage ?? null,
-    chefType: profile.chefType ?? null,
     specialties: decodeChefSpecialties(profile.specialties, profile.chefType),
     cuisineType: profile.cuisineType ?? null,
     cuisines: getCuisineLabels({ ...profile, menus, experiences }),

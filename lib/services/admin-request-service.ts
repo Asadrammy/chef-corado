@@ -1,59 +1,82 @@
 import { prisma } from "@/lib/prisma"
-import { createNotification } from "@/lib/notifications"
-import { formatServiceDateSummary } from "@/lib/multi-day-display"
+import { requestRepository } from "@/lib/repositories/request-repository"
+import { filterEligibleChefsForRequest } from "@/lib/chef-request-matching"
+import { notifyEligibleChefsAboutRequest } from "@/lib/services/request-notification-service"
+import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
 
 export const adminRequestService = {
   async notifyChefsAboutRequest(requestId: string) {
-    const requestData = await prisma.request.findUnique({
-      where: { id: requestId },
-      include: {
-        client: true,
-        multiDayDates: { orderBy: { sortOrder: "asc" } },
-      },
-    })
+    const requestData = await withRequestPhotoFallback(
+      () => prisma.request.findUnique({
+        where: { id: requestId },
+        include: {
+          client: {
+            select: {
+              name: true,
+              firstName: true,
+            },
+          },
+          photos: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            take: 3,
+            select: {
+              id: true,
+              url: true,
+              originalName: true,
+            },
+          },
+          multiDayDates: { orderBy: { sortOrder: "asc" } },
+        },
+      }),
+      () => prisma.request.findUnique({
+        where: { id: requestId },
+        include: {
+          client: {
+            select: {
+              name: true,
+              firstName: true,
+            },
+          },
+          multiDayDates: { orderBy: { sortOrder: "asc" } },
+        },
+      })
+    )
 
     if (!requestData) {
       throw new Error("REQUEST_NOT_FOUND")
     }
 
-    const activeChefs = await prisma.chefProfile.findMany({
-      where: {
-        isApproved: true,
-        isBanned: false,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-      take: 10,
-    })
-
-    // Create notifications with preference checking
-    const isMultiDay = requestData.requestMode === "MULTI_DAY" || requestData.multiDayDates.length > 1
-    const notificationMessage = isMultiDay
-      ? `Urgent Multi-Day Chef Hire request: ${requestData.title || "New Event"} in ${requestData.location} (${formatServiceDateSummary(requestData.multiDayDates, requestData.eventDate)})`
-      : `Urgent request: ${requestData.title || "New Event"} in ${requestData.location}`
-
-    const notificationResults = await Promise.all(
-      activeChefs.map((chef) =>
-        createNotification(
-          chef.user.id,
-          "NEW_REQUEST_ALERT",
-          notificationMessage
-        )
-      )
+    const activeChefs = await requestRepository.findApprovedChefsWithCoordinates()
+    const matchingChefs = await filterEligibleChefsForRequest(
+      {
+        ...requestData,
+        requestMode: requestData.requestMode,
+        eventDate: requestData.eventDate,
+        eventDates: requestData.eventDates ? JSON.parse(requestData.eventDates) : undefined,
+        multiDayDates: requestData.multiDayDates.map((date) => ({
+          date: date.date,
+          serviceType: date.serviceType,
+          cuisineTypes: date.cuisineTypes,
+          dietaryRequirements: date.dietaryRequirements,
+        })),
+        latitude: requestData.latitude,
+        longitude: requestData.longitude,
+        pricingGuestCount: requestData.pricingGuestCount,
+        billableGuestCount: requestData.billableGuestCount,
+        actualAttendeeCount: requestData.actualAttendeeCount,
+        guestCount: requestData.guestCount,
+      } as any,
+      activeChefs
     )
 
-    const successfulNotifications = notificationResults.filter(Boolean).length
+    const notificationResults = await notifyEligibleChefsAboutRequest({
+      request: requestData,
+      chefs: matchingChefs,
+    })
 
     return {
-      message: `Notified ${successfulNotifications} chefs (preferences respected)`,
-      chefsNotified: successfulNotifications,
+      message: `Notified ${notificationResults.chefsNotified} matching chefs`,
+      chefsNotified: notificationResults.chefsNotified,
     }
   },
 

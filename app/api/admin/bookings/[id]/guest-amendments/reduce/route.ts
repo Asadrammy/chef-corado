@@ -24,7 +24,7 @@ export async function POST(
     const amendment = await bookingGuestAmendmentService.requestReductionByAdmin({
       bookingId: id,
       adminId: actor.userId,
-      adminRole: "ADMIN",
+      adminRole: actor.adminRole,
       removeAdultCount: payload.removeAdultCount,
       removeChildrenUnder10: payload.removeChildrenUnder10,
       notes: payload.notes,

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
 
 export const requestRepository = {
   createRequest(input: {
@@ -142,27 +143,65 @@ export const requestRepository = {
   },
 
   listChefMarketplaceRequests(chefId: string) {
-    return prisma.request.findMany({
-      where: {
-        eventDate: { gte: new Date() },
-        proposals: {
-          none: {
-            chefId,
+    return withRequestPhotoFallback(
+      () => prisma.request.findMany({
+        where: {
+          eventDate: { gte: new Date() },
+          proposals: {
+            none: {
+              chefId,
+            },
           },
         },
-      },
-      include: {
-        multiDayDates: true,
-        client: {
-          select: {
-            id: true,
-            name: true,
+        include: {
+          multiDayDates: true,
+          photos: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            take: 3,
+            select: {
+              id: true,
+              url: true,
+              originalName: true,
+              contentType: true,
+              sizeBytes: true,
+              sortOrder: true,
+              createdAt: true,
+            },
+          },
+          client: {
+            select: {
+              id: true,
+              name: true,
+              firstName: true,
+            },
           },
         },
-      },
-      orderBy: { eventDate: "desc" },
-      take: 100,
-    })
+        orderBy: { eventDate: "desc" },
+        take: 100,
+      }),
+      () => prisma.request.findMany({
+        where: {
+          eventDate: { gte: new Date() },
+          proposals: {
+            none: {
+              chefId,
+            },
+          },
+        },
+        include: {
+          multiDayDates: true,
+          client: {
+            select: {
+              id: true,
+              name: true,
+              firstName: true,
+            },
+          },
+        },
+        orderBy: { eventDate: "desc" },
+        take: 100,
+      })
+    )
   },
 
   listAllRequests() {

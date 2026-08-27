@@ -10,6 +10,7 @@ import {
   type MarketConfigurationShape,
   type ServiceChargeTaxStatus,
 } from "@/lib/marketplace-rules"
+import { buildServicePricingRuleSelect, getServicePricingRuleColumnAvailability, isServicePricingSchemaMismatch } from "@/lib/service-pricing-schema"
 
 export type MarketConfigurationSource = "DATABASE" | "DEFAULT"
 
@@ -109,16 +110,25 @@ function validateKnownCountry(countryCode: string): CountryMarketCode {
 
 async function getActivePricingRuleCount(countryCode: CountryMarketCode) {
   try {
-    return await prisma.servicePricingRule.count({
+    const availability = await getServicePricingRuleColumnAvailability()
+    const select = await buildServicePricingRuleSelect(["id"])
+    if (!select || !availability.countryCode || !availability.status || !availability.effectiveFrom || !availability.effectiveTo) {
+      return 0
+    }
+
+    const rows = await prisma.servicePricingRule.findMany({
       where: {
         countryCode,
         status: "ACTIVE",
         effectiveFrom: { lte: new Date() },
         OR: [{ effectiveTo: null }, { effectiveTo: { gt: new Date() } }],
       },
+      select,
     })
+
+    return rows.length
   } catch (error) {
-    if (isMissingMarketTable(error)) return 0
+    if (isMissingMarketTable(error) || isServicePricingSchemaMismatch(error)) return 0
     throw error
   }
 }

@@ -14,7 +14,7 @@ import {
 type UploadImageInput = {
   file: File
   ownerId: string
-  purpose: "menu" | "profile" | "admin-service-asset"
+  purpose: "menu" | "profile" | "request" | "admin-service-asset"
 }
 
 type UploadImageResult = {

@@ -25,6 +25,12 @@ describe("auth and navigation stabilization contracts", () => {
     expect(registerFormSource).toContain('<SelectItem value={Role.CHEF}>Chef - Offering services</SelectItem>')
   })
 
+  it("keeps explicit role-selected login routes visible to authenticated users", () => {
+    expect(proxySource).toContain("const requestedRole = request.nextUrl.searchParams.get('role')")
+    expect(proxySource).toContain("if (requestedRole === 'CLIENT' || requestedRole === 'CHEF' || requestedRole === 'ADMIN')")
+    expect(proxySource).toContain("return NextResponse.next()")
+  })
+
   it("rejects manipulated locked-role signup payloads on the server", () => {
     expect(registerRouteSource).toContain('request.nextUrl.searchParams.get("role")')
     expect(registerRouteSource).toContain("validatedData.role !== lockedRole")

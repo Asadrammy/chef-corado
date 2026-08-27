@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { getPricingRule } from "@/lib/request-options"
+import { buildActiveServicePricingRuleWhere, buildServicePricingRuleOrderBy, buildServicePricingRuleSelect, getServicePricingRuleColumnAvailability, isServicePricingSchemaMismatch } from "@/lib/service-pricing-schema"
 
 export const PRICING_RULE_STATUSES = ["DRAFT", "REVIEW", "ACTIVE", "RETIRED"] as const
 export type PricingRuleStatus = typeof PRICING_RULE_STATUSES[number]
@@ -22,32 +23,48 @@ export async function findAuthoritativePricingRule(input: {
   countryCode: string
   tier?: string | null
 }) {
-  const dbRule = await prisma.servicePricingRule.findFirst({
-    where: {
-      serviceType: input.serviceType,
-      countryCode: input.countryCode,
-      status: "ACTIVE",
-      AND: [
-        {
-          OR: [
-            { tier: input.tier ?? null },
-            { tier: null },
-          ],
-        },
-        {
-          OR: [
-            { effectiveTo: null },
-            { effectiveTo: { gt: new Date() } },
-          ],
-        },
-      ],
-      effectiveFrom: { lte: new Date() },
-    },
-    orderBy: [
-      { tier: "desc" },
-      { effectiveFrom: "desc" },
-    ],
+  const select = await buildServicePricingRuleSelect([
+    "id",
+    "serviceType",
+    "countryCode",
+    "currency",
+    "tier",
+    "minimumSpend",
+    "pricePerPersonMin",
+    "pricePerPersonMax",
+    "minGuests",
+    "maxGuests",
+    "warningCopy",
+    "customerGuidance",
+    "status",
+    "version",
+    "evidenceSource",
+    "evidenceNotes",
+  ])
+  const where = await buildActiveServicePricingRuleWhere({
+    serviceType: input.serviceType,
+    countryCode: input.countryCode,
+    tier: input.tier,
   })
+  const orderBy = await buildServicePricingRuleOrderBy(["tier", "effectiveFrom"], "desc")
+
+  if (!select || !where) {
+    return getPricingRule(input.serviceType, input.countryCode, input.tier)
+  }
+
+  let dbRule: Awaited<ReturnType<typeof prisma.servicePricingRule.findFirst>> | null = null
+  try {
+    dbRule = await prisma.servicePricingRule.findFirst({
+      where,
+      ...(orderBy ? { orderBy } : {}),
+      select,
+    })
+  } catch (error) {
+    if (!isServicePricingSchemaMismatch(error)) {
+      throw error
+    }
+    return getPricingRule(input.serviceType, input.countryCode, input.tier)
+  }
 
   if (dbRule) {
     return {
@@ -79,33 +96,48 @@ export async function findActivePricingRule(input: {
   tier?: string | null
 }) {
   const now = new Date()
-
-  return prisma.servicePricingRule.findFirst({
-    where: {
-      serviceType: input.serviceType,
-      countryCode: input.countryCode,
-      status: "ACTIVE",
-      AND: [
-        {
-          OR: [
-            { tier: input.tier ?? null },
-            { tier: null },
-          ],
-        },
-        {
-          OR: [
-            { effectiveTo: null },
-            { effectiveTo: { gt: now } },
-          ],
-        },
-      ],
-      effectiveFrom: { lte: now },
-    },
-    orderBy: [
-      { tier: "desc" },
-      { effectiveFrom: "desc" },
-    ],
+  const select = await buildServicePricingRuleSelect([
+    "id",
+    "serviceType",
+    "countryCode",
+    "currency",
+    "tier",
+    "minimumSpend",
+    "pricePerPersonMin",
+    "pricePerPersonMax",
+    "minGuests",
+    "maxGuests",
+    "warningCopy",
+    "customerGuidance",
+    "status",
+    "version",
+    "evidenceSource",
+    "evidenceNotes",
+  ])
+  const where = await buildActiveServicePricingRuleWhere({
+    serviceType: input.serviceType,
+    countryCode: input.countryCode,
+    tier: input.tier,
+    now,
   })
+  const orderBy = await buildServicePricingRuleOrderBy(["tier", "effectiveFrom"], "desc")
+
+  if (!select || !where) {
+    return null
+  }
+
+  try {
+    return await prisma.servicePricingRule.findFirst({
+      where,
+      ...(orderBy ? { orderBy } : {}),
+      select,
+    })
+  } catch (error) {
+    if (isServicePricingSchemaMismatch(error)) {
+      return null
+    }
+    throw error
+  }
 }
 
 export async function transitionPricingRule(input: {
@@ -115,7 +147,35 @@ export async function transitionPricingRule(input: {
   reason?: string | null
 }) {
   return prisma.$transaction(async (tx) => {
-    const existing = await tx.servicePricingRule.findUnique({ where: { id: input.ruleId } })
+    const availability = await getServicePricingRuleColumnAvailability()
+    if (!availability.serviceType || !availability.countryCode || !availability.currency || !availability.status || !availability.version) {
+      throw new Error("PRICING_RULE_SCHEMA_OUT_OF_SYNC")
+    }
+
+    const select = await buildServicePricingRuleSelect([
+      "id",
+      "serviceType",
+      "countryCode",
+      "currency",
+      "tier",
+      "status",
+      "version",
+      "effectiveFrom",
+      "effectiveTo",
+      "reviewedBy",
+      "reviewedAt",
+      "activatedBy",
+      "activatedAt",
+      "retiredBy",
+      "retiredAt",
+      "lifecycleReason",
+      "updatedBy",
+    ])
+    if (!select) {
+      throw new Error("PRICING_RULE_SCHEMA_OUT_OF_SYNC")
+    }
+
+    const existing = await tx.servicePricingRule.findUnique({ where: { id: input.ruleId }, select })
     if (!existing) {
       throw new Error("PRICING_RULE_NOT_FOUND")
     }
@@ -125,14 +185,20 @@ export async function transitionPricingRule(input: {
     }
 
     const now = new Date()
-    const statusData =
-      input.toStatus === "REVIEW"
-        ? { reviewedBy: input.actorId, reviewedAt: now }
-        : input.toStatus === "ACTIVE"
-          ? { reviewedBy: existing.reviewedBy ?? input.actorId, reviewedAt: existing.reviewedAt ?? now, activatedBy: input.actorId, activatedAt: now }
-          : input.toStatus === "RETIRED"
-            ? { retiredBy: input.actorId, retiredAt: now, effectiveTo: existing.effectiveTo ?? now }
-            : {}
+    const statusData: Record<string, unknown> = {}
+    if (input.toStatus === "REVIEW") {
+      if (existing.reviewedBy !== undefined) statusData.reviewedBy = input.actorId
+      if (existing.reviewedAt !== undefined) statusData.reviewedAt = now
+    } else if (input.toStatus === "ACTIVE") {
+      if (existing.reviewedBy !== undefined) statusData.reviewedBy = existing.reviewedBy ?? input.actorId
+      if (existing.reviewedAt !== undefined) statusData.reviewedAt = existing.reviewedAt ?? now
+      if (existing.activatedBy !== undefined) statusData.activatedBy = input.actorId
+      if (existing.activatedAt !== undefined) statusData.activatedAt = now
+    } else if (input.toStatus === "RETIRED") {
+      if (existing.retiredBy !== undefined) statusData.retiredBy = input.actorId
+      if (existing.retiredAt !== undefined) statusData.retiredAt = now
+      if (existing.effectiveTo !== undefined) statusData.effectiveTo = existing.effectiveTo ?? now
+    }
 
     if (input.toStatus === "ACTIVE") {
       await tx.servicePricingRule.updateMany({
@@ -141,28 +207,35 @@ export async function transitionPricingRule(input: {
           serviceType: existing.serviceType,
           countryCode: existing.countryCode,
           currency: existing.currency,
-          tier: existing.tier,
+          ...(existing.tier !== undefined ? { tier: existing.tier } : {}),
           status: "ACTIVE",
         },
         data: {
           status: "RETIRED",
-          retiredBy: input.actorId,
-          retiredAt: now,
-          effectiveTo: now,
-          lifecycleReason: `Retired by activation of ${existing.id}`,
+          ...(existing.retiredBy !== undefined ? { retiredBy: input.actorId } : {}),
+          ...(existing.retiredAt !== undefined ? { retiredAt: now } : {}),
+          ...(existing.effectiveTo !== undefined ? { effectiveTo: now } : {}),
+          ...(existing.lifecycleReason !== undefined ? { lifecycleReason: `Retired by activation of ${existing.id}` } : {}),
           updatedBy: input.actorId,
         },
       })
     }
 
+    const updateData: Record<string, unknown> = {
+      status: input.toStatus,
+      updatedBy: input.actorId,
+    }
+
+    if (existing.lifecycleReason !== undefined) {
+      updateData.lifecycleReason = input.reason ?? null
+    }
+
+    Object.assign(updateData, statusData)
+
     const updated = await tx.servicePricingRule.update({
       where: { id: existing.id },
-      data: {
-        status: input.toStatus,
-        lifecycleReason: input.reason ?? null,
-        updatedBy: input.actorId,
-        ...statusData,
-      },
+      data: updateData,
+      select,
     })
 
     await tx.auditLog.create({
@@ -232,8 +305,22 @@ export async function assertProposalMeetsActivePricingRule(input: {
     return null
   }
 
-  const requestBoundRule = input.request.pricingRuleId
-    ? await prisma.servicePricingRule.findUnique({ where: { id: input.request.pricingRuleId } })
+  const select = await buildServicePricingRuleSelect([
+    "id",
+    "serviceType",
+    "countryCode",
+    "currency",
+    "tier",
+    "minimumSpend",
+    "minGuests",
+    "maxGuests",
+    "status",
+    "version",
+    "effectiveFrom",
+    "effectiveTo",
+  ])
+  const requestBoundRule = input.request.pricingRuleId && select
+    ? await prisma.servicePricingRule.findUnique({ where: { id: input.request.pricingRuleId }, select })
     : null
   const rule = requestBoundRule ?? await findAuthoritativePricingRule({
     serviceType: input.request.serviceType,

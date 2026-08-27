@@ -1,20 +1,21 @@
 "use client"
 
 import * as React from "react"
-import { ArrowRight, BriefcaseBusiness, CalendarDays, Clock3, MapPin, Sparkles, Target, TrendingUp } from "lucide-react"
+import Image from "next/image"
+import { ArrowRight, BriefcaseBusiness, CalendarDays, Clock3, MapPin, Sparkles } from "lucide-react"
 
 import { ProposalModal } from "@/components/proposal-modal"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { ChefRequestRow } from "@/components/chef-request-table"
 import { MatchBadge, MatchScoreRing, MatchReasonsList } from "@/components/matching/match-badge"
 import { MatchResult } from "@/lib/services/smart-matching-service"
 import { formatCurrency } from "@/lib/currency"
 import { getServiceTypeLabel } from "@/lib/request-options"
+import type { ChefRequestView } from "@/lib/chef-request-view"
 
 interface ChefRequestCardProps {
-  request: ChefRequestRow & {
+  request: ChefRequestView & {
     matchData?: MatchResult
   }
 }
@@ -60,9 +61,9 @@ function getPriorityBadge(requestId: string, matchScore?: number) {
 
 export function ChefRequestCard({ request }: ChefRequestCardProps) {
   const [isHovered, setIsHovered] = React.useState(false)
-  const [showDetails, setShowDetails] = React.useState(false)
   const eventType = request.eventType ?? "Event"
   const serviceTypeLabel = getServiceTypeLabel(request.serviceType, request.serviceTypeLabel)
+  const clientGreetingName = request.clientGreetingName || request.clientName || "Client"
   
   // Use smart match data if available, otherwise fallback to basic calculation
   const matchData = request.matchData
@@ -109,6 +110,9 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
                 </div>
                 <p className="text-muted-foreground text-sm leading-6 line-clamp-2">
                   {request.details || "Client details will appear here once more information is provided."}
+                </p>
+                <p className="text-xs font-medium text-muted-foreground">
+                  Hello {clientGreetingName}
                 </p>
               </div>
             </div>
@@ -169,6 +173,23 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
             {serviceTypeLabel}
           </Badge>
         </div>
+
+        {request.photos?.length ? (
+          <div className="grid gap-2 sm:grid-cols-3">
+            {request.photos.slice(0, 3).map((photo, index) => (
+              <div key={photo.id} className="relative h-28 overflow-hidden rounded-2xl border border-border/60 bg-muted">
+                <Image
+                  src={photo.url}
+                  alt={photo.originalName ?? `Request photo ${index + 1}`}
+                  fill
+                  unoptimized
+                  sizes="(min-width: 640px) 33vw, 100vw"
+                  className="object-cover"
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
         
         <div className="flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
@@ -182,7 +203,7 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
               </p>
             </div>
           </div>
-          <ProposalModal request={request}>
+          <ProposalModal request={request as ChefRequestView}>
             <Button
               className="brand-gradient-button h-11 rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25"
             >

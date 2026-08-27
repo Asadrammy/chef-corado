@@ -1,6 +1,7 @@
 import { type ClassValue, clsx } from "clsx";
 import { Metadata } from "next";
 import { twMerge } from "tailwind-merge";
+import { getConfiguredAppBaseUrl } from "@/lib/site-config";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -20,11 +21,19 @@ export function generateMeta({
   title: string;
   description: string;
 }): Metadata {
+  const baseUrl = getConfiguredAppBaseUrl();
+  const imageUrl = new URL("/seo.jpg", baseUrl).toString();
+
   return {
-    title: `${title} - Shadcn UI Kit Free Dashboard Template`,
+    metadataBase: new URL(baseUrl),
+    title: `${title} - ChefaChef`,
     description: description,
     openGraph: {
-      images: [`/seo.jpg`]
+      title: `${title} - ChefaChef`,
+      description,
+      url: baseUrl,
+      siteName: "ChefaChef",
+      images: [imageUrl],
     }
   };
 }

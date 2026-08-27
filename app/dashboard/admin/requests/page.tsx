@@ -132,9 +132,13 @@ export default async function AdminRequestsPage({
           { key: "created", label: "Created", render: (request) => formatAdminDate(request.createdAt) },
           {
             key: "detail",
-            label: "Review",
+            label: "Inspect",
             render: (request) => (
-              <AdminReviewDrawer title={request.title ?? request.serviceTypeLabel ?? request.eventType} description="Review request context without editing commercial fields.">
+              <AdminReviewDrawer
+                title={request.title ?? request.serviceTypeLabel ?? request.eventType}
+                description="Inspect request context. Requests publish immediately, and moderation support stays separate from marketplace visibility."
+                triggerLabel="Inspect"
+              >
                 <AdminDrawerSection title="Request Summary">
                   <AdminInfoGrid
                     items={[

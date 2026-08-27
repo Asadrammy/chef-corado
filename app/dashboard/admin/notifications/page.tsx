@@ -22,14 +22,30 @@ const criticalTypes = new Set([
   "COMPLIANCE_REVIEW_REQUIRED",
 ])
 
+type AdminNotificationRow = {
+  id: string
+  type: string
+  message: string
+  isRead: boolean
+  createdAt: Date
+  user: {
+    id: string
+    role: string
+    name: string | null
+  }
+}
+
 export default async function AdminNotificationsPage() {
   await requireAdminPagePermission("notifications.view")
 
   const [notifications, supportTickets, disputes, refunds, fullTimeEnquiries] = await Promise.all([
     prisma.notification.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 100,
-      include: {
+      select: {
+        id: true,
+        type: true,
+        message: true,
+        isRead: true,
+        createdAt: true,
         user: {
           select: {
             id: true,
@@ -38,7 +54,9 @@ export default async function AdminNotificationsPage() {
           },
         },
       },
-    }),
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }) as Promise<AdminNotificationRow[]>,
     prisma.supportTicket.count({ where: { status: { in: ["OPEN", "IN_PROGRESS"] } } }),
     prisma.dispute.count({ where: { status: { in: ["OPEN", "INVESTIGATING"] } } }),
     prisma.refund.count({ where: { status: { in: ["PENDING", "APPROVED"] } } }),

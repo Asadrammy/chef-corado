@@ -29,6 +29,10 @@ function isUserImageDataColumnUnavailable(error: unknown) {
 }
 
 async function hasUserColumn(columnName: string) {
+  if (typeof prisma.$queryRaw !== "function") {
+    return false
+  }
+
   const rows = await prisma.$queryRaw<{ exists: boolean }[]>`
     SELECT EXISTS (
       SELECT 1
@@ -91,24 +95,7 @@ export async function hasUserProfileImageColumns() {
 }
 
 export async function ensureUserProfileImageColumns() {
-  if (await hasUserProfileImageColumns()) {
-    return true
-  }
-
-  try {
-    await prisma.$executeRaw`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "image" TEXT`
-    await prisma.$executeRaw`ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "imageData" TEXT`
-    userImageColumnAvailable = true
-    userImageDataColumnAvailable = true
-    return true
-  } catch (error) {
-    if (isUserImageColumnUnavailable(error) || isUserImageDataColumnUnavailable(error)) {
-      return false
-    }
-
-    console.error("Unable to ensure user profile image columns", error)
-    return false
-  }
+  return hasUserProfileImageColumns()
 }
 
 async function readUserImage(query: () => Promise<UserImageRow[]>) {

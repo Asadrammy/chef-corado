@@ -31,7 +31,7 @@ export const CUISINE_REGISTRY = [
   { id: "modern-european", label: "Modern European", normalizedValue: "Modern European", kind: "style" },
   { id: "meal-prep-lunch-dinner", label: "Meal Prep - Lunch & Dinner", normalizedValue: "Meal Prep - Lunch & Dinner", aliases: ["Meal Prep-Lunch and Dinner", "Meal Prep Lunch & Dinner", "Meal Prep - Lunch and Dinner", "Food Prep / Lunch & Dinner"], kind: "service_event" },
   { id: "french", label: "French", normalizedValue: "French", kind: "cuisine" },
-  { id: "canape-party", label: "Canapé Party", normalizedValue: "Canapé Party", aliases: ["Canapè Party", "Canape Party", "Canap\u00c3\u00a9 Party", "CanapÃ© Party"], kind: "service_event" },
+  { id: "canape-party", label: "Canapé Party", normalizedValue: "Canapé Party", aliases: ["Canapè Party", "Canape Party"], kind: "service_event" },
   { id: "fusion", label: "Fusion", normalizedValue: "Fusion", aliases: ["Asian Fusion"], kind: "style" },
   { id: "turkish", label: "Turkish", normalizedValue: "Turkish", kind: "cuisine" },
   { id: "korean", label: "Korean", normalizedValue: "Korean", kind: "cuisine" },

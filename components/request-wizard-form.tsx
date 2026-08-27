@@ -5,7 +5,7 @@ import Image from "next/image"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Clock3, MapPin, Sparkles, Users, UtensilsCrossed, Wallet } from "lucide-react"
+import { ArrowLeft, ArrowRight, CalendarDays, CheckCircle2, Clock3, MapPin, Sparkles, Upload, Users, UtensilsCrossed, Wallet, X } from "lucide-react"
 
 import { FormError } from "@/components/form-error"
 import { FormFieldWrapper } from "@/components/form-field-wrapper"
@@ -37,6 +37,7 @@ import {
   validateServiceSpecificAnswers,
 } from "@/lib/request-options"
 import { getInactiveMarketMessage, getMarketConfig } from "@/lib/marketplace-rules"
+import { MENU_IMAGE_ALLOWED_TYPES, MENU_IMAGE_MAX_BYTES } from "@/lib/menu-image-storage"
 import { requestSchema } from "@/lib/validation-schemas"
 
 const steps = [
@@ -77,8 +78,36 @@ type RequestWizardFormState = {
 }
 
 type RequestWizardFormProps = {
+  mode?: "create" | "edit"
   chefId?: string
   initialDraftId?: string
+  initialRequest?: RequestWizardInitialRequest
+}
+
+export type RequestWizardInitialRequest = {
+  id: string
+  title?: string | null
+  eventType: string
+  serviceType?: string | null
+  serviceTier?: string | null
+  cuisineTypes?: string | null
+  dietaryRequirements?: string | null
+  serviceSpecificAnswers?: string | null
+  eventDate: string | Date
+  eventTime?: string | null
+  location: string
+  countryCode?: string | null
+  guestCount: number
+  adultCount?: number | null
+  childrenUnder10?: number | null
+  budget: number
+  details?: string | null
+}
+
+type RequestPhotoDraft = {
+  id: string
+  file: File
+  previewUrl: string
 }
 
 type StoredRequestDraft = Partial<{
@@ -101,12 +130,93 @@ type StoredRequestDraft = Partial<{
 
 const isKnownOption = (options: readonly string[], value?: string | null) => Boolean(value && options.includes(value))
 
+function parseStringList(value?: string | null) {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map(String).filter(Boolean) : []
+  } catch {
+    return value.split(",").map((item) => item.trim()).filter(Boolean)
+  }
+}
+
+function parseStringRecord(value?: string | null) {
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? Object.fromEntries(Object.entries(parsed).map(([key, entry]) => [key, String(entry ?? "")]))
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+function createInitialFormData(initialRequest?: RequestWizardInitialRequest): RequestWizardFormState {
+  if (!initialRequest) {
+    return {
+      title: "",
+      eventType: EVENT_TYPES[0],
+      serviceType: SERVICE_TYPE_OPTIONS[0].id,
+      cuisinePreferences: [] as string[],
+      dietaryRequirements: [] as string[],
+      serviceTier: SERVICE_TYPE_OPTIONS[0].serviceTiers[0] ?? "",
+      serviceSpecificAnswers: {},
+      eventDate: "",
+      eventTime: "",
+      location: "",
+      country: COUNTRY_OPTIONS[0].value,
+      guestCount: "",
+      adultCount: "",
+      childrenUnder10: "0",
+      budget: "",
+      details: "",
+    }
+  }
+
+  const serviceType = isKnownOption(SERVICE_TYPE_OPTIONS.map((option) => option.id), initialRequest.serviceType)
+    ? initialRequest.serviceType!
+    : SERVICE_TYPE_OPTIONS[0].id
+  const selectedService = SERVICE_TYPE_OPTIONS.find((option) => option.id === serviceType) ?? SERVICE_TYPE_OPTIONS[0]
+  const serviceTier = selectedService.serviceTiers.includes(initialRequest.serviceTier ?? "")
+    ? initialRequest.serviceTier ?? ""
+    : selectedService.serviceTiers[0] ?? ""
+
+  return {
+    title: initialRequest.title ?? "",
+    eventType: isKnownOption(EVENT_TYPES, initialRequest.eventType) ? initialRequest.eventType : EVENT_TYPES[0],
+    serviceType,
+    cuisinePreferences: parseStringList(initialRequest.cuisineTypes).filter((value) => isKnownOption(CUISINE_TYPES, value)).slice(0, 3),
+    dietaryRequirements: parseStringList(initialRequest.dietaryRequirements).filter((value) => isKnownOption(DIETARY_REQUIREMENTS, value)).slice(0, 8),
+    serviceTier,
+    serviceSpecificAnswers: parseStringRecord(initialRequest.serviceSpecificAnswers),
+    eventDate: new Date(initialRequest.eventDate).toISOString().slice(0, 10),
+    eventTime: initialRequest.eventTime ?? "",
+    location: initialRequest.location ?? "",
+    country: isKnownOption(COUNTRY_OPTIONS.map((option) => option.value), initialRequest.countryCode)
+      ? initialRequest.countryCode!
+      : COUNTRY_OPTIONS[0].value,
+    guestCount: String(initialRequest.guestCount ?? ""),
+    adultCount: String(initialRequest.adultCount ?? initialRequest.guestCount ?? ""),
+    childrenUnder10: String(initialRequest.childrenUnder10 ?? 0),
+    budget: String(initialRequest.budget ?? ""),
+    details: initialRequest.details ?? "",
+  }
+}
+
 function createClientDraftId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID()
   }
 
   return `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function createRequestPhotoDraftId(file: File) {
+  const uniquePart = typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2)
+  return `${file.name}-${file.lastModified}-${uniquePart}`
 }
 
 function getTailoredFlowPath(eventType: string, draftId: string) {
@@ -121,30 +231,15 @@ function getTailoredFlowPath(eventType: string, draftId: string) {
   return null
 }
 
-export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormProps) {
+export function RequestWizardForm({ mode = "create", chefId, initialDraftId, initialRequest }: RequestWizardFormProps) {
   const router = useRouter()
+  const isEditMode = mode === "edit"
   const [stepIndex, setStepIndex] = React.useState(0)
   const [loading, setLoading] = React.useState(false)
   const [submitError, setSubmitError] = React.useState<string | null>(null)
   const [fieldErrors, setFieldErrors] = React.useState<Record<string, string>>({})
-  const [formData, setFormData] = React.useState<RequestWizardFormState>({
-    title: "",
-    eventType: EVENT_TYPES[0],
-    serviceType: SERVICE_TYPE_OPTIONS[0].id,
-    cuisinePreferences: [] as string[],
-    dietaryRequirements: [] as string[],
-    serviceTier: SERVICE_TYPE_OPTIONS[0].serviceTiers[0] ?? "",
-    serviceSpecificAnswers: {},
-    eventDate: "",
-    eventTime: "",
-    location: "",
-    country: COUNTRY_OPTIONS[0].value,
-    guestCount: "",
-    adultCount: "",
-    childrenUnder10: "0",
-    budget: "",
-    details: "",
-  })
+  const [requestPhotos, setRequestPhotos] = React.useState<RequestPhotoDraft[]>([])
+  const [formData, setFormData] = React.useState<RequestWizardFormState>(() => createInitialFormData(initialRequest))
 
   const currencyConfig = getCurrencyConfig(formData.country)
   const marketConfig = getMarketConfig(formData.country)
@@ -166,6 +261,8 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
   const attendeeLabel = isCookingClass ? "students" : "guests"
   const hasSelectedChefContext = Boolean(chefId)
   const progressPercentage = ((stepIndex + 1) / steps.length) * 100
+  const submitButtonLabel = isEditMode ? "Save request changes" : "Publish request"
+  const cardTitle = isEditMode ? "Edit request" : "Create request"
 
   const storeDraftAndRouteToTailoredFlow = React.useCallback((eventType: string, nextData = formData) => {
     const draftId = initialDraftId || createClientDraftId()
@@ -238,6 +335,14 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
       window.sessionStorage.removeItem(`chefachef:request-draft:${initialDraftId}`)
     }
   }, [initialDraftId])
+
+  React.useEffect(() => {
+    if (!initialRequest) {
+      return
+    }
+
+    setFormData(createInitialFormData(initialRequest))
+  }, [initialRequest])
 
   React.useEffect(() => {
     if (!initialDraftId || !selectedEventNeedsTailoredFlow) {
@@ -406,6 +511,67 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
     setStepIndex((value) => Math.max(value - 1, 0))
   }
 
+  const handleRequestPhotosSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
+    if (!files.length) return
+
+    const accepted: RequestPhotoDraft[] = []
+    for (const file of files) {
+      if (!MENU_IMAGE_ALLOWED_TYPES.includes(file.type as typeof MENU_IMAGE_ALLOWED_TYPES[number])) {
+        toast.error("Invalid file type. Only JPEG, PNG, and WebP are allowed.")
+        continue
+      }
+      if (file.size > MENU_IMAGE_MAX_BYTES) {
+        toast.error("File too large. Maximum size is 5MB.")
+        continue
+      }
+
+      accepted.push({
+        id: createRequestPhotoDraftId(file),
+        file,
+        previewUrl: URL.createObjectURL(file),
+      })
+    }
+
+    if (accepted.length) {
+      setRequestPhotos((current) => {
+        const capacity = Math.max(0, 8 - current.length)
+        const nextPhotos = accepted.slice(0, capacity)
+        accepted.slice(capacity).forEach((photo) => URL.revokeObjectURL(photo.previewUrl))
+        if (nextPhotos.length < accepted.length) {
+          toast.error("You can attach up to 8 request photos.")
+        }
+        return [...current, ...nextPhotos]
+      })
+    }
+
+    event.target.value = ""
+  }
+
+  const removeRequestPhoto = (photoId: string) => {
+    setRequestPhotos((current) => {
+      const removed = current.find((photo) => photo.id === photoId)
+      if (removed) URL.revokeObjectURL(removed.previewUrl)
+      return current.filter((photo) => photo.id !== photoId)
+    })
+  }
+
+  const uploadRequestPhotos = async (requestId: string) => {
+    for (const photo of requestPhotos) {
+      const payload = new FormData()
+      payload.append("file", photo.file)
+      const response = await fetch(`/api/requests/${requestId}/photos`, {
+        method: "POST",
+        body: payload,
+      })
+
+      if (!response.ok) {
+        const result = await response.json().catch(() => null)
+        throw new Error(result?.error || "Request was created, but one photo failed to upload.")
+      }
+    }
+  }
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     setSubmitError(null)
@@ -422,7 +588,7 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
     setLoading(true)
 
     try {
-      const response = await apiClient.post("/api/requests", {
+      const payload = {
         title: formData.title || undefined,
         eventType: formData.eventType,
         serviceType: formData.serviceType,
@@ -442,14 +608,31 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
         pricingGuestCount: guestComposition.pricingGuestCount,
         budget: Number(formData.budget),
         details: formData.details || undefined,
-      })
+      }
+
+      const response = isEditMode && initialRequest?.id
+        ? await apiClient.patch(`/api/requests/${initialRequest.id}`, payload)
+        : await apiClient.post("/api/requests", payload)
 
       if (response.error) {
         throw new Error(response.error)
       }
 
-      toast.success("Request created successfully")
-      router.push("/dashboard/client/requests")
+      const createdRequestId = (response.data as any)?.id ?? (response.data as any)?.request?.id
+      if (createdRequestId && requestPhotos.length > 0) {
+        await uploadRequestPhotos(createdRequestId)
+      }
+
+      requestPhotos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl))
+      setRequestPhotos([])
+      toast.success(
+        isEditMode
+          ? "Request updated successfully"
+          : requestPhotos.length > 0
+            ? "Request and photos created successfully"
+            : "Request created successfully"
+      )
+      router.push(isEditMode && initialRequest?.id ? `/dashboard/client/requests/${initialRequest.id}` : "/dashboard/client/requests")
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to create request"
       setSubmitError(message)
@@ -777,6 +960,57 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
               />
             </FormFieldWrapper>
 
+            <div className="space-y-3 rounded-2xl border border-border bg-muted/20 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Request photos</p>
+                  <p className="text-xs text-muted-foreground">Optional images that help chefs understand the venue, kitchen, or event setup.</p>
+                </div>
+                <Button type="button" variant="outline" className="w-fit rounded-xl" asChild>
+                  <label htmlFor="requestPhotos" className="cursor-pointer">
+                    <Upload className="h-4 w-4" />
+                    Add photos
+                  </label>
+                </Button>
+                <input
+                  id="requestPhotos"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  onChange={handleRequestPhotosSelected}
+                />
+              </div>
+              {requestPhotos.length > 0 ? (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {requestPhotos.map((photo) => (
+                    <div key={photo.id} className="relative overflow-hidden rounded-xl border border-border bg-background">
+                      <div className="relative h-32 w-full">
+                        <Image
+                          src={photo.previewUrl}
+                          alt={photo.file.name}
+                          fill
+                          unoptimized
+                          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+                          className="object-cover"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="destructive"
+                        className="absolute right-2 top-2 h-8 w-8 rounded-lg"
+                        onClick={() => removeRequestPhoto(photo.id)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                      <p className="truncate px-3 py-2 text-xs text-muted-foreground">{photo.file.name}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
             <div className="rounded-2xl border border-border bg-muted/30 p-5">
               <h3 className="text-sm font-semibold text-foreground">Review</h3>
               <div className="mt-4 grid gap-3 text-sm text-muted-foreground md:grid-cols-2">
@@ -788,6 +1022,7 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
                 <div className="flex items-center gap-2"><Users className="h-4 w-4" />{guestComposition.billableGuestCount} billable equivalent</div>
                 <div className="flex items-center gap-2"><Wallet className="h-4 w-4" />{formatCurrency(Number(formData.budget || 0), currencyConfig.currency, currencyConfig.locale)}</div>
                 <div className="flex items-center gap-2"><UtensilsCrossed className="h-4 w-4" />{formData.cuisinePreferences.join(", ") || "Cuisine not selected"}</div>
+                <div className="flex items-center gap-2"><Upload className="h-4 w-4" />{requestPhotos.length} photo{requestPhotos.length === 1 ? "" : "s"} selected</div>
               </div>
             </div>
           </div>
@@ -802,8 +1037,12 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
           <CardHeader>
             <div className="space-y-4">
               <div className="space-y-1">
-                <CardTitle>Create request</CardTitle>
-                <p className="text-sm text-muted-foreground">A structured step-by-step request helps chefs respond faster with better-fit proposals.</p>
+                <CardTitle>{cardTitle}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {isEditMode
+                    ? "Update the request details before chefs have responded."
+                    : "A structured step-by-step request helps chefs respond faster with better-fit proposals."}
+                </p>
               </div>
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">
@@ -860,7 +1099,7 @@ export function RequestWizardForm({ chefId, initialDraftId }: RequestWizardFormP
                 </Button>
               ) : (
                 <Button type="submit" disabled={loading}>
-                  {loading ? "Publishing..." : "Publish request"}
+                  {loading ? (isEditMode ? "Saving..." : "Publishing...") : submitButtonLabel}
                 </Button>
               )}
             </div>

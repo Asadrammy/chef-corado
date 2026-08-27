@@ -110,6 +110,39 @@ export const emailTemplates = {
     </div>
   `,
 
+  newRequestAlert: (input: {
+    chefName: string
+    clientName: string
+    requestTitle: string
+    requestLocation: string
+    eventType?: string | null
+    eventDate?: string | Date | null
+    guestCount?: number | null
+    currency?: string | null
+    budget?: number | null
+    requestUrl: string
+    cuisinePreferences?: string[]
+    dietaryRequirements?: string[]
+  }) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #333;">New Request Available</h2>
+      <p>Hi <strong>${input.chefName}</strong>,</p>
+      <p>A new request from <strong>${input.clientName}</strong> matches your service area.</p>
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #e91e63;">${input.requestTitle}</h3>
+        ${input.eventType ? `<p><strong>Event:</strong> ${input.eventType}</p>` : ""}
+        ${input.eventDate ? `<p><strong>Date:</strong> ${new Date(input.eventDate).toLocaleDateString()}</p>` : ""}
+        <p><strong>Location:</strong> ${input.requestLocation}</p>
+        ${input.guestCount != null ? `<p><strong>Guests:</strong> ${input.guestCount}</p>` : ""}
+        ${input.budget != null ? `<p><strong>Budget:</strong> ${formatCurrency(input.budget, input.currency ?? "GBP")}</p>` : ""}
+        ${input.cuisinePreferences?.length ? `<p><strong>Cuisines:</strong> ${input.cuisinePreferences.join(", ")}</p>` : ""}
+        ${input.dietaryRequirements?.length ? `<p><strong>Dietary requirements:</strong> ${input.dietaryRequirements.join(", ")}</p>` : ""}
+      </div>
+      <p><a href="${input.requestUrl}" style="color: #e91e63;">View Request</a></p>
+      <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
+    </div>
+  `,
+
   newMultiDayRequest: (
     chefName: string,
     requestTitle: string,
@@ -134,6 +167,35 @@ export const emailTemplates = {
       </div>
       ${renderMultiDayEmailDetails({ serviceDates: details?.serviceDates, currency, budgetMode: details?.budgetMode })}
       <p>Log in to your dashboard to view details and submit a proposal.</p>
+      <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
+    </div>
+  `,
+
+  newMultiDayRequestAlert: (input: {
+    chefName: string
+    clientName: string
+    requestTitle: string
+    requestLocation: string
+    eventDate?: string | Date | null
+    guestCount?: number | null
+    currency?: string | null
+    budget?: number | null
+    serviceDates?: MultiDayDateLike[] | null
+    requestUrl: string
+  }) => `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #333;">New Multi-Day Request Available</h2>
+      <p>Hi <strong>${input.chefName}</strong>,</p>
+      <p>A new Multi-Day request from <strong>${input.clientName}</strong> matches your service area.</p>
+      <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="margin-top: 0; color: #e91e63;">${input.requestTitle}</h3>
+        ${input.eventDate ? `<p><strong>First date:</strong> ${new Date(input.eventDate).toLocaleDateString()}</p>` : ""}
+        <p><strong>Location:</strong> ${input.requestLocation}</p>
+        ${input.guestCount != null ? `<p><strong>Guests:</strong> ${input.guestCount}</p>` : ""}
+        ${input.budget != null ? `<p><strong>Budget guidance:</strong> ${formatCurrency(input.budget, input.currency ?? "GBP")}</p>` : ""}
+        <p><strong>Selected dates:</strong> ${formatServiceDateSummary(input.serviceDates)}</p>
+      </div>
+      <p><a href="${input.requestUrl}" style="color: #e91e63;">View Request</a></p>
       <p style="margin-top: 30px;">Best regards,<br>The ChefaChef Team</p>
     </div>
   `,

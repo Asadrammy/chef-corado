@@ -15,7 +15,6 @@ export type PublicChefCardData = {
   location?: string | null;
   radius?: number | null;
   profileImage?: string | null;
-  chefType?: string | null;
   cuisineType?: string | null;
   displayName?: string;
   experience?: number | null;
@@ -66,7 +65,6 @@ export function PublicChefCard({ chef }: { chef: PublicChefCardData }) {
         </div>
         <div className="flex flex-wrap gap-2">
           {chef.cuisineType ? <Badge variant="secondary">{chef.cuisineType}</Badge> : null}
-          {chef.chefType ? <Badge variant="outline">{chef.chefType}</Badge> : null}
           {typeof chef.experience === "number" ? <Badge variant="outline">{chef.experience}+ years</Badge> : null}
         </div>
       </CardHeader>

@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import bcrypt from 'bcrypt';
-import crypto from 'crypto';
+import {
+  createPasswordResetForUser,
+  hashPasswordResetToken,
+  sendPasswordResetEmail,
+} from '@/lib/password-reset';
+import { getAppBaseUrlFromRequest } from '@/lib/email-verification';
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email(),
+  email: z.string().trim().toLowerCase().email(),
 });
 
 const resetPasswordSchema = z.object({
@@ -16,13 +21,19 @@ const resetPasswordSchema = z.object({
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email } = forgotPasswordSchema.parse(body);
+    const parsed = forgotPasswordSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 422 });
+    }
+    const { email: normalizedEmail } = parsed.data;
 
     // Find user by email
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
       select: {
         id: true,
+        name: true,
+        email: true,
       },
     });
 
@@ -33,24 +44,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Generate reset token
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpires = new Date(Date.now() + 3600000); // 1 hour from now
-
-    // Save reset token to database
-    await (prisma as any).user.update({
-      where: { id: user.id },
-      data: {
-        resetToken,
-        resetTokenExpires,
-      },
+    const { rawToken } = await createPasswordResetForUser(user.id);
+    await sendPasswordResetEmail({
+      email: user.email,
+      name: user.name,
+      token: rawToken,
+      baseUrl: getAppBaseUrlFromRequest(request),
     });
-
-    // In a real application, you would send an email here
-    // For demo purposes, we'll just return the token (in production, remove this!)
-    // TODO: Implement email sending for password reset
-    // console.log(`Password reset token for ${email}: ${resetToken}`);
-    // console.log(`Reset link would be: /reset-password?token=${resetToken}`);
 
     return NextResponse.json({ 
       message: 'If an account with that email exists, a password reset link has been sent.' 
@@ -66,12 +66,19 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { token, newPassword } = resetPasswordSchema.parse(body);
+    const parsed = resetPasswordSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 422 });
+    }
+    const { token, newPassword } = parsed.data;
 
-    // Find user by reset token
+    const tokenHash = hashPasswordResetToken(token);
+
+    // Find user by reset token hash. Legacy raw-token fallback is intentionally
+    // not supported for newly issued tokens; runtime storage must remain hashed.
     const user = await (prisma as any).user.findFirst({
       where: {
-        resetToken: token,
+        resetToken: tokenHash,
         resetTokenExpires: {
           gt: new Date(),
         },

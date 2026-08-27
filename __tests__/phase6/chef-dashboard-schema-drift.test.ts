@@ -12,6 +12,7 @@ describe("chef dashboard schema-drift hardening", () => {
     expect(source).not.toContain("request: true")
     expect(source).toContain("request: {")
     expect(source).toContain("eventDate: true")
+    expect(source).toContain("getSafeClientGreetingName(request.client)")
   })
 
   it("does not use broad Request reads on the chef Requests page", () => {

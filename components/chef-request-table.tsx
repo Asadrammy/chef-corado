@@ -10,19 +10,37 @@ export type ChefRequestRow = {
   id: string
   title?: string | null
   eventType?: string | null
+  requestMode?: string | null
   serviceType?: string | null
   serviceTypeLabel?: string | null
+  serviceTier?: string | null
   eventDate: string
   createdAt?: string | null
   submittedAt?: string | null
-  multiDayDates?: string[]
+  multiDayDates?: Array<unknown>
   location: string
   budget: number
   currency: string
   details: string | null
+  clientName?: string | null
+  clientGreetingName?: string | null
+  guestCount?: number | null
+  adultCount?: number | null
+  childrenUnder10?: number | null
+  actualAttendeeCount?: number | null
+  billableGuestCount?: number | null
+  pricingGuestCount?: number | null
+  cuisinePreferences?: string[]
+  dietaryRequirements?: string[]
+  serviceSpecificAnswerSummary?: string[]
   distanceKm?: number
   broaderMatching?: boolean
   geocodingStatus?: string | null
+  photos?: Array<{
+    id: string
+    url: string
+    originalName: string | null
+  }>
 }
 
 export function ChefRequestTable({
