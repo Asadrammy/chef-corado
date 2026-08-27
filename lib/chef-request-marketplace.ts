@@ -12,6 +12,7 @@ export type SortableChefRequest = {
   eventDate?: string | Date | null
   createdAt?: string | Date | null
   submittedAt?: string | Date | null
+  activityAt?: string | Date | null
   multiDayDates?: Array<unknown>
   budget: number
   distanceKm?: number | null
@@ -53,7 +54,7 @@ function tieBreak(a: SortableChefRequest, b: SortableChefRequest) {
 }
 
 export function getRequestSubmittedAt(request: SortableChefRequest) {
-  return toTime(request.submittedAt) ?? toTime(request.createdAt)
+  return toTime(request.activityAt) ?? toTime(request.submittedAt) ?? toTime(request.createdAt)
 }
 
 export function getEarliestUpcomingRequestEventAt(request: SortableChefRequest, now: Date = new Date()) {

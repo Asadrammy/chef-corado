@@ -17,13 +17,12 @@ describe("chef dashboard schema-drift hardening", () => {
 
   it("does not use broad Request reads on the chef Requests page", () => {
     const source = readSource("app/dashboard/chef/requests/page.tsx")
-    const queryStart = source.indexOf("const allRequests = await prisma.request.findMany")
-    const queryEnd = source.indexOf("requests = allRequests", queryStart)
-    const querySource = source.slice(queryStart, queryEnd)
-
-    expect(querySource).toContain("prisma.request.findMany")
-    expect(querySource).toContain("select: {")
-    expect(querySource).toContain("geocodingStatus: true")
-    expect(querySource).not.toContain("include:")
+    expect(source).toContain("proposalService.listProposals(userId, Role.CHEF)")
+    expect(source).toContain("proposals: {")
+    expect(source).toContain("none: {")
+    expect(source).toContain("chefId: chefProfile.id")
+    expect(source).toContain("_count: {")
+    expect(source).toContain("buildChefRespondedRequestView")
+    expect(source).not.toContain("request: true")
   })
 })

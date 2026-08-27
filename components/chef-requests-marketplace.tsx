@@ -1,13 +1,30 @@
 "use client"
 
 import * as React from "react"
-import { ArrowUpDown, Calendar, Filter, Search, Sparkles, Users, MapPin, SlidersHorizontal, Wallet } from "lucide-react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+import {
+  ArrowUpDown,
+  Calendar,
+  ChefHat,
+  Filter,
+  MapPin,
+  MessageSquare,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Users,
+  Wallet,
+  Clock3,
+} from "lucide-react"
 
 import { ChefRequestCard } from "@/components/dashboard/chef/chef-request-card"
-import { MatchResult } from "@/lib/services/smart-matching-service"
-import { ChefRequestSortKey, sortChefMarketplaceRequests } from "@/lib/chef-request-marketplace"
-import type { ChefRequestView } from "@/lib/chef-request-view"
+import { ChefRequestSortKey } from "@/lib/chef-request-marketplace"
+import {
+  getMarketplaceActiveFilterCount,
+  parseMarketplaceFilters,
+} from "@/lib/chef-request-marketplace-filters"
+import type { ChefRequestView, ChefRespondedRequestView } from "@/lib/chef-request-view"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,90 +32,355 @@ import { DashboardStatCard } from "@/components/ui/dashboard-stat-card"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Slider } from "@/components/ui/slider"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Pagination, PaginationContent, PaginationItem, PaginationNext, PaginationPrevious } from "@/components/ui/pagination"
 import { formatCurrency } from "@/lib/currency"
+type MarketplacePagination = {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+}
 
 export type ChefRequestsMarketplaceProps = {
   requests: ChefRequestView[]
+  respondedRequests: ChefRespondedRequestView[]
+  totalRequestsCount: number
+  totalRespondedCount: number
+  pagination: MarketplacePagination
   serviceRadiusKm?: number
   baseLocation?: string
   useSmartMatching?: boolean
 }
 
-export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocation, useSmartMatching = false }: ChefRequestsMarketplaceProps) {
-  const [searchQuery, setSearchQuery] = React.useState("")
-  const [sortBy, setSortBy] = React.useState<ChefRequestSortKey>("newest")
-  const [showFilters, setShowFilters] = React.useState(false)
-  const [smartMatches, setSmartMatches] = React.useState<MatchResult[]>([])
-  const [isLoadingMatches, setIsLoadingMatches] = React.useState(false)
-  const [radiusFilter, setRadiusFilter] = React.useState(serviceRadiusKm ?? 50)
+function matchesCurrentFilterValues(filters: ReturnType<typeof parseMarketplaceFilters>) {
+  return getMarketplaceActiveFilterCount(filters)
+}
 
-  // Fetch smart matches when enabled
+function RespondedCard({ request }: { request: ChefRespondedRequestView }) {
+  const proposalDateLabel = request.proposal.sentDateLabel ?? "Date pending"
+  const proposalAgeLabel = request.proposal.sentAgeLabel ?? "Recently"
+  const followUpHref = request.followUpHref ?? request.detailHref
+  const guestCount = request.actualAttendeeCount ?? request.guestCount
+
+  return (
+    <Card className="rounded-[24px] border border-background/40 bg-background/95 shadow-lg shadow-black/5 backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-black/10 dark:border-background/20">
+      <div className="space-y-4 p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 space-y-2">
+            <Badge variant="secondary" className="w-fit rounded-full border border-primary/15 bg-primary/10 px-3 py-1 text-xs font-medium text-primary shadow-sm">
+              <MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+              Responded
+            </Badge>
+            <div className="min-w-0 space-y-1">
+              <h3 className="text-foreground text-xl font-semibold tracking-tight line-clamp-1">{request.title}</h3>
+              <p className="text-muted-foreground text-sm leading-6 line-clamp-2">{request.details || "Proposal sent to this request."}</p>
+              <p className="text-xs font-medium text-muted-foreground">Hello {request.clientGreetingName}</p>
+            </div>
+          </div>
+          <Badge variant="outline" className="rounded-full border-border/60 bg-background/60 px-2.5 py-1 text-xs">
+            {request.proposal.statusLabel}
+          </Badge>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
+            <MapPin className="h-4 w-4" />
+            <span className="line-clamp-1">{request.location}</span>
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
+            <Calendar className="h-4 w-4" />
+            {request.submittedDateLabel ?? "Date pending"}
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
+            <Clock3 className="h-4 w-4" />
+            {proposalAgeLabel}
+          </span>
+          {guestCount != null ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
+              <Users className="h-4 w-4" />
+              {guestCount} guests
+            </span>
+          ) : null}
+          <Badge variant="outline" className="rounded-full border-border/60 bg-background/60 px-2.5 py-1">
+            {request.eventType ?? "Event"}
+          </Badge>
+          <Badge variant="outline" className="rounded-full border-border/60 bg-background/60 px-2.5 py-1">
+            {request.serviceTypeLabel}
+          </Badge>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
+            <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-[0.18em]">Proposal</p>
+            <p className="text-foreground mt-2 text-xl font-semibold tracking-tight">
+              {formatCurrency(request.proposal.price, request.proposal.currency || request.currency || "GBP")}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/70 bg-white/70 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
+            <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-[0.18em]">Sent</p>
+            <p className="text-foreground mt-2 text-sm font-medium">{proposalDateLabel}</p>
+            <p className="text-muted-foreground text-xs">{request.proposal.sentAgeLabel ?? "Recently"}</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <Badge variant="outline" className="rounded-full border-border/60 bg-background/60 px-2.5 py-1">
+            {request.proposal.statusLabel}
+          </Badge>
+          {request.cuisinePreferences.length ? (
+            <Badge variant="outline" className="rounded-full border-border/60 bg-background/60 px-2.5 py-1">
+              <ChefHat className="mr-1.5 h-3.5 w-3.5" />
+              {request.cuisinePreferences.slice(0, 2).join(", ")}
+            </Badge>
+          ) : null}
+          {request.perPersonBudget != null ? (
+            <Badge variant="outline" className="rounded-full border-border/60 bg-background/60 px-2.5 py-1">
+              {formatCurrency(request.perPersonBudget, request.currency || "GBP")} pp
+            </Badge>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm">
+            <p className="font-medium text-foreground">{request.totalProposalCount ?? 0}/10 chefs responded</p>
+            <p className="text-muted-foreground">Follow up safely through the platform conversation.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="rounded-2xl border-white/70 bg-white/70 shadow-sm backdrop-blur" asChild>
+              <Link href={request.detailHref}>View request</Link>
+            </Button>
+            <Button className="brand-gradient-button rounded-2xl px-4 shadow-lg shadow-primary/20" asChild>
+              <Link href={followUpHref}>Message client</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+function makeQueryUpdater(pathname: string, searchParams: URLSearchParams, replace: (url: string, options?: { scroll?: boolean }) => void) {
+  return (patch: Record<string, string | number | null | undefined>, resetPage = true) => {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [key, value] of Object.entries(patch)) {
+      if (value == null || value === "") params.delete(key)
+      else params.set(key, String(value))
+    }
+    if (resetPage) {
+      params.set("page", "1")
+    }
+    replace(params.toString() ? `${pathname}?${params.toString()}` : pathname, { scroll: false })
+  }
+}
+
+export function ChefRequestsMarketplace({
+  requests,
+  respondedRequests,
+  totalRequestsCount,
+  totalRespondedCount,
+  pagination,
+  serviceRadiusKm,
+  baseLocation,
+  useSmartMatching = false,
+}: ChefRequestsMarketplaceProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const currentSearchParams = React.useMemo(() => new URLSearchParams(searchParams.toString()), [searchParams])
+  const currentFilters = React.useMemo(
+    () => parseMarketplaceFilters(Object.fromEntries(currentSearchParams.entries())),
+    [currentSearchParams]
+  )
+  const [showFilters, setShowFilters] = React.useState(Boolean(currentFilters.search || currentFilters.budgetMin != null || currentFilters.budgetMax != null || currentFilters.perPersonMin != null || currentFilters.perPersonMax != null || currentFilters.guestsMin != null || currentFilters.guestsMax != null || currentFilters.dateFrom || currentFilters.dateTo || currentFilters.radiusKm != null))
+  const [radiusDraft, setRadiusDraft] = React.useState(currentFilters.radiusKm ?? serviceRadiusKm ?? 50)
+
   React.useEffect(() => {
-    if (!useSmartMatching) return
+    setRadiusDraft(currentFilters.radiusKm ?? serviceRadiusKm ?? 50)
+  }, [currentFilters.radiusKm, serviceRadiusKm])
 
-    const fetchSmartMatches = async () => {
-      setIsLoadingMatches(true)
-      try {
-        const response = await fetch("/api/requests/matches?limit=50")
-        if (response.ok) {
-          const data = await response.json()
-          setSmartMatches(data.matches || [])
-        }
-      } catch (error) {
-        console.error("Failed to fetch smart matches:", error)
-      } finally {
-        setIsLoadingMatches(false)
+  const updateQuery = React.useMemo(
+    () => makeQueryUpdater(pathname, currentSearchParams, router.replace),
+    [pathname, router, currentSearchParams]
+  )
+
+  React.useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      if (radiusDraft !== (currentFilters.radiusKm ?? serviceRadiusKm ?? 50)) {
+        updateQuery({ radius: radiusDraft })
       }
-    }
+    }, 180)
 
-    fetchSmartMatches()
-  }, [useSmartMatching])
+    return () => window.clearTimeout(timeout)
+  }, [radiusDraft, currentFilters.radiusKm, serviceRadiusKm, updateQuery])
 
-  // Filter and sort requests
-  const filteredRequests = React.useMemo(() => {
-    let filtered = requests
+  const activeFilterCount = matchesCurrentFilterValues(currentFilters)
+  const currentTab = currentFilters.tab
+  const totalPages = pagination.totalPages
+  const currentPage = pagination.page
 
-    // Radius filter applies only to exact-distance rows. Broader matches remain visible and labelled.
-    filtered = filtered.filter((request) => request.distanceKm == null || request.distanceKm <= radiusFilter)
-
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.filter((request) =>
-        request.location.toLowerCase().includes(query) ||
-        request.details?.toLowerCase().includes(query)
-      )
-    }
-
-    // Sort
-    const sorted = sortChefMarketplaceRequests(filtered, sortBy, {
-      getMatchScore: (request) => smartMatches.find((match) => match.requestId === request.id)?.matchScore,
-    })
-
-    return sorted
-  }, [requests, searchQuery, sortBy, smartMatches, radiusFilter])
-
-  // Enrich requests with match data
-  const displayRequests = React.useMemo(() => {
-    if (!useSmartMatching) return filteredRequests
-
-    return filteredRequests.map((req) => ({
-      ...req,
-      matchData: smartMatches.find((m) => m.requestId === req.id),
-    }))
-  }, [filteredRequests, smartMatches, useSmartMatching])
-  const upcomingRequestsCount = requests.filter((request) => new Date(request.eventDate) >= new Date()).length
   const highestBudgetRequest = requests.reduce<ChefRequestView | null>((highest, request) => {
-    if (!highest || request.budget > highest.budget) {
-      return request
-    }
+    if (!highest || request.budget > highest.budget) return request
     return highest
   }, null)
+
   const highestBudget = highestBudgetRequest
     ? formatCurrency(highestBudgetRequest.budget, highestBudgetRequest.currency || "GBP")
     : formatCurrency(0, "GBP")
-  const activeServiceRadius = serviceRadiusKm ?? 50
-  const broaderMatchCount = requests.filter((request) => request.broaderMatching || request.distanceKm == null).length
+
+  const upcomingRequestsCount = requests.filter((request) => new Date(request.eventDate) >= new Date()).length
+
+  const controls = (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center">
+        <div className="group relative w-full">
+          <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-foreground" />
+          <Input
+            value={currentFilters.search}
+            placeholder="Search title, location, city, postcode, cuisine or service..."
+            onChange={(e) => updateQuery({ search: e.target.value || null })}
+            className="h-12 rounded-2xl border-white/70 bg-white/80 pl-10 shadow-sm backdrop-blur transition-all duration-200 focus-visible:bg-white focus-visible:border-white focus-visible:shadow-md focus-visible:shadow-black/5 dark:border-white/10 dark:bg-white/5"
+          />
+        </div>
+        <Button
+          variant="outline"
+          onClick={() => setShowFilters(!showFilters)}
+          className="h-12 rounded-2xl border-white/70 bg-white/80 px-4 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
+        >
+          <Filter className="h-4 w-4" />
+          {showFilters ? "Filters active" : "Filters"}
+          {activeFilterCount > 0 ? <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs">{activeFilterCount}</span> : null}
+        </Button>
+        <Select value={currentFilters.sort} onValueChange={(value) => updateQuery({ sort: value as ChefRequestSortKey })}>
+          <SelectTrigger className="h-12 w-full rounded-2xl border-white/70 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5 lg:w-[220px]">
+            <ArrowUpDown className="mr-2 h-4 w-4" />
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            {useSmartMatching ? (
+              <SelectItem value="match-score">
+                <span className="flex items-center gap-2">
+                  <Sparkles className="h-3.5 w-3.5 text-primary" />
+                  Best Match (AI)
+                </span>
+              </SelectItem>
+            ) : null}
+            <SelectItem value="newest">Newest First</SelectItem>
+            <SelectItem value="event-date">Event Date</SelectItem>
+            <SelectItem value="closest">Closest to Me</SelectItem>
+            <SelectItem value="budget-high">Budget: High to Low</SelectItem>
+            <SelectItem value="budget-low">Budget: Low to High</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {showFilters ? (
+        <div className="rounded-[26px] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,248,255,0.92))] p-4 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-foreground text-sm font-medium tracking-tight">Filter requests</p>
+              <p className="text-muted-foreground mt-1 text-sm leading-6">
+                Tune budget, guests, dates and radius. Results stay on the server and the URL keeps state on refresh.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="rounded-2xl"
+              onClick={() => {
+                router.replace(pathname, { scroll: false })
+              }}
+            >
+              Reset filters
+            </Button>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Total budget</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="number" min="0" placeholder="Min" value={currentFilters.budgetMin ?? ""} onChange={(e) => updateQuery({ budgetMin: e.target.value || null })} className="rounded-2xl" />
+                <Input type="number" min="0" placeholder="Max" value={currentFilters.budgetMax ?? ""} onChange={(e) => updateQuery({ budgetMax: e.target.value || null })} className="rounded-2xl" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Per-person budget</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="number" min="0" placeholder="Min" value={currentFilters.perPersonMin ?? ""} onChange={(e) => updateQuery({ ppMin: e.target.value || null })} className="rounded-2xl" />
+                <Input type="number" min="0" placeholder="Max" value={currentFilters.perPersonMax ?? ""} onChange={(e) => updateQuery({ ppMax: e.target.value || null })} className="rounded-2xl" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Guests</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="number" min="0" placeholder="Min" value={currentFilters.guestsMin ?? ""} onChange={(e) => updateQuery({ guestsMin: e.target.value || null })} className="rounded-2xl" />
+                <Input type="number" min="0" placeholder="Max" value={currentFilters.guestsMax ?? ""} onChange={(e) => updateQuery({ guestsMax: e.target.value || null })} className="rounded-2xl" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">Event date</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="date" value={currentFilters.dateFrom ?? ""} onChange={(e) => updateQuery({ dateFrom: e.target.value || null })} className="rounded-2xl" />
+                <Input type="date" value={currentFilters.dateTo ?? ""} onChange={(e) => updateQuery({ dateTo: e.target.value || null })} className="rounded-2xl" />
+              </div>
+            </div>
+
+            <div className="space-y-2 md:col-span-2 xl:col-span-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-foreground">Radius</p>
+                <p className="text-sm text-muted-foreground">{radiusDraft} km</p>
+              </div>
+              <Slider
+                value={[radiusDraft]}
+                min={5}
+                max={serviceRadiusKm ?? 100}
+                step={5}
+                onValueChange={(value) => setRadiusDraft(value[0])}
+                className="flex-1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Saved radius caps eligibility at {serviceRadiusKm ?? 0} km{baseLocation ? ` from ${baseLocation}` : ""}.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+
+  const paginationControls = totalPages > 1 ? (
+    <Pagination>
+      <PaginationContent>
+        <PaginationItem>
+          <PaginationPrevious
+            href="#"
+            onClick={(event) => {
+              event.preventDefault()
+              if (currentPage > 1) updateQuery({ page: currentPage - 1 }, false)
+            }}
+            className={currentPage <= 1 ? "pointer-events-none opacity-50" : ""}
+          />
+        </PaginationItem>
+        <PaginationItem>
+          <span className="px-3 py-2 text-sm text-muted-foreground">
+            Page {currentPage} of {totalPages}
+          </span>
+        </PaginationItem>
+        <PaginationItem>
+          <PaginationNext
+            href="#"
+            onClick={(event) => {
+              event.preventDefault()
+              if (currentPage < totalPages) updateQuery({ page: currentPage + 1 }, false)
+            }}
+            className={currentPage >= totalPages ? "pointer-events-none opacity-50" : ""}
+          />
+        </PaginationItem>
+      </PaginationContent>
+    </Pagination>
+  ) : null
 
   return (
     <div className="space-y-6 lg:space-y-7">
@@ -112,34 +394,26 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
                 Live workspace
               </Badge>
               <div className="space-y-2">
-                <h1 className="text-foreground text-4xl font-semibold tracking-tight lg:text-5xl">
-                  Incoming Requests
-                </h1>
+                <h1 className="text-foreground text-4xl font-semibold tracking-tight lg:text-5xl">Incoming Requests</h1>
                 <p className="text-muted-foreground max-w-2xl text-sm leading-6 md:text-[15px]">
-                  Showing requests within your saved service radius. Requests without exact coordinates may appear under broader matching.
+                  Showing requests within your saved service radius. Narrow the queue by budget, guests, date, or search.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3 text-sm">
                 <div className="inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/10 px-3 py-1.5 text-primary shadow-sm">
                   <Users className="h-4 w-4" />
-                  {requests.length} active opportunities
+                  {totalRequestsCount} active opportunities
                 </div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-white/70 bg-background/70 px-3 py-1.5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
                   <MapPin className="h-4 w-4 text-primary" />
-                  Saved service radius: {activeServiceRadius} km{baseLocation ? ` from ${baseLocation}` : ""}
+                  Saved service radius: {serviceRadiusKm ?? 0} km{baseLocation ? ` from ${baseLocation}` : ""}
                 </div>
                 <div className="text-muted-foreground inline-flex items-center gap-2 rounded-full border border-white/70 bg-background/70 px-3 py-1.5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-background/10">
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
                   Sorted for fast proposal workflow
                 </div>
-                {broaderMatchCount > 0 ? (
-                  <div className="text-muted-foreground inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-amber-900 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-100">
-                    {broaderMatchCount} broader matching
-                  </div>
-                ) : null}
               </div>
             </div>
-
           </div>
         </CardContent>
       </Card>
@@ -154,151 +428,148 @@ export function ChefRequestsMarketplace({ requests, serviceRadiusKm, baseLocatio
               </div>
               <CardTitle className="text-foreground text-xl font-semibold tracking-tight">Request controls</CardTitle>
               <p className="text-muted-foreground text-sm leading-6">
-                Narrow your queue, surface priority opportunities, and move from review to proposal faster.
+                Filter the live marketplace without leaking contact details or breaking the marketplace radius rules.
               </p>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-center">
-            <div className="group relative w-full">
-              <Search className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-foreground" />
-              <Input
-                placeholder="Search by location or request details..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-12 rounded-2xl border-white/70 bg-white/80 pl-10 shadow-sm backdrop-blur transition-all duration-200 focus-visible:bg-white focus-visible:border-white focus-visible:shadow-md focus-visible:shadow-black/5 dark:border-white/10 dark:bg-white/5"
-              />
-            </div>
-            <Button
-              variant="outline"
-              onClick={() => setShowFilters(!showFilters)}
-              className="h-12 rounded-2xl border-white/70 bg-white/80 px-4 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-white dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10"
-            >
-              <Filter className="h-4 w-4" />
-              {showFilters ? "Filters active" : "Filters"}
-            </Button>
-            <Select value={sortBy} onValueChange={(value) => setSortBy(value as ChefRequestSortKey)}>
-              <SelectTrigger className="h-12 w-full rounded-2xl border-white/70 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5 lg:w-[220px]">
-                <ArrowUpDown className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                {useSmartMatching && (
-                  <SelectItem value="match-score">
-                    <span className="flex items-center gap-2">
-                      <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      Best Match (AI)
-                    </span>
-                  </SelectItem>
-                )}
-                <SelectItem value="newest">Newest First</SelectItem>
-                <SelectItem value="event-date">Event Date</SelectItem>
-                <SelectItem value="closest">Closest to Me</SelectItem>
-                <SelectItem value="budget-high">Budget: High to Low</SelectItem>
-                <SelectItem value="budget-low">Budget: Low to High</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <Tabs value={currentTab} onValueChange={(value) => updateQuery({ tab: value, page: 1 }, false)} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 rounded-2xl p-1">
+              <TabsTrigger value="requests" className="rounded-xl">
+                Requests <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">{totalRequestsCount}</span>
+              </TabsTrigger>
+              <TabsTrigger value="responded" className="rounded-xl">
+                Responded <span className="ml-1 rounded-full bg-muted px-2 py-0.5 text-xs">{totalRespondedCount}</span>
+              </TabsTrigger>
+            </TabsList>
 
-          {showFilters ? (
-            <div className="rounded-[26px] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,248,255,0.92))] p-4 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))]">
-              <p className="text-foreground text-sm font-medium tracking-tight">Filter panel ready</p>
-              <p className="text-muted-foreground mt-1 text-sm leading-6">
-                Search and sorting are active. This panel can host more premium filters as request discovery expands.
-              </p>
-            </div>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <DashboardStatCard
-          label="Available requests"
-          value={requests.length}
-          description="Live opportunities currently available in your service area"
-          icon={<Users className="h-5 w-5" />}
-          trend={requests.length > 0 ? "Fresh demand is available to convert into bookings." : "No request matches are available right now."}
-        />
-        <DashboardStatCard
-          label="Upcoming requests"
-          value={upcomingRequestsCount}
-          description="Future-dated events you can prioritize for planning"
-          icon={<Calendar className="h-5 w-5" />}
-          trend={upcomingRequestsCount > 0 ? "Upcoming requests give you more time to pitch strategically." : "No future-dated requests are available yet."}
-        />
-        <DashboardStatCard
-          label="Highest budget"
-          value={highestBudget}
-          description="Top visible budget among the requests in your queue"
-          icon={<Wallet className="h-5 w-5" />}
-          trend={requests.length > 0 ? "Higher-budget opportunities can lift overall revenue quality." : "Budget insight will appear once requests are available."}
-        />
-      </div>
-
-      <Card className="rounded-[30px] border border-white/60 bg-white/72 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
-        <CardContent className="flex flex-col gap-4 p-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-3 flex-1">
-            <div className="flex items-center gap-2">
-              <SlidersHorizontal className="h-4 w-4 text-primary" />
-              <p className="text-sm font-medium text-foreground">Service radius summary</p>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              Showing open customer requests within your saved service radius: <span className="font-semibold text-foreground">{activeServiceRadius} km</span>
-              {baseLocation ? ` from ${baseLocation}` : " from your saved base location"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              The slider below narrows exact-distance requests temporarily to <span className="font-medium text-foreground">{radiusFilter} km</span>. Requests without exact coordinates may remain visible under broader matching.
-            </p>
-            <div className="flex items-center gap-4 pt-2">
-              <Slider
-                value={[radiusFilter]}
-                onValueChange={(value) => setRadiusFilter(value[0])}
-                max={serviceRadiusKm ? Math.max(serviceRadiusKm, 100) : 100}
-                min={5}
-                step={5}
-                className="flex-1 max-w-xs"
-              />
-              <span className="text-sm font-medium text-foreground w-12">{radiusFilter} km</span>
-            </div>
-          </div>
-          <Button variant="outline" className="rounded-2xl shrink-0" asChild>
-            <Link href="/dashboard/chef/profile">Edit Service Radius</Link>
-          </Button>
-        </CardContent>
-      </Card>
-
-      {displayRequests.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-          {displayRequests.map((request) => (
-            <ChefRequestCard key={request.id} request={request} />
-          ))}
-        </div>
-      ) : (
-        <Card className="rounded-[30px] border border-white/60 bg-white/72 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
-          <CardContent className="py-12">
-            <div className="mx-auto flex max-w-xl flex-col items-center text-center">
-              <div className="from-primary/15 to-background text-primary mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br shadow-sm">
-                <Search className="h-9 w-9" />
+            <TabsContent value="requests" className="mt-4 space-y-4">
+              {controls}
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <DashboardStatCard
+                  label="Available requests"
+                  value={totalRequestsCount}
+                  description="Live opportunities matching your current filters"
+                  icon={<Users className="h-5 w-5" />}
+                  trend={totalRequestsCount > 0 ? "Fresh demand is available to convert into bookings." : "No request matches are available right now."}
+                />
+                <DashboardStatCard
+                  label="Upcoming requests"
+                  value={upcomingRequestsCount}
+                  description="Future-dated events you can prioritize for planning"
+                  icon={<Calendar className="h-5 w-5" />}
+                  trend={upcomingRequestsCount > 0 ? "Upcoming requests give you more time to pitch strategically." : "No future-dated requests are available yet."}
+                />
+                <DashboardStatCard
+                  label="Highest budget"
+                  value={highestBudget}
+                  description="Top visible budget among the requests in your queue"
+                  icon={<Wallet className="h-5 w-5" />}
+                  trend={totalRequestsCount > 0 ? "Higher-budget opportunities can lift overall revenue quality." : "Budget insight will appear once requests are available."}
+                />
               </div>
-              <div className="space-y-2">
-                <h3 className="text-foreground text-2xl font-semibold tracking-tight">No requests yet</h3>
-                <p className="text-muted-foreground text-sm leading-6">
-                  No requests match your current radius right now. Expanding your service area or confirming your base location can unlock more marketplace demand.
+
+              <Card className="rounded-[30px] border border-white/60 bg-white/72 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
+                <CardContent className="flex flex-col gap-4 p-6 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="space-y-3 flex-1">
+                    <div className="flex items-center gap-2">
+                      <SlidersHorizontal className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-medium text-foreground">Service radius summary</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Saved service radius caps eligibility at <span className="font-semibold text-foreground">{serviceRadiusKm ?? 0} km</span>
+                      {baseLocation ? ` from ${baseLocation}` : " from your saved base location"}.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      The radius control narrows visibility below that maximum. Missing coordinates are never treated as zero distance.
+                    </p>
+                  </div>
+                  <Button variant="outline" className="rounded-2xl shrink-0" asChild>
+                    <Link href="/dashboard/chef/profile">Edit Service Radius</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {requests.length > 0 ? (
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                  {requests.map((request) => (
+                    <ChefRequestCard key={request.id} request={request} />
+                  ))}
+                </div>
+              ) : (
+                <Card className="rounded-[30px] border border-white/60 bg-white/72 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
+                  <CardContent className="py-12">
+                    <div className="mx-auto flex max-w-xl flex-col items-center text-center">
+                      <div className="from-primary/15 to-background text-primary mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br shadow-sm">
+                        <Search className="h-9 w-9" />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="text-foreground text-2xl font-semibold tracking-tight">No requests yet</h3>
+                        <p className="text-muted-foreground text-sm leading-6">
+                          No requests match your current filters. Adjust radius, dates, guests, or budget to widen the queue.
+                        </p>
+                      </div>
+                      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                        <Button className="brand-gradient-button h-11 rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25" asChild>
+                          <Link href="/dashboard/chef/profile">Update Profile</Link>
+                        </Button>
+                        <Button variant="outline" className="h-11 rounded-2xl border-white/70 bg-background/70 px-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-background dark:border-white/10 dark:bg-background/10 dark:hover:bg-background/15" asChild>
+                          <Link href="/dashboard/chef/profile">Expand Service Area</Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {paginationControls}
+            </TabsContent>
+
+            <TabsContent value="responded" className="mt-4 space-y-4">
+              {controls}
+              <div className="rounded-[26px] border border-white/60 bg-[linear-gradient(180deg,rgba(255,255,255,0.95),rgba(246,248,255,0.92))] p-4 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.03))]">
+                <p className="text-foreground text-sm font-medium tracking-tight">Sent proposals</p>
+                <p className="text-muted-foreground mt-1 text-sm leading-6">
+                  Requests where you have already responded stay visible here, including proposals that are still awaiting the client decision.
                 </p>
               </div>
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-                <Button className="brand-gradient-button h-11 rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25" asChild>
-                  <Link href="/dashboard/chef/profile">Update Profile</Link>
-                </Button>
-                <Button variant="outline" className="h-11 rounded-2xl border-white/70 bg-background/70 px-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-background dark:border-white/10 dark:bg-background/10 dark:hover:bg-background/15" asChild>
-                  <Link href="/dashboard/chef/profile">Expand Service Area</Link>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
+              {respondedRequests.length > 0 ? (
+                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                  {respondedRequests.map((request) => (
+                    <RespondedCard key={request.proposal.id} request={request} />
+                  ))}
+                </div>
+              ) : (
+                <Card className="rounded-[30px] border border-white/60 bg-white/72 shadow-xl shadow-slate-900/5 backdrop-blur-xl dark:border-white/10 dark:bg-white/5">
+                  <CardContent className="py-12">
+                    <div className="mx-auto flex max-w-xl flex-col items-center text-center">
+                      <div className="from-primary/15 to-background text-primary mb-5 flex h-20 w-20 items-center justify-center rounded-3xl bg-gradient-to-br shadow-sm">
+                        <MessageSquare className="h-9 w-9" />
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="text-foreground text-2xl font-semibold tracking-tight">No responded requests yet</h3>
+                        <p className="text-muted-foreground text-sm leading-6">
+                          Once you send a proposal, the request will appear here for safe follow-up and proposal tracking.
+                        </p>
+                      </div>
+                      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                        <Button className="brand-gradient-button h-11 rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-primary/25" asChild>
+                          <Link href="/dashboard/chef/requests">Browse requests</Link>
+                        </Button>
+                        <Button variant="outline" className="h-11 rounded-2xl border-white/70 bg-background/70 px-5 shadow-sm backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:bg-background dark:border-white/10 dark:bg-background/10 dark:hover:bg-background/15" asChild>
+                          <Link href="/dashboard/chef/messages">Open messages</Link>
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {paginationControls}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   )
 }

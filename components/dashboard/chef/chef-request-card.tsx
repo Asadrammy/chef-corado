@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import Image from "next/image"
-import { ArrowRight, BriefcaseBusiness, CalendarDays, Clock3, MapPin, Sparkles } from "lucide-react"
+import { ArrowRight, BriefcaseBusiness, CalendarDays, Clock3, MapPin, Sparkles, Users, ChefHat, Clock } from "lucide-react"
 
 import { ProposalModal } from "@/components/proposal-modal"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +13,7 @@ import { MatchResult } from "@/lib/services/smart-matching-service"
 import { formatCurrency } from "@/lib/currency"
 import { getServiceTypeLabel } from "@/lib/request-options"
 import type { ChefRequestView } from "@/lib/chef-request-view"
+import { getRequestGuestCount } from "@/lib/chef-request-view"
 
 interface ChefRequestCardProps {
   request: ChefRequestView & {
@@ -78,7 +79,17 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
   const matchLabel = matchData?.matchLabel ?? (matchScore >= 86 ? "Best Match" : matchScore >= 72 ? "High Value" : "Standard")
   const matchReasons = matchData?.matchReasons ?? []
   const estimatedResponseTime = matchData?.estimatedResponseTime
-  
+  const submittedDateLabel = request.submittedDateLabel ?? null
+  const submittedAgeLabel = request.submittedAgeLabel ?? null
+  const requestAgeLabel = submittedAgeLabel ?? "Recently"
+  const guestCount = getRequestGuestCount(request)
+  const responseCountLabel = request.totalProposalCount != null
+    ? `${request.totalProposalCount}${request.maxProposalCount ? `/${request.maxProposalCount}` : ""} chefs responded`
+    : "No chefs responded yet"
+  const eventDateLabel = request.requestMode === "MULTI_DAY" && request.multiDayDates.length
+    ? `${request.multiDayDates.length} service dates`
+    : new Date(request.eventDate).toLocaleDateString()
+
   const priorityBadge = React.useMemo(() => getPriorityBadge(request.id, matchScore), [request.id, matchScore])
 
   return (
@@ -160,11 +171,7 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
           ) : null}
           <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
             <CalendarDays className="h-4 w-4" />
-            {new Date(request.eventDate).toLocaleDateString()}
-          </span>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
-            <Clock3 className="h-4 w-4" />
-            Evening service
+            {eventDateLabel}
           </span>
           <Badge variant="outline" className="rounded-full border-border/60 bg-background/60 px-2.5 py-1">
             {eventType}
@@ -172,6 +179,35 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
           <Badge variant="outline" className="rounded-full border-border/60 bg-background/60 px-2.5 py-1">
             {serviceTypeLabel}
           </Badge>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          {guestCount != null ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
+              <Users className="h-3.5 w-3.5" />
+              {guestCount} guests
+            </span>
+          ) : null}
+          {request.cuisinePreferences.length ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
+              <ChefHat className="h-3.5 w-3.5" />
+              {request.cuisinePreferences.slice(0, 2).join(", ")}
+            </span>
+          ) : null}
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
+            <Clock className="h-3.5 w-3.5" />
+            {requestAgeLabel}
+          </span>
+          {submittedDateLabel ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
+              Submitted {submittedDateLabel}
+            </span>
+          ) : null}
+          {request.perPersonBudget != null ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1">
+              {formatCurrency(request.perPersonBudget, request.currency || "GBP")} pp
+            </span>
+          ) : null}
         </div>
 
         {request.photos?.length ? (
@@ -203,14 +239,19 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
               </p>
             </div>
           </div>
-          <ProposalModal request={request as ChefRequestView}>
-            <Button
-              className="brand-gradient-button h-11 rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25"
-            >
-              Send Proposal
-              <ArrowRight className={`h-4 w-4 transition-transform duration-300 ${isHovered ? "translate-x-0.5" : ""}`} />
-            </Button>
-          </ProposalModal>
+          <div className="flex flex-wrap gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-transparent bg-muted/70 px-2.5 py-1 text-xs text-muted-foreground">
+              {responseCountLabel}
+            </span>
+            <ProposalModal request={request as ChefRequestView}>
+              <Button
+                className="brand-gradient-button h-11 rounded-2xl px-5 shadow-lg shadow-primary/20 transition-all duration-300 hover:shadow-xl hover:shadow-primary/25"
+              >
+                Send Proposal
+                <ArrowRight className={`h-4 w-4 transition-transform duration-300 ${isHovered ? "translate-x-0.5" : ""}`} />
+              </Button>
+            </ProposalModal>
+          </div>
         </div>
       </div>
     </Card>

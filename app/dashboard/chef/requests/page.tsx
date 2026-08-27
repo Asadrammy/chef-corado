@@ -1,15 +1,20 @@
 import { Metadata } from "next"
+import { Prisma } from "@prisma/client"
 import { generateMeta } from "@/lib/utils"
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 
 import { authOptions } from "@/lib/auth"
-import { ChefRequestsMarketplace } from "@/components/chef-requests-marketplace"
+import { parseMarketplaceFilters, requestMatchesMarketplaceFilters } from "@/lib/chef-request-marketplace-filters"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { calculateDistance } from "@/lib/geo"
 import { sortChefMarketplaceRequests } from "@/lib/chef-request-marketplace"
-import { buildChefRequestView, type ChefRequestView } from "@/lib/chef-request-view"
+import { buildChefRequestView, buildChefRespondedRequestView, type ChefRequestView, type ChefRespondedRequestView } from "@/lib/chef-request-view"
+import { proposalService } from "@/lib/services/proposal-service"
+import { SmartMatchingService } from "@/lib/services/smart-matching-service"
+import { ChefRequestsMarketplace } from "@/components/chef-requests-marketplace"
 import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
+import { Role } from "@/types"
 
 export const metadata: Metadata = generateMeta({
   title: "Incoming Requests",
@@ -163,7 +168,50 @@ const localDemoRequests: ChefRequestView[] = [
   },
 ]
 
-export default async function ChefRequestsPage() {
+const localDemoRespondedRequests: ChefRespondedRequestView[] = [
+  buildChefRespondedRequestView({
+    id: "local-proposal-anniversary",
+    price: 1850,
+    currency: "USD",
+    status: "PENDING",
+    createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    message: "A tailored private dining proposal with menu planning, shopping, prep, service, and cleanup included.",
+    request: {
+      id: "local-request-anniversary",
+      title: "Anniversary dinner for 10 guests",
+      eventType: "Anniversary",
+      requestMode: "STANDARD",
+      serviceType: "THREE_COURSE_MEAL",
+      serviceTypeLabel: "3-Course Meal",
+      client: { id: "local-client", name: "Maya R.", firstName: "Maya" },
+      location: "Downtown",
+      currency: "USD",
+      budget: 1450,
+      eventDate: new Date(Date.now() + 9 * 24 * 60 * 60 * 1000).toISOString(),
+      eventDates: [],
+      guestCount: 10,
+      actualAttendeeCount: 10,
+      cuisineTypes: [],
+      dietaryRequirements: [],
+      serviceSpecificAnswers: null,
+      serviceSpecificAnswerSummary: [],
+      photos: [],
+      multiDayDates: [],
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      submittedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    },
+  }),
+]
+
+type ChefRequestsPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
+
+function toSearchParamsObject(searchParams: Record<string, string | string[] | undefined>) {
+  return Object.fromEntries(Object.entries(searchParams).map(([key, value]) => [key, Array.isArray(value) ? value[0] : value]))
+}
+
+export default async function ChefRequestsPage({ searchParams }: ChefRequestsPageProps) {
   const session = await getServerSession(authOptions)
   if (!session || session.user?.role !== "CHEF") {
     redirect("/dashboard")
@@ -174,10 +222,22 @@ export default async function ChefRequestsPage() {
     redirect("/dashboard")
   }
 
+  const resolvedSearchParams = searchParams ? await searchParams : {}
+  const filters = parseMarketplaceFilters(toSearchParamsObject(resolvedSearchParams))
+
   let requests: ChefRequestView[] = []
+  let respondedRequests: ChefRespondedRequestView[] = []
   let serviceRadiusKm = 25
   let baseLocation: string | undefined
   let useSmartMatching = false
+  let totalRequestsCount = 0
+  let totalRespondedCount = 0
+  let pagination = {
+    page: 1,
+    limit: filters.limit,
+    total: 0,
+    totalPages: 1,
+  }
 
   try {
     const chefProfile = await prisma.chefProfile.findUnique({
@@ -188,6 +248,7 @@ export default async function ChefRequestsPage() {
         latitude: true,
         longitude: true,
         radius: true,
+        preferredCurrency: true,
       },
     })
 
@@ -199,8 +260,89 @@ export default async function ChefRequestsPage() {
       redirect("/dashboard/chef/profile")
     }
 
-    const allRequests = await withRequestPhotoFallback(
-      () => prisma.request.findMany({
+    const openRequestSelect = Prisma.validator<Prisma.RequestSelect>()({
+      id: true,
+      title: true,
+      eventType: true,
+      requestMode: true,
+      serviceType: true,
+      serviceTypeLabel: true,
+      serviceTier: true,
+      client: {
+        select: {
+          name: true,
+          firstName: true,
+        },
+      },
+      locationCity: true,
+      formattedAddress: true,
+      cuisineTypes: true,
+      dietaryRequirements: true,
+      serviceSpecificAnswers: true,
+      eventDates: true,
+      eventDate: true,
+      location: true,
+      budget: true,
+      currency: true,
+      guestCount: true,
+      adultCount: true,
+      childrenUnder10: true,
+      actualAttendeeCount: true,
+      billableGuestCount: true,
+      pricingGuestCount: true,
+      budgetMode: true,
+      totalBudget: true,
+      defaultDailyBudget: true,
+      details: true,
+      description: true,
+      createdAt: true,
+      latitude: true,
+      longitude: true,
+      geocodingStatus: true,
+      _count: {
+        select: {
+          proposals: true,
+        },
+      },
+      multiDayDates: {
+        select: {
+          id: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+          serviceType: true,
+          serviceTypeLabel: true,
+          serviceTier: true,
+          cuisineTypes: true,
+          dietaryRequirements: true,
+          adultCount: true,
+          childrenUnder10: true,
+          actualAttendeeCount: true,
+          billableGuestCount: true,
+          budget: true,
+          notes: true,
+          serviceNeeds: true,
+        },
+        orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+      },
+    })
+
+    const openRequestSelectWithPhotos = Prisma.validator<Prisma.RequestSelect>()({
+      ...openRequestSelect,
+      photos: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 3,
+        select: {
+          id: true,
+          url: true,
+          originalName: true,
+        },
+      },
+    })
+
+    const [allRequests, proposalHistory] = await Promise.all([
+      withRequestPhotoFallback(
+        () => prisma.request.findMany({
         where: {
           OR: [
             { eventDate: { gte: new Date() } },
@@ -212,183 +354,146 @@ export default async function ChefRequestsPage() {
             },
           },
         },
-        select: {
-          id: true,
-          title: true,
-          eventType: true,
-          requestMode: true,
-          serviceType: true,
-          serviceTypeLabel: true,
-          serviceTier: true,
-          client: {
-            select: {
-              name: true,
-              firstName: true,
-            },
-          },
-          cuisineTypes: true,
-          dietaryRequirements: true,
-          serviceSpecificAnswers: true,
-          eventDates: true,
-          eventDate: true,
-          location: true,
-          budget: true,
-          currency: true,
-          guestCount: true,
-          adultCount: true,
-          childrenUnder10: true,
-          actualAttendeeCount: true,
-          billableGuestCount: true,
-          pricingGuestCount: true,
-          budgetMode: true,
-          totalBudget: true,
-          defaultDailyBudget: true,
-          details: true,
-          description: true,
-          createdAt: true,
-          latitude: true,
-          longitude: true,
-          geocodingStatus: true,
-          photos: {
-            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-            take: 3,
-            select: {
-              id: true,
-              url: true,
-              originalName: true,
-            },
-          },
-          multiDayDates: {
-            select: {
-              id: true,
-              date: true,
-              startTime: true,
-              endTime: true,
-              serviceType: true,
-              serviceTypeLabel: true,
-              serviceTier: true,
-              cuisineTypes: true,
-              dietaryRequirements: true,
-              adultCount: true,
-              childrenUnder10: true,
-              actualAttendeeCount: true,
-              billableGuestCount: true,
-              budget: true,
-              notes: true,
-              serviceNeeds: true,
-            },
-            orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
-          },
-        },
+        select: openRequestSelectWithPhotos,
         orderBy: [{ createdAt: "desc" }, { eventDate: "asc" }, { id: "asc" }],
-        take: 100,
-      }),
-      () => prisma.request.findMany({
-        where: {
-          OR: [
-            { eventDate: { gte: new Date() } },
-            { multiDayDates: { some: { date: { gte: new Date() } } } },
-          ],
-          proposals: {
-            none: {
-              chefId: chefProfile.id,
+        take: 250,
+        }),
+        () => prisma.request.findMany({
+          where: {
+            OR: [
+              { eventDate: { gte: new Date() } },
+              { multiDayDates: { some: { date: { gte: new Date() } } } },
+            ],
+            proposals: {
+              none: {
+                chefId: chefProfile.id,
+              },
             },
           },
-        },
-        select: {
-          id: true,
-          title: true,
-          eventType: true,
-          requestMode: true,
-          serviceType: true,
-          serviceTypeLabel: true,
-          serviceTier: true,
-          client: {
-            select: {
-              name: true,
-              firstName: true,
-            },
-          },
-          cuisineTypes: true,
-          dietaryRequirements: true,
-          serviceSpecificAnswers: true,
-          eventDates: true,
-          eventDate: true,
-          location: true,
-          budget: true,
-          currency: true,
-          guestCount: true,
-          adultCount: true,
-          childrenUnder10: true,
-          actualAttendeeCount: true,
-          billableGuestCount: true,
-          pricingGuestCount: true,
-          budgetMode: true,
-          totalBudget: true,
-          defaultDailyBudget: true,
-          details: true,
-          description: true,
-          createdAt: true,
-          latitude: true,
-          longitude: true,
-          geocodingStatus: true,
-          multiDayDates: {
-            select: {
-              id: true,
-              date: true,
-              startTime: true,
-              endTime: true,
-              serviceType: true,
-              serviceTypeLabel: true,
-              serviceTier: true,
-              cuisineTypes: true,
-              dietaryRequirements: true,
-              adultCount: true,
-              childrenUnder10: true,
-              actualAttendeeCount: true,
-              billableGuestCount: true,
-              budget: true,
-              notes: true,
-              serviceNeeds: true,
-            },
-            orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
-          },
-        },
-        orderBy: [{ createdAt: "desc" }, { eventDate: "asc" }, { id: "asc" }],
-        take: 100,
+          select: openRequestSelect,
+          orderBy: [{ createdAt: "desc" }, { eventDate: "asc" }, { id: "asc" }],
+          take: 250,
+        })
+      ),
+      proposalService.listProposals(userId, Role.CHEF)
+    ])
+
+    const allOpenRequests = allRequests.map((request) => {
+      const hasExactDistance =
+        chefProfile.latitude != null &&
+        chefProfile.longitude != null &&
+        request.latitude != null &&
+        request.longitude != null
+
+      const distanceKm = hasExactDistance
+        ? Math.round(
+            calculateDistance(
+              chefProfile.latitude as number,
+              chefProfile.longitude as number,
+              request.latitude as number,
+              request.longitude as number
+            ) * 10
+          ) / 10
+        : null
+
+      return buildChefRequestView({
+        ...request,
+        client: request.client,
+        createdAt: request.createdAt,
+        submittedAt: request.createdAt,
+      }, {
+        distanceKm,
+        broaderMatching: distanceKm == null,
+      })
+    })
+
+    const allRespondedRequests = proposalHistory.map((proposal) => buildChefRespondedRequestView(proposal, {
+      distanceKm: proposal.request?.latitude != null && proposal.request?.longitude != null && chefProfile.latitude != null && chefProfile.longitude != null
+        ? Math.round(
+            calculateDistance(
+              chefProfile.latitude as number,
+              chefProfile.longitude as number,
+              proposal.request.latitude as number,
+              proposal.request.longitude as number
+            ) * 10
+          ) / 10
+        : null,
+      broaderMatching: proposal.request?.latitude == null || proposal.request?.longitude == null,
+    }))
+
+    const marketCurrency = chefProfile.preferredCurrency || "GBP"
+
+    const filteredOpenRequests = allOpenRequests.filter((request) =>
+      requestMatchesMarketplaceFilters(request, filters, {
+        chefRadiusKm: chefProfile.radius,
+        marketCurrency,
       })
     )
 
-    requests = sortChefMarketplaceRequests(allRequests
-      .map((request) => {
-        const hasExactDistance =
-          chefProfile.latitude != null &&
-          chefProfile.longitude != null &&
-          request.latitude != null &&
-          request.longitude != null
-
-        const distanceKm = hasExactDistance
-          ? Math.round(
-              calculateDistance(
-                chefProfile.latitude as number,
-                chefProfile.longitude as number,
-                request.latitude as number,
-                request.longitude as number
-              ) * 10
-            ) / 10
-          : undefined
-
-        return buildChefRequestView({
-          ...request,
-          client: request.client,
-          createdAt: request.createdAt,
-          submittedAt: request.createdAt,
-        }, {
-          distanceKm,
-          broaderMatching: distanceKm == null,
-        })
+    const filteredRespondedRequests = allRespondedRequests.filter((request) =>
+      requestMatchesMarketplaceFilters(request, filters, {
+        chefRadiusKm: chefProfile.radius,
+        marketCurrency,
       })
-      .filter((request) => request.distanceKm == null || request.distanceKm <= chefProfile.radius), "newest")
+    )
+
+    const smartMatches = filters.sort === "match-score" && chefProfile.latitude != null && chefProfile.longitude != null
+      ? await SmartMatchingService.batchCalculateMatches(
+          filteredOpenRequests.map((request) => ({
+            id: request.id,
+            budget: request.budget,
+            eventDate: new Date(request.eventDate),
+            requestDates: request.requestMode === "MULTI_DAY" ? request.multiDayDates.map((date) => new Date(date.date)) : [new Date(request.eventDate)],
+            serviceType: request.serviceType,
+            eventType: request.eventType,
+            cuisineTypes: request.cuisinePreferences,
+            dietaryRequirements: request.dietaryRequirements,
+            pricingGuestCount: request.pricingGuestCount,
+            details: request.details,
+            latitude: request.latitude ?? null,
+            longitude: request.longitude ?? null,
+          })), chefProfile.id)
+      : []
+
+    const smartMatchMap = new Map(smartMatches.map((match) => [match.requestId, match]))
+
+    const sortedOpenRequests = sortChefMarketplaceRequests(
+      filteredOpenRequests.map((request) => ({
+        ...request,
+        matchData: smartMatchMap.get(request.id),
+      })),
+      filters.sort,
+      {
+        getMatchScore: (request) => request.matchData?.matchScore,
+      }
+    )
+
+    const sortedRespondedRequests = sortChefMarketplaceRequests(filteredRespondedRequests, filters.sort, {
+      getMatchScore: () => null,
+    })
+
+    totalRequestsCount = sortedOpenRequests.length
+    totalRespondedCount = sortedRespondedRequests.length
+
+    const activeRequests = filters.tab === "responded" ? sortedRespondedRequests : sortedOpenRequests
+    const totalPages = Math.max(1, Math.ceil(activeRequests.length / filters.limit))
+    const currentPage = Math.min(Math.max(filters.page, 1), totalPages)
+    const start = (currentPage - 1) * filters.limit
+    const end = start + filters.limit
+    pagination = {
+      page: currentPage,
+      limit: filters.limit,
+      total: activeRequests.length,
+      totalPages,
+    }
+
+    requests = filters.tab === "requests"
+      ? sortedOpenRequests.slice(start, end)
+      : []
+
+    respondedRequests = filters.tab === "responded"
+      ? sortedRespondedRequests.slice(start, end)
+      : []
 
     serviceRadiusKm = chefProfile.radius
     baseLocation = chefProfile.location || undefined
@@ -396,6 +501,7 @@ export default async function ChefRequestsPage() {
   } catch (error) {
     if (isPrismaConnectionError(error) && process.env.NODE_ENV === "development") {
       requests = localDemoRequests
+      respondedRequests = localDemoRespondedRequests
       serviceRadiusKm = 25
       baseLocation = "Local demo kitchen"
       useSmartMatching = false
@@ -407,6 +513,10 @@ export default async function ChefRequestsPage() {
   return (
     <ChefRequestsMarketplace
       requests={requests}
+      respondedRequests={respondedRequests}
+      totalRequestsCount={totalRequestsCount}
+      totalRespondedCount={totalRespondedCount}
+      pagination={pagination}
       serviceRadiusKm={serviceRadiusKm}
       baseLocation={baseLocation}
       useSmartMatching={useSmartMatching}

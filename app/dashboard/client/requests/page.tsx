@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import Image from "next/image"
 import Link from "next/link"
-import { format } from "date-fns"
+import { format, formatDistanceToNow } from "date-fns"
 import {
   ClipboardList,
   Calendar,
@@ -38,6 +38,7 @@ type RequestRow = {
   budget: number
   currency: string
   guestCount: number
+  createdAt?: Date
   status?: string
   _count: {
     proposals: number
@@ -109,6 +110,7 @@ export default async function ClientRequestsPage() {
             budget: true,
             currency: true,
             guestCount: true,
+            createdAt: true,
             _count: {
               select: {
                 proposals: true,
@@ -153,6 +155,7 @@ export default async function ClientRequestsPage() {
             budget: true,
             currency: true,
             guestCount: true,
+            createdAt: true,
             _count: {
               select: {
                 proposals: true,
@@ -253,6 +256,9 @@ export default async function ClientRequestsPage() {
                       ? `${request.multiDayDates.length} service dates from ${format(new Date(request.multiDayDates[0].date), "MMM d, yyyy")}`
                       : format(new Date(request.eventDate), "MMM d, yyyy - EEEE")}
                   </span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Submitted {formatDistanceToNow(new Date(request.createdAt ?? request.eventDate), { addSuffix: true })}
                 </div>
                 {request.requestMode === "MULTI_DAY" && request.multiDayDates?.length ? (
                   <div className="rounded-xl border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">

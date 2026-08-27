@@ -1,4 +1,4 @@
-import { buildChefRequestView, getSafeClientGreetingName } from "@/lib/chef-request-view"
+import { buildChefRequestView, buildChefRespondedRequestView, formatChefProposalStatusLabel, getSafeClientGreetingName } from "@/lib/chef-request-view"
 import {
   PROPOSAL_MESSAGE_MAX_LENGTH,
   PROPOSAL_MESSAGE_MIN_LENGTH,
@@ -110,5 +110,48 @@ describe("chef request and proposal contracts", () => {
 
   it("preserves paragraphs while normalizing proposal text", () => {
     expect(sanitizeProposalMessage("Hello\r\nWorld\n\nThanks")).toBe("Hello\nWorld\n\nThanks")
+  })
+
+  it("builds a responded request view with safe follow-up details", () => {
+    const responded = buildChefRespondedRequestView({
+      id: "proposal-1",
+      price: 1800,
+      currency: "GBP",
+      status: "PENDING",
+      message: "Happy to follow up.",
+      createdAt: new Date("2026-08-25T12:00:00.000Z"),
+      request: {
+        id: "request-1",
+        title: "Birthday dinner",
+        eventType: "Birthday",
+        requestMode: "STANDARD",
+        serviceType: "DINING",
+        serviceTypeLabel: "Dining",
+        clientId: "client-1",
+        client: { firstName: "Jill", name: "Jill Thompson", email: "jill@example.com", phone: "+441234567890" },
+        location: "London",
+        currency: "GBP",
+        budget: 1500,
+        eventDate: new Date("2026-08-31T18:00:00.000Z"),
+        eventDates: ["2026-08-31"],
+        guestCount: 12,
+        actualAttendeeCount: 12,
+        pricingGuestCount: 12,
+        cuisineTypes: ["Italian"],
+        dietaryRequirements: [],
+        serviceSpecificAnswers: {},
+        photos: [],
+        multiDayDates: [],
+        createdAt: new Date("2026-08-24T12:00:00.000Z"),
+      },
+    })
+
+    const serialized = JSON.stringify(responded)
+    expect(responded.proposal.statusLabel).toBe("Awaiting Client Decision")
+    expect(responded.followUpHref).toBe("/dashboard/chef/messages/client-1")
+    expect(responded.detailHref).toBe("/dashboard/chef/requests/request-1")
+    expect(serialized).not.toContain("jill@example.com")
+    expect(serialized).not.toContain("+441234567890")
+    expect(formatChefProposalStatusLabel("ACCEPTED_PENDING_PAYMENT")).toBe("Accepted - Payment Pending")
   })
 })
