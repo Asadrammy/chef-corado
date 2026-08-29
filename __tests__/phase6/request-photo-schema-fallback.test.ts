@@ -1,6 +1,17 @@
+import fs from "fs"
+import path from "path"
+
 import { isRequestPhotoSchemaMismatch, withRequestPhotoFallback } from "@/lib/request-photo-schema"
 
 describe("request photo schema fallback", () => {
+  it("keeps chef proposal listings on the request photo fallback path", () => {
+    const proposalRepository = fs.readFileSync(path.join(process.cwd(), "lib/repositories/proposal-repository.ts"), "utf8")
+
+    expect(proposalRepository).toContain("withRequestPhotoFallback")
+    expect(proposalRepository).toContain("buildChefProposalInclude(true)")
+    expect(proposalRepository).toContain("buildChefProposalInclude(false)")
+  })
+
   it("retries without photos when the RequestPhoto table is missing", async () => {
     const loader = jest.fn(async (includePhotos: boolean) => {
       if (includePhotos) {

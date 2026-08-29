@@ -1,7 +1,90 @@
+import { Prisma } from "@prisma/client"
+
 import { prisma } from "@/lib/prisma"
+import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
 import { ProposalStatus } from "@/types"
 
 const MAX_PROPOSALS_PER_REQUEST = 10
+
+function buildChefProposalRequestSelect(includePhotos: boolean) {
+  const baseSelect = {
+    client: {
+      select: {
+        id: true,
+        name: true,
+        firstName: true,
+      },
+    },
+    _count: {
+      select: {
+        proposals: true,
+      },
+    },
+    ...(includePhotos ? {
+      photos: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        take: 3,
+        select: {
+          id: true,
+          url: true,
+          originalName: true,
+        },
+      },
+    } : {}),
+    multiDayDates: { orderBy: { sortOrder: "asc" as const } },
+    title: true,
+    eventType: true,
+    requestMode: true,
+    serviceType: true,
+    serviceTypeLabel: true,
+    serviceTier: true,
+    cuisineTypes: true,
+    dietaryRequirements: true,
+    serviceSpecificAnswers: true,
+    eventDates: true,
+    eventDate: true,
+    location: true,
+    budget: true,
+    currency: true,
+    guestCount: true,
+    adultCount: true,
+    childrenUnder10: true,
+    actualAttendeeCount: true,
+    billableGuestCount: true,
+    pricingGuestCount: true,
+    budgetMode: true,
+    totalBudget: true,
+    defaultDailyBudget: true,
+    details: true,
+    description: true,
+    createdAt: true,
+    latitude: true,
+    longitude: true,
+    geocodingStatus: true,
+  } satisfies Prisma.RequestSelect
+
+  return baseSelect
+}
+
+function buildChefProposalInclude(includePhotos: boolean) {
+  return {
+    menu: true,
+    lineItems: { orderBy: { sortOrder: "asc" as const } },
+    request: {
+      select: buildChefProposalRequestSelect(includePhotos),
+    },
+    chef: {
+      include: {
+        user: {
+          select: {
+            name: true,
+            id: true,
+          },
+        },
+      },
+    },
+  } satisfies Prisma.ProposalInclude
+}
 
 export const proposalRepository = {
   findChefProfileByUserId(userId: string) {
@@ -139,154 +222,63 @@ export const proposalRepository = {
   },
 
   listProposalsForChef(chefId: string) {
-    return prisma.proposal.findMany({
-      where: { chefId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        menu: true,
-        lineItems: { orderBy: { sortOrder: "asc" } },
-        request: {
-          select: {
-            client: {
-              select: {
-                id: true,
-                name: true,
-                firstName: true,
-              },
-            },
-            _count: {
-              select: {
-                proposals: true,
-              },
-            },
-            photos: {
-              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-              take: 3,
-              select: {
-                id: true,
-                url: true,
-                originalName: true,
-              },
-            },
-            multiDayDates: { orderBy: { sortOrder: "asc" } },
-            title: true,
-            eventType: true,
-            requestMode: true,
-            serviceType: true,
-            serviceTypeLabel: true,
-            serviceTier: true,
-            cuisineTypes: true,
-            dietaryRequirements: true,
-            serviceSpecificAnswers: true,
-            eventDates: true,
-            eventDate: true,
-            location: true,
-            budget: true,
-            currency: true,
-            guestCount: true,
-            adultCount: true,
-            childrenUnder10: true,
-            actualAttendeeCount: true,
-            billableGuestCount: true,
-            pricingGuestCount: true,
-            budgetMode: true,
-            totalBudget: true,
-            defaultDailyBudget: true,
-            details: true,
-            description: true,
-            createdAt: true,
-            latitude: true,
-            longitude: true,
-            geocodingStatus: true,
-          },
-        },
-        chef: {
-          include: {
-            user: {
-              select: {
-                name: true,
-                id: true,
-              },
-            },
-          },
-        },
-      },
-    })
+    return withRequestPhotoFallback(
+      () => prisma.proposal.findMany({
+        where: { chefId },
+        orderBy: { createdAt: "desc" },
+        include: buildChefProposalInclude(true),
+      }),
+      () => prisma.proposal.findMany({
+        where: { chefId },
+        orderBy: { createdAt: "desc" },
+        include: buildChefProposalInclude(false),
+      })
+    )
   },
 
   listProposalsForChefLegacy(chefId: string) {
-    return prisma.proposal.findMany({
-      where: { chefId },
-      orderBy: { createdAt: "desc" },
-      include: {
-        menu: true,
-        request: {
-          select: {
-            client: {
-              select: {
-                id: true,
-                name: true,
-                firstName: true,
-              },
-            },
-            _count: {
-              select: {
-                proposals: true,
-              },
-            },
-            photos: {
-              orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-              take: 3,
-              select: {
-                id: true,
-                url: true,
-                originalName: true,
-              },
-            },
-            multiDayDates: { orderBy: { sortOrder: "asc" } },
-            title: true,
-            eventType: true,
-            requestMode: true,
-            serviceType: true,
-            serviceTypeLabel: true,
-            serviceTier: true,
-            cuisineTypes: true,
-            dietaryRequirements: true,
-            serviceSpecificAnswers: true,
-            eventDates: true,
-            eventDate: true,
-            location: true,
-            budget: true,
-            currency: true,
-            guestCount: true,
-            adultCount: true,
-            childrenUnder10: true,
-            actualAttendeeCount: true,
-            billableGuestCount: true,
-            pricingGuestCount: true,
-            budgetMode: true,
-            totalBudget: true,
-            defaultDailyBudget: true,
-            details: true,
-            description: true,
-            createdAt: true,
-            latitude: true,
-            longitude: true,
-            geocodingStatus: true,
+    return withRequestPhotoFallback(
+      () => prisma.proposal.findMany({
+        where: { chefId },
+        orderBy: { createdAt: "desc" },
+        include: {
+          menu: true,
+          request: {
+            select: buildChefProposalRequestSelect(true),
           },
-        },
-        chef: {
-          include: {
-            user: {
-              select: {
-                name: true,
-                id: true,
+          chef: {
+            include: {
+              user: {
+                select: {
+                  name: true,
+                  id: true,
+                },
               },
             },
           },
         },
-      },
-    })
+      }),
+      () => prisma.proposal.findMany({
+        where: { chefId },
+        orderBy: { createdAt: "desc" },
+        include: {
+          menu: true,
+          request: {
+            select: buildChefProposalRequestSelect(false),
+          },
+          chef: {
+            include: {
+              user: {
+                select: {
+                  name: true,
+                  id: true,
+                },
+              },
+            },
+          },
+        },
+      })
+    )
   },
 
   listProposalsForClient(userId: string) {
