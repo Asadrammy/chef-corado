@@ -36,7 +36,8 @@ export default async function AdminMultiDayBookingsPage({
     take: 100,
   })
 
-  const allDates = requests.flatMap((request) => request.multiDayDates)
+  const safeMultiDayDatesFor = (request: (typeof requests)[number]) => (request.multiDayDates ?? []).filter(Boolean)
+  const allDates = requests.flatMap((request) => (request.multiDayDates ?? []).filter(Boolean))
   const dateKeys = allDates.map((date) => date.date.toISOString().slice(0, 10))
   const duplicateDates = new Set(dateKeys.filter((date, index) => dateKeys.indexOf(date) !== index))
 
@@ -68,13 +69,16 @@ export default async function AdminMultiDayBookingsPage({
         emptyTitle="No multi-day requests found."
         columns={[
           { key: "client", label: "Client", render: (request) => <div><p className="font-medium">{request.client.name}</p><p className="text-xs text-muted-foreground">{maskEmailForAdmin(request.client.email, actor)}</p></div> },
-          { key: "range", label: "Date range", render: (request) => request.multiDayDates.length ? `${request.multiDayDates[0].date.toLocaleDateString()} - ${request.multiDayDates[request.multiDayDates.length - 1].date.toLocaleDateString()}` : request.eventDate.toLocaleDateString() },
-          { key: "dates", label: "Service dates", render: (request) => <div>{request.multiDayDates.map((date) => <p key={date.id} className="text-xs">{date.date.toLocaleDateString()} {date.startTime ?? ""}{date.endTime ? `-${date.endTime}` : ""} - {getServiceTypeLabel(date.serviceType, date.serviceTypeLabel)}</p>)}</div> },
+          { key: "range", label: "Date range", render: (request) => {
+            const dates = safeMultiDayDatesFor(request)
+            return dates.length ? `${dates[0].date.toLocaleDateString()} - ${dates[dates.length - 1].date.toLocaleDateString()}` : request.eventDate.toLocaleDateString()
+          } },
+          { key: "dates", label: "Service dates", render: (request) => <div>{safeMultiDayDatesFor(request).map((date) => <p key={date.id} className="text-xs">{date.date.toLocaleDateString()} {date.startTime ?? ""}{date.endTime ? `-${date.endTime}` : ""} - {getServiceTypeLabel(date.serviceType, date.serviceTypeLabel)}</p>)}</div> },
           { key: "service", label: "Service", render: (request) => request.serviceTypeLabel ?? request.serviceType ?? request.eventType },
           { key: "total", label: "Budget", render: (request) => <div><p>{formatCurrency(request.budget, request.currency)}</p><p className="text-xs text-muted-foreground">{request.budgetMode === "PER_DAY" ? "Per day mode" : request.budgetMode === "TOTAL_EVENT" ? "Total-event mode" : "Legacy budget"}</p></div> },
           { key: "assignment", label: "Assignment", render: (request) => request.proposals[0]?.chef?.user?.name ?? "Unassigned" },
           { key: "status", label: "State", render: (request) => <AdminStatusBadge status={request.proposals.length ? "REVIEW" : "OPEN"} /> },
-          { key: "conflict", label: "Conflict", render: (request) => request.multiDayDates.some((date) => duplicateDates.has(date.date.toISOString().slice(0, 10))) ? <AdminStatusBadge status="REVIEW" /> : "None detected" },
+          { key: "conflict", label: "Conflict", render: (request) => safeMultiDayDatesFor(request).some((date) => duplicateDates.has(date.date.toISOString().slice(0, 10))) ? <AdminStatusBadge status="REVIEW" /> : "None detected" },
           { key: "created", label: "Created", render: (request) => formatAdminDate(request.createdAt) },
           {
             key: "detail",
@@ -89,14 +93,14 @@ export default async function AdminMultiDayBookingsPage({
                       { label: "Location", value: `${request.location} (${request.countryCode})` },
                       { label: "Budget", value: `${formatCurrency(request.budget, request.currency)} / ${request.budgetMode === "PER_DAY" ? "per-day mode" : request.budgetMode === "TOTAL_EVENT" ? "total-event mode" : "legacy"}` },
                       { label: "Assignment", value: request.proposals[0]?.chef?.user?.name ?? "Unassigned" },
-                      { label: "Conflict", value: request.multiDayDates.some((date) => duplicateDates.has(date.date.toISOString().slice(0, 10))) ? <AdminStatusBadge status="REVIEW" /> : "None detected" },
+                      { label: "Conflict", value: safeMultiDayDatesFor(request).some((date) => duplicateDates.has(date.date.toISOString().slice(0, 10))) ? <AdminStatusBadge status="REVIEW" /> : "None detected" },
                     ]}
                   />
                 </AdminDrawerSection>
                 <AdminDrawerSection title="Service Dates">
                   <div className="space-y-2">
-                    {request.multiDayDates.map((date) => (
-                      <p key={date.id} className="rounded-lg border border-border bg-muted/20 p-3 text-sm">
+                      {(request.multiDayDates ?? []).filter(Boolean).map((date) => (
+                        <p key={date.id} className="rounded-lg border border-border bg-muted/20 p-3 text-sm">
                         <span className="font-medium">{date.date.toLocaleDateString()} {date.startTime ?? ""}{date.endTime ? `-${date.endTime}` : ""}</span>
                         <span className="block text-xs text-muted-foreground">{getServiceTypeLabel(date.serviceType, date.serviceTypeLabel)}</span>
                         <span className="block text-xs text-muted-foreground">Cuisine: {parseJsonList(date.cuisineTypes).join(", ") || "Not specified"}</span>

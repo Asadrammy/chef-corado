@@ -443,7 +443,7 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
             id: request.id,
             budget: request.budget,
             eventDate: new Date(request.eventDate),
-            requestDates: request.requestMode === "MULTI_DAY" ? request.multiDayDates.map((date) => new Date(date.date)) : [new Date(request.eventDate)],
+            requestDates: request.requestMode === "MULTI_DAY" ? (request.multiDayDates ?? []).filter(Boolean).map((date) => new Date(date.date)) : [new Date(request.eventDate)],
             serviceType: request.serviceType,
             eventType: request.eventType,
             cuisineTypes: request.cuisinePreferences,

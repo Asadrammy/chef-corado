@@ -61,7 +61,8 @@ export function ProposalModal({ request, onSuccess, children }: ProposalModalPro
   const trimmedMessageLength = message.trim().length
   const requestDateLabel = new Date(request.eventDate).toLocaleDateString()
   const serviceLabel = getServiceTypeLabel(request.serviceType, request.serviceTypeLabel)
-  const isMultiDay = request.requestMode === "MULTI_DAY" && request.multiDayDates.length > 0
+  const safeMultiDayDates = (request.multiDayDates ?? []).filter(Boolean)
+  const isMultiDay = request.requestMode === "MULTI_DAY" && safeMultiDayDates.length > 0
 
   React.useEffect(() => {
     if (!open) return
@@ -219,11 +220,11 @@ export function ProposalModal({ request, onSuccess, children }: ProposalModalPro
               </section>
             ) : null}
 
-            {request.multiDayDates.length ? (
+            {safeMultiDayDates.length ? (
               <section className="rounded-xl border border-border bg-muted/20 p-4">
                 <h3 className="mb-3 font-medium">Multi-Day Dates</h3>
                 <div className="space-y-2">
-                  {request.multiDayDates.map((day) => (
+                  {safeMultiDayDates.map((day) => (
                     <div key={day.id} className="rounded-lg border border-border bg-background p-3 text-sm">
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-medium">{new Date(day.date).toLocaleDateString()}</p>

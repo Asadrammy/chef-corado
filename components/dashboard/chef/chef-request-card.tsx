@@ -83,11 +83,12 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
   const submittedAgeLabel = request.submittedAgeLabel ?? null
   const requestAgeLabel = submittedAgeLabel ?? "Recently"
   const guestCount = getRequestGuestCount(request)
+  const safeMultiDayDates = (request.multiDayDates ?? []).filter(Boolean)
   const responseCountLabel = request.totalProposalCount != null
     ? `${request.totalProposalCount}${request.maxProposalCount ? `/${request.maxProposalCount}` : ""} chefs responded`
     : "No chefs responded yet"
-  const eventDateLabel = request.requestMode === "MULTI_DAY" && request.multiDayDates.length
-    ? `${request.multiDayDates.length} service dates`
+  const eventDateLabel = request.requestMode === "MULTI_DAY" && safeMultiDayDates.length
+    ? `${safeMultiDayDates.length} service dates`
     : new Date(request.eventDate).toLocaleDateString()
 
   const priorityBadge = React.useMemo(() => getPriorityBadge(request.id, matchScore), [request.id, matchScore])

@@ -244,6 +244,7 @@ export function buildChefRequestView(request: any, options: {
   const clientGreetingName = getSafeClientGreetingName(request.client)
   const cuisinePreferences = parseStringList(request.cuisineTypes)
   const dietaryRequirements = parseStringList(request.dietaryRequirements)
+  const multiDayDates = Array.isArray(request.multiDayDates) ? request.multiDayDates.filter(Boolean) : []
   const serviceSpecificAnswers = parseServiceSpecificAnswers(request.serviceSpecificAnswers)
   const serviceSpecificAnswerSummary = Object.entries(serviceSpecificAnswers ?? {})
     .map(([key, value]) => {
@@ -294,7 +295,7 @@ export function buildChefRequestView(request: any, options: {
       url: photo.url,
       originalName: photo.originalName ?? null,
     })),
-    multiDayDates: (request.multiDayDates ?? []).map((date: any) => ({
+    multiDayDates: multiDayDates.map((date: any) => ({
       id: date.id,
       date: date.date instanceof Date ? date.date.toISOString() : String(date.date),
       startTime: date.startTime ?? null,

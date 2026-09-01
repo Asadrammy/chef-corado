@@ -64,7 +64,7 @@ export function parseJsonList(value?: string | string[] | null): string[] {
 }
 
 export function sortServiceDates<T extends MultiDayDateLike>(dates?: T[] | null): T[] {
-  return [...(dates ?? [])].sort((a, b) => toDateKey(a.date).localeCompare(toDateKey(b.date)))
+  return [...(dates ?? [])].filter(Boolean).sort((a, b) => toDateKey(a.date).localeCompare(toDateKey(b.date)))
 }
 
 export function isMultiDayRequestLike(request?: { requestMode?: string | null; multiDayDates?: MultiDayDateLike[] | null } | null) {

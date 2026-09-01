@@ -143,7 +143,7 @@ export default async function RequestDetailsPage({
   const serviceTypeLabel = getServiceTypeLabel(requestServiceType, requestServiceTypeLabel)
   const attendeeLabel = requestServiceType === "COOKING_CLASS" ? "students" : "guests"
   const requestAny = request as any
-  const multiDayDates = Array.isArray(requestAny.multiDayDates) ? requestAny.multiDayDates : []
+  const multiDayDates = Array.isArray(requestAny.multiDayDates) ? requestAny.multiDayDates.filter(Boolean) : []
   const isMultiDay = requestAny.requestMode === "MULTI_DAY" && multiDayDates.length > 0
   const photos = Array.isArray(requestAny.photos) ? requestAny.photos : []
   const canEditRequest = canEditRequestFully(requestAny.requestMode, request._count.proposals)

@@ -184,6 +184,11 @@ export default async function ClientRequestsPage() {
     }
   }
 
+  const normalizedRequests = requests.map((request) => ({
+    ...request,
+    multiDayDates: (request.multiDayDates ?? []).filter(Boolean),
+  }))
+
   return (
     <div className="space-y-6 lg:space-y-7">
       <div className="brand-surface rounded-[30px] px-6 py-6 shadow-xl shadow-slate-900/5 backdrop-blur-xl">
@@ -217,7 +222,7 @@ export default async function ClientRequestsPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {requests.map((request) => (
+          {normalizedRequests.map((request) => (
             <div
               key={request.id}
               className="rounded-[26px] border border-white/60 bg-card/95 p-6 shadow-lg shadow-black/5 backdrop-blur transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl dark:border-white/10"

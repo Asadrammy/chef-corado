@@ -61,7 +61,9 @@ export default async function AdminCalendarPage({
     bookingKeyCounts.set(key, (bookingKeyCounts.get(key) ?? 0) + 1)
   })
 
-  const unavailableKeys = new Set(availability.filter((slot) => !slot.isAvailable).map((slot) => `${slot.chefId}-${slot.date.toISOString().slice(0, 10)}`))
+  const safeAvailability = availability.filter(Boolean)
+  const safeMultiDayDates = multiDayDates.filter(Boolean)
+  const unavailableKeys = new Set(safeAvailability.filter((slot) => !slot.isAvailable).map((slot) => `${slot.chefId}-${slot.date.toISOString().slice(0, 10)}`))
   const conflicts = bookings.filter((booking) => {
     const key = `${booking.chefId}-${booking.eventDate.toISOString().slice(0, 10)}`
     return (bookingKeyCounts.get(key) ?? 0) > 1 || unavailableKeys.has(key)
@@ -77,8 +79,8 @@ export default async function AdminCalendarPage({
       <AdminMetricGrid
         metrics={[
           { label: "Confirmed bookings", value: bookings.filter((booking) => booking.status === "CONFIRMED").length },
-          { label: "Multi-day dates", value: multiDayDates.length },
-          { label: "Unavailable slots", value: availability.filter((slot) => !slot.isAvailable).length },
+          { label: "Multi-day dates", value: safeMultiDayDates.length },
+          { label: "Unavailable slots", value: safeAvailability.filter((slot) => !slot.isAvailable).length },
           { label: "Conflicts", value: conflicts.length },
         ]}
       />
@@ -95,8 +97,8 @@ export default async function AdminCalendarPage({
         {days.map((day) => {
           const key = day.toISOString().slice(0, 10)
           const dayBookings = bookings.filter((booking) => booking.eventDate.toISOString().slice(0, 10) === key)
-          const dayMulti = multiDayDates.filter((date) => date.date.toISOString().slice(0, 10) === key)
-          const dayUnavailable = availability.filter((slot) => slot.date.toISOString().slice(0, 10) === key && !slot.isAvailable)
+          const dayMulti = safeMultiDayDates.filter((date) => date.date.toISOString().slice(0, 10) === key)
+          const dayUnavailable = safeAvailability.filter((slot) => slot.date.toISOString().slice(0, 10) === key && !slot.isAvailable)
           return (
             <section key={key} className="min-h-44 rounded-xl border border-border bg-card p-3 shadow-sm shadow-black/[0.03] transition-colors hover:border-primary/30 hover:bg-muted/15">
               <div className="flex items-center justify-between gap-2">

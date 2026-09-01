@@ -88,6 +88,7 @@ export default async function AdminRequestsPage({
   }
 
   const unique = (field: keyof typeof requests[number]) => [...new Set(requests.map((request) => String(request[field] ?? "")).filter(Boolean))].sort()
+  const safeMultiDayDatesFor = (request: AdminRequest) => (request.multiDayDates ?? []).filter(Boolean)
 
   return (
     <div className="space-y-5">
@@ -127,7 +128,7 @@ export default async function AdminRequestsPage({
           { key: "service", label: "Service / event", render: (request) => <div><p>{request.serviceTypeLabel ?? request.serviceType ?? "Not set"}</p><p className="text-xs text-muted-foreground">{request.eventType}</p></div> },
           { key: "location", label: "Location", render: (request) => `${request.location} (${request.countryCode})` },
           { key: "budget", label: "Budget / guests", render: (request) => <div><p>{formatCurrency(request.budget, request.currency)}</p><p className="text-xs text-muted-foreground">{request.guestCount} guests</p></div> },
-          { key: "dates", label: "Dates", render: (request) => request.requestMode === "MULTI_DAY" ? `${request.multiDayDates.length} service dates` : request.eventDate.toLocaleDateString() },
+          { key: "dates", label: "Dates", render: (request) => request.requestMode === "MULTI_DAY" ? `${safeMultiDayDatesFor(request).length} service dates` : request.eventDate.toLocaleDateString() },
           { key: "proposals", label: "Proposals", render: (request) => request.proposals.length },
           { key: "created", label: "Created", render: (request) => formatAdminDate(request.createdAt) },
           {
@@ -156,7 +157,7 @@ export default async function AdminRequestsPage({
                 <AdminDrawerSection title="Dates">
                   {request.requestMode === "MULTI_DAY" ? (
                     <div className="space-y-2">
-                      {request.multiDayDates.map((date) => (
+                      {safeMultiDayDatesFor(request).map((date) => (
                         <p key={date.id} className="rounded-lg border border-border bg-muted/20 p-3 text-sm">{date.date.toLocaleDateString()} {date.startTime ?? ""}-{date.endTime ?? ""}</p>
                       ))}
                     </div>

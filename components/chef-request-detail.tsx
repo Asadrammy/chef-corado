@@ -45,15 +45,16 @@ interface ChefRequestDetailProps {
 export function ChefRequestDetail({ request }: ChefRequestDetailProps) {
   const [proposalPrice, setProposalPrice] = useState("")
   const [proposalMessage, setProposalMessage] = useState("")
+  const safeMultiDayDates = (request.multiDayDates ?? []).filter(Boolean)
   const [lineItemPrices, setLineItemPrices] = useState<Record<string, string>>(
-    Object.fromEntries((request.multiDayDates ?? []).map((date: any) => [date.id, ""]))
+    Object.fromEntries(safeMultiDayDates.map((date: any) => [date.id, ""]))
   )
   const [lineItemNotes, setLineItemNotes] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const trimmedProposalMessageLength = proposalMessage.trim().length
-  const isMultiDay = request.requestMode === "MULTI_DAY" && request.multiDayDates?.length > 0
+  const isMultiDay = request.requestMode === "MULTI_DAY" && safeMultiDayDates.length > 0
   const lineItemTotal = isMultiDay
-    ? request.multiDayDates.reduce((sum: number, date: any) => sum + Number(lineItemPrices[date.id] || 0), 0)
+    ? safeMultiDayDates.reduce((sum: number, date: any) => sum + Number(lineItemPrices[date.id] || 0), 0)
     : Number(proposalPrice || 0)
   const clientGreetingName = request.clientGreetingName || request.clientName || "Client"
 
@@ -63,7 +64,7 @@ export function ChefRequestDetail({ request }: ChefRequestDetailProps) {
       return
     }
 
-    if (isMultiDay && request.multiDayDates.some((date: any) => !Number(lineItemPrices[date.id] || 0))) {
+    if (isMultiDay && safeMultiDayDates.some((date: any) => !Number(lineItemPrices[date.id] || 0))) {
       alert("Please add a price for every Multi-Day service date")
       return
     }
@@ -79,7 +80,7 @@ export function ChefRequestDetail({ request }: ChefRequestDetailProps) {
           requestId: request.id,
           price: isMultiDay ? lineItemTotal : parseFloat(proposalPrice),
           message: proposalMessage,
-          lineItems: isMultiDay ? request.multiDayDates.map((date: any) => ({
+          lineItems: isMultiDay ? safeMultiDayDates.map((date: any) => ({
             serviceDate: date.date,
             title: `${formatRequestDate(date.date)} - ${getServiceTypeLabel(date.serviceType, date.serviceTypeLabel)}`,
             description: lineItemNotes[date.id] || date.notes || undefined,
@@ -190,7 +191,7 @@ export function ChefRequestDetail({ request }: ChefRequestDetailProps) {
           <div className="flex flex-wrap gap-3 border-t pt-6">
             <Badge variant="secondary">{request.eventType ?? "Event"}</Badge>
             <Badge variant="outline">{serviceTypeLabel}</Badge>
-            {isMultiDay ? <Badge variant="outline">{request.multiDayDates.length} service dates</Badge> : null}
+            {isMultiDay ? <Badge variant="outline">{safeMultiDayDates.length} service dates</Badge> : null}
             <Badge variant="outline">{request.totalProposalCount ?? 0}/10 quotes received</Badge>
             {quoteLimitReached ? (
               <Badge variant="destructive">Quote limit reached</Badge>
@@ -266,7 +267,7 @@ export function ChefRequestDetail({ request }: ChefRequestDetailProps) {
             <div className="border-t pt-6">
               <h3 className="font-semibold mb-3">Multi-Day Service Dates</h3>
               <div className="space-y-3">
-                {request.multiDayDates.map((date: any) => (
+                {safeMultiDayDates.map((date: any) => (
                   <div key={date.id} className="rounded-xl border border-border bg-muted/20 p-4 text-sm">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <p className="font-semibold">{formatRequestDate(date.date)}</p>
@@ -320,7 +321,7 @@ export function ChefRequestDetail({ request }: ChefRequestDetailProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {isMultiDay ? (
                 <div className="md:col-span-2 space-y-3">
-                  {request.multiDayDates.map((date: any) => (
+                  {safeMultiDayDates.map((date: any) => (
                     <div key={date.id} className="grid gap-3 rounded-xl border border-border p-3 md:grid-cols-[1fr_150px]">
                       <div>
                         <Label>{formatRequestDate(date.date)}</Label>
