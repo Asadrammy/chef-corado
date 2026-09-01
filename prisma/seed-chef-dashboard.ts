@@ -89,6 +89,7 @@ async function main() {
         email: 'admin@example.com',
         password: adminPassword,
         role: 'ADMIN',
+        adminRole: 'SUPER_ADMIN',
       },
     });
     console.log('✅ Created admin user');

@@ -13,6 +13,7 @@ async function main() {
       email: 'admin@example.com',
       password: adminPassword,
       role: 'ADMIN',
+      adminRole: 'SUPER_ADMIN',
       termsAcceptedAt: new Date(),
       termsVersion: '2026-04',
       acceptedVia: 'register',

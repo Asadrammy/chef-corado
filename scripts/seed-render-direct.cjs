@@ -52,9 +52,9 @@ async function seed(client) {
   const clientPwd = await bcrypt.hash("client123", 10);
 
   const admins = [
-    { id: makeId("user_admin", 1), name: "Sarah Mitchell", email: "admin@example.com" },
-    { id: makeId("user_admin", 2), name: "James Wilson", email: "james.admin@chefmarket.com" },
-    { id: makeId("user_admin", 3), name: "Emily Chen", email: "emily.admin@chefmarket.com" },
+    { id: makeId("user_admin", 1), name: "Sarah Mitchell", email: "admin@example.com", adminRole: "SUPER_ADMIN" },
+    { id: makeId("user_admin", 2), name: "James Wilson", email: "james.admin@chefmarket.com", adminRole: "OPERATIONS_COMPLIANCE_MANAGER" },
+    { id: makeId("user_admin", 3), name: "Emily Chen", email: "emily.admin@chefmarket.com", adminRole: "CUSTOMER_SUPPORT_SPECIALIST" },
   ].map((user) => ({
     ...user,
     password: adminPwd,

@@ -104,9 +104,9 @@ async function seedUsers() {
   const clientPwd = await bcrypt.hash('client123', 10);
 
   const admins = await Promise.all([
-    prisma.user.create({ data: { name: 'Sarah Mitchell', email: 'admin@example.com', password: adminPwd, role: 'ADMIN', verified: true, profileCompletion: 100, experienceLevel: 'EXPERT', termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register' } as any }),
-    prisma.user.create({ data: { name: 'James Wilson', email: 'james.admin@chefmarket.com', password: adminPwd, role: 'ADMIN', verified: true, profileCompletion: 100, termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register' } as any }),
-    prisma.user.create({ data: { name: 'Emily Chen', email: 'emily.admin@chefmarket.com', password: adminPwd, role: 'ADMIN', verified: true, profileCompletion: 100, termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register' } as any }),
+    prisma.user.create({ data: { name: 'Sarah Mitchell', email: 'admin@example.com', password: adminPwd, role: 'ADMIN', adminRole: 'SUPER_ADMIN', verified: true, profileCompletion: 100, experienceLevel: 'EXPERT', termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register' } as any }),
+    prisma.user.create({ data: { name: 'James Wilson', email: 'james.admin@chefmarket.com', password: adminPwd, role: 'ADMIN', adminRole: 'OPERATIONS_COMPLIANCE_MANAGER', verified: true, profileCompletion: 100, termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register' } as any }),
+    prisma.user.create({ data: { name: 'Emily Chen', email: 'emily.admin@chefmarket.com', password: adminPwd, role: 'ADMIN', adminRole: 'CUSTOMER_SUPPORT_SPECIALIST', verified: true, profileCompletion: 100, termsAcceptedAt: new Date(), termsVersion: '2026-04', acceptedVia: 'register' } as any }),
   ]);
 
   const chefData = [
