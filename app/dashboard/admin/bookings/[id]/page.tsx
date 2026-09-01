@@ -12,6 +12,7 @@ import {
   formatServiceDateSummary,
   formatServiceTime,
   formatShortDate,
+  getStructuredServiceDates,
   parseJsonList,
 } from "@/lib/multi-day-display"
 import { prisma } from "@/lib/prisma"
@@ -58,9 +59,10 @@ export default async function AdminBookingDetailPage({ params }: { params: Promi
 
   if (!booking) notFound()
 
-  const serviceDates = booking.serviceDates.length
-    ? booking.serviceDates
-    : booking.proposal?.request?.multiDayDates ?? []
+  const serviceDates = getStructuredServiceDates({
+    serviceDates: booking.serviceDates,
+    proposal: booking.proposal?.request ? { request: booking.proposal.request } : null,
+  })
   const isMultiDay = booking.proposal?.request?.requestMode === "MULTI_DAY" || serviceDates.length > 1
 
   const timeline = await prisma.auditLog.findMany({

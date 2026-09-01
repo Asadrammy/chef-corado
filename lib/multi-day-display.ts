@@ -95,7 +95,8 @@ export function formatLongDate(value?: Date | string | null) {
   return date ? longDateFormatter.format(date) : "Not specified"
 }
 
-export function formatServiceTime(day: MultiDayDateLike) {
+export function formatServiceTime(day?: MultiDayDateLike | null) {
+  if (!day) return "Time TBD"
   if (day.startTime && day.endTime) return `${day.startTime} - ${day.endTime}`
   return day.startTime || "Time TBD"
 }
