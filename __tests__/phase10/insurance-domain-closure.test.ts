@@ -113,8 +113,8 @@ describe("Implementation Pass 2 insurance and domain closure", () => {
     expect(envExample).toContain('NEXTAUTH_URL="https://chefachef.co.uk"')
     expect(productionEnvExample).toContain("NEXTAUTH_URL=https://chefachef.co.uk")
     expect(robots).toContain("Sitemap: https://chefachef.co.uk/sitemap.xml")
-    expect(rules).toContain('email: "info@chefachef.com"')
-    expect(rules).not.toContain("info@chefachef.co.uk")
+    expect(rules).toContain('email: "info@chefachef.co.uk"')
+    expect(rules).not.toContain("info@chefachef.com")
   })
 
   it("uses confirmed public insurance copy without exposing internal audit identifiers", () => {

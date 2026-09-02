@@ -608,6 +608,7 @@ export function RequestWizardForm({ mode = "create", chefId, initialDraftId, ini
         pricingGuestCount: guestComposition.pricingGuestCount,
         budget: Number(formData.budget),
         details: formData.details || undefined,
+        targetChefId: chefId || undefined,
       }
 
       const response = isEditMode && initialRequest?.id

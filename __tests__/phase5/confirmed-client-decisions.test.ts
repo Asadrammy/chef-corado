@@ -24,7 +24,7 @@ describe("confirmed client decisions", () => {
   })
 
   it("uses the confirmed legal contact email and London UK storage wording", () => {
-    expect(APPROVED_PUBLIC_CONTACT.email).toBe("info@chefachef.com")
+    expect(APPROVED_PUBLIC_CONTACT.email).toBe("info@chefachef.co.uk")
     expect(readSource("app/(public)/privacy/page.tsx")).toContain("secure servers in London, UK")
     expect(readSource("app/(public)/privacy/page.tsx")).toContain("APPROVED_PUBLIC_CONTACT.email")
   })

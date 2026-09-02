@@ -114,6 +114,7 @@ export function ChefRequestDetail({ request }: ChefRequestDetailProps) {
   const proposals = request.proposals ?? []
   const hasProposal = proposals.length > 0
   const quoteLimitReached = (request.totalProposalCount ?? 0) >= 10
+  const proposalBlocked = quoteLimitReached || request.canSubmitProposal === false
   const serviceTypeLabel = getServiceTypeLabel(request.serviceType, request.serviceTypeLabel)
   const cuisineLabels = request.cuisinePreferences ?? []
   const dietaryLabels = request.dietaryRequirements ?? []
@@ -193,6 +194,9 @@ export function ChefRequestDetail({ request }: ChefRequestDetailProps) {
             <Badge variant="outline">{serviceTypeLabel}</Badge>
             {isMultiDay ? <Badge variant="outline">{safeMultiDayDates.length} service dates</Badge> : null}
             <Badge variant="outline">{request.totalProposalCount ?? 0}/10 quotes received</Badge>
+            {request.earlyAccess ? <Badge className="bg-emerald-100 text-emerald-800">Early Access</Badge> : null}
+            {request.directRequest ? <Badge className="bg-sky-100 text-sky-800">Direct Request</Badge> : null}
+            {request.beFirstToRespond ? <Badge className="bg-amber-100 text-amber-900">Be First to Respond</Badge> : null}
             {quoteLimitReached ? (
               <Badge variant="destructive">Quote limit reached</Badge>
             ) : null}
@@ -313,9 +317,11 @@ export function ChefRequestDetail({ request }: ChefRequestDetailProps) {
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            {quoteLimitReached ? (
+            {proposalBlocked ? (
               <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                Quote limit reached. This request is no longer accepting proposals.
+                {quoteLimitReached
+                  ? "Quote limit reached. This request is no longer accepting proposals."
+                  : "This request is not currently available for a new proposal."}
               </div>
             ) : null}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -379,7 +385,7 @@ export function ChefRequestDetail({ request }: ChefRequestDetailProps) {
             </div>
             <Button 
               onClick={handleSubmitProposal}
-              disabled={isSubmitting || quoteLimitReached || trimmedProposalMessageLength < PROPOSAL_MESSAGE_MIN_LENGTH}
+              disabled={isSubmitting || proposalBlocked || trimmedProposalMessageLength < PROPOSAL_MESSAGE_MIN_LENGTH}
               className="w-full md:w-auto"
             >
               {isSubmitting ? "Sending..." : "Send Proposal"}

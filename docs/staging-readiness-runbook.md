@@ -19,7 +19,7 @@ NEXTAUTH_SECRET=<staging-nextauth-secret>
 NEXT_PUBLIC_BASE_URL=https://<chefachef-staging-service>.onrender.com
 
 RESEND_API_KEY=<resend-staging-api-key>
-RESEND_FROM_EMAIL=ChefaChef <info@chefachef.com>
+RESEND_FROM_EMAIL=ChefaChef <info@chefachef.co.uk>
 
 STRIPE_SECRET_KEY=<stripe-test-secret-key>
 NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=<stripe-test-publishable-key>
@@ -77,7 +77,7 @@ Redis / Upstash:
 - Verify production-mode checkout locks fail closed when Redis is absent and work when Redis is present.
 
 Resend:
-- Use a verified sender authorized for `info@chefachef.com` or an approved staging sender.
+- Use a verified sender authorized for `info@chefachef.co.uk` or an approved staging sender.
 - Verify registration, resend verification, split bill invitation, chef review, and payment recovery emails.
 
 Cron:

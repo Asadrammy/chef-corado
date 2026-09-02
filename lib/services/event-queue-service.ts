@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma"
 import { logger } from "@/lib/logger"
+import { requestRepository } from "@/lib/repositories/request-repository"
+import { notifyEligibleChefsAboutRequest } from "@/lib/services/request-notification-service"
+import { evaluateChefRequestAccessForRecords, isRequestOpenForQuotes, MAX_QUOTES_PER_REQUEST } from "@/lib/services/request-eligibility-service"
+import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
 
 export type EventType =
   | "BOOKING_CREATED"
@@ -21,6 +25,7 @@ export type EventType =
   | "PROPOSAL_SUBMITTED"
   | "PROPOSAL_ACCEPTED"
   | "PROPOSAL_EXPIRED"
+  | "REQUEST_BROADER_ACCESS_NOTIFY"
 
 export interface EventPayload {
   [key: string]: unknown
@@ -31,6 +36,8 @@ export interface QueueEvent {
   payload: EventPayload
   priority?: number
   maxRetries?: number
+  nextRunAt?: Date
+  dedupeKey?: string
 }
 
 export const eventQueueService = {
@@ -40,24 +47,41 @@ export const eventQueueService = {
    */
   async emit(event: QueueEvent): Promise<string> {
     try {
-      // Since eventQueue model doesn't exist, create a mock event and return an ID
-      const mockEvent = {
-        id: `event_${Date.now()}_${Math.random()}`,
-        eventType: event.eventType,
-        payload: JSON.stringify(event.payload),
-        priority: event.priority || 0,
-        maxRetries: event.maxRetries || 3,
-        status: "PENDING",
-        createdAt: new Date(),
+      const payload = JSON.stringify({
+        ...event.payload,
+        ...(event.dedupeKey ? { dedupeKey: event.dedupeKey } : {}),
+      })
+
+      if (event.dedupeKey) {
+        const existing = await prisma.eventQueue.findFirst({
+          where: {
+            eventType: event.eventType,
+            payload,
+            status: { in: ["PENDING", "PROCESSING", "COMPLETED"] },
+          },
+          select: { id: true },
+        })
+        if (existing) return existing.id
       }
 
-      logger.info(`[EVENT] Emitted ${event.eventType} (ID: ${mockEvent.id})`, {
-        eventId: mockEvent.id,
+      const queued = await prisma.eventQueue.create({
+        data: {
+          eventType: event.eventType,
+          payload,
+          status: "PENDING",
+          priority: event.priority || 0,
+          maxRetries: event.maxRetries || 3,
+          nextRetryAt: event.nextRunAt ?? null,
+        },
+      })
+
+      logger.info(`[EVENT] Emitted ${event.eventType} (ID: ${queued.id})`, {
+        eventId: queued.id,
         eventType: event.eventType,
         priority: event.priority,
       })
 
-      return mockEvent.id
+      return queued.id
     } catch (error) {
       logger.error("[EVENT] Failed to emit event:", { error, event })
       throw error
@@ -73,14 +97,48 @@ export const eventQueueService = {
     failed: number
     remaining: number
   }> {
-    // Since eventQueue model doesn't exist, return mock results for now
-    // In production, you would query the actual event queue table
     logger.info(`[EVENT] Processing pending events (batch size: ${batchSize})`)
-    
+
+    const now = new Date()
+    const events = await prisma.eventQueue.findMany({
+      where: {
+        status: "PENDING",
+        OR: [
+          { nextRetryAt: null },
+          { nextRetryAt: { lte: now } },
+        ],
+      },
+      orderBy: [{ priority: "desc" }, { createdAt: "asc" }],
+      take: batchSize,
+    })
+
+    let processed = 0
+    let failed = 0
+    for (const event of events) {
+      await prisma.eventQueue.update({
+        where: { id: event.id },
+        data: { status: "PROCESSING" },
+      })
+
+      try {
+        await this.processEvent(event.id, event.eventType, event.payload)
+        await prisma.eventQueue.update({
+          where: { id: event.id },
+          data: { status: "COMPLETED", processedAt: new Date(), errorMessage: null },
+        })
+        processed += 1
+      } catch (error) {
+        failed += 1
+        await this.markEventFailed(event.id, error, event.retryCount, event.maxRetries)
+      }
+    }
+
+    const remaining = await prisma.eventQueue.count({ where: { status: "PENDING" } })
+
     return {
-      processed: 0,
-      failed: 0,
-      remaining: 0
+      processed,
+      failed,
+      remaining
     }
   },
 
@@ -88,8 +146,6 @@ export const eventQueueService = {
    * Process a single event
    */
   async processEvent(eventId: string, eventType: string, payload: string): Promise<void> {
-    // Since eventQueue model doesn't exist, just log the processing for now
-    // In production, you would update the actual event queue table
     logger.info(`[EVENT] Processing ${eventType} (ID: ${eventId})`)
     
     const data = JSON.parse(payload)
@@ -120,6 +176,9 @@ export const eventQueueService = {
       case "DISPUTE_RESOLVED":
         await this.handleDisputeResolved(data)
         break
+      case "REQUEST_BROADER_ACCESS_NOTIFY":
+        await this.handleRequestBroaderAccessNotify(data)
+        break
       default:
         logger.warn(`[EVENT] No handler for event type: ${eventType}`)
     }
@@ -144,10 +203,24 @@ export const eventQueueService = {
       const backoffMinutes = [1, 5, 15][currentRetryCount] || 30
       const nextRetryAt = new Date(Date.now() + backoffMinutes * 60 * 1000)
 
-      // Since eventQueue model doesn't exist, just log the retry for now
+      await prisma.eventQueue.update({
+        where: { id: eventId },
+        data: {
+          status: "PENDING",
+          retryCount: { increment: 1 },
+          nextRetryAt,
+          errorMessage,
+        },
+      })
       logger.warn(`[EVENT] Scheduled retry for ${eventId} at ${nextRetryAt}`)
     } else {
-      // Since eventQueue model doesn't exist, just log the failure for now
+      await prisma.eventQueue.update({
+        where: { id: eventId },
+        data: {
+          status: "FAILED",
+          errorMessage,
+        },
+      })
       logger.error(`[EVENT] Event ${eventId} failed permanently after ${maxRetries} retries`)
     }
   },
@@ -191,6 +264,56 @@ export const eventQueueService = {
     logger.info("[EVENT HANDLER] Dispute resolved:", data)
   },
 
+  async handleRequestBroaderAccessNotify(data: EventPayload): Promise<void> {
+    const requestId = typeof data.requestId === "string" ? data.requestId : null
+    if (!requestId) return
+
+    const request = await withRequestPhotoFallback(
+      () => prisma.request.findUnique({
+        where: { id: requestId },
+        include: {
+          client: { select: { name: true, firstName: true } },
+          proposals: { select: { chefId: true, status: true } },
+          invitations: { select: { chefId: true, status: true } },
+          photos: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            take: 3,
+            select: { id: true, url: true, originalName: true },
+          },
+          multiDayDates: { orderBy: [{ date: "asc" }, { sortOrder: "asc" }] },
+          _count: { select: { proposals: true } },
+        },
+      }),
+      () => prisma.request.findUnique({
+        where: { id: requestId },
+        include: {
+          client: { select: { name: true, firstName: true } },
+          proposals: { select: { chefId: true, status: true } },
+          invitations: { select: { chefId: true, status: true } },
+          multiDayDates: { orderBy: [{ date: "asc" }, { sortOrder: "asc" }] },
+          _count: { select: { proposals: true } },
+        },
+      })
+    )
+
+    if (!request) return
+    if (!isRequestOpenForQuotes(request) || request._count.proposals >= MAX_QUOTES_PER_REQUEST) return
+    if (request.invitations.some((invitation) => invitation.status !== "DECLINED")) return
+
+    const chefs = await requestRepository.findApprovedChefsWithCoordinates()
+    const broaderChefs = []
+    for (const chef of chefs) {
+      const access = await evaluateChefRequestAccessForRecords({ chef, request })
+      if (access.canView && access.broaderAccess) {
+        broaderChefs.push(chef)
+      }
+    }
+
+    if (broaderChefs.length > 0) {
+      await notifyEligibleChefsAboutRequest({ request, chefs: broaderChefs })
+    }
+  },
+
   /**
    * Get queue statistics
    */
@@ -201,16 +324,20 @@ export const eventQueueService = {
     failed: number
     retrying: number
   }> {
-    // Since eventQueue model doesn't exist, return mock stats for now
-    // In production, you would query the actual event queue table
-    logger.info(`[EVENT] Getting queue stats (mocked)`)
-    
+    logger.info(`[EVENT] Getting queue stats`)
+    const [pending, processing, completed, failed] = await Promise.all([
+      prisma.eventQueue.count({ where: { status: "PENDING" } }),
+      prisma.eventQueue.count({ where: { status: "PROCESSING" } }),
+      prisma.eventQueue.count({ where: { status: "COMPLETED" } }),
+      prisma.eventQueue.count({ where: { status: "FAILED" } }),
+    ])
+
     return {
-      pending: 0,
-      processing: 0,
-      completed: 0,
-      failed: 0,
-      retrying: 0
+      pending,
+      processing,
+      completed,
+      failed,
+      retrying: pending
     }
   },
 
@@ -218,8 +345,10 @@ export const eventQueueService = {
    * Retry a failed event manually
    */
   async retryEvent(eventId: string): Promise<void> {
-    // Since eventQueue model doesn't exist, just log the retry for now
-    // In production, you would update the actual event queue table
+    await prisma.eventQueue.update({
+      where: { id: eventId },
+      data: { status: "PENDING", nextRetryAt: new Date(), errorMessage: null },
+    })
     logger.info(`[EVENT] Retrying event ${eventId}`)
   },
 }

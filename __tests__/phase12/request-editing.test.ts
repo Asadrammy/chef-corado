@@ -1,13 +1,12 @@
 import fs from "fs"
 import path from "path"
 
-import { getChefRequestDistanceKm } from "../../lib/chef-request-matching"
-
 const mockGetServerSession = jest.fn()
 const mockRequestUpdate = jest.fn()
 const mockRequestNotesUpdate = jest.fn()
 const mockRequestFindUnique = jest.fn()
 const mockChefProfileFindUnique = jest.fn()
+const mockAssertChefCanViewRequest = jest.fn()
 const mockRequestPrismaUpdate = jest.fn()
 const mockGeocodeAddress = jest.fn()
 const mockEnforceUserModeration = jest.fn()
@@ -44,6 +43,10 @@ jest.mock("../../lib/prisma", () => ({
     },
   },
   isPrismaConnectionError: () => false,
+}))
+
+jest.mock("../../lib/services/request-eligibility-service", () => ({
+  assertChefCanViewRequest: (...args: unknown[]) => mockAssertChefCanViewRequest(...args),
 }))
 
 jest.mock("../../lib/geo", () => ({
@@ -209,28 +212,22 @@ describe("request editing", () => {
     expect(await response.json()).toEqual({ request: { id: "request-1", details: "Updated notes" } })
   })
 
-  it("uses the canonical kilometer matcher for chef request detail access", async () => {
+  it("uses the canonical chef request eligibility service for detail access", async () => {
     const { GET } = await import("../../app/api/requests/[requestId]/route")
     mockGetServerSession.mockResolvedValue({
       user: { id: "chef-user", role: "CHEF", email: "chef@example.com" },
     })
-    const requestLatitude = 51.5072
-    const requestLongitude = -0.1276
-    const boundaryChefLatitude = 51.5572
-    const boundaryChefLongitude = -0.1276
-    const boundaryDistanceKm = getChefRequestDistanceKm(requestLatitude, requestLongitude, boundaryChefLatitude, boundaryChefLongitude)
+    mockAssertChefCanViewRequest.mockResolvedValue({
+      canView: true,
+      canPropose: true,
+      reasons: [],
+    })
     mockRequestFindUnique.mockResolvedValue({
       id: "request-1",
-      latitude: requestLatitude,
-      longitude: requestLongitude,
+      latitude: 51.5072,
+      longitude: -0.1276,
       client: { id: "client-1", name: "Michael Thompson", email: "michael@example.com" },
       photos: [],
-    })
-    mockChefProfileFindUnique.mockResolvedValue({
-      userId: "chef-user",
-      latitude: boundaryChefLatitude,
-      longitude: boundaryChefLongitude,
-      radius: boundaryDistanceKm,
     })
 
     const allowed = await GET(new Request("http://localhost/api/requests/request-1") as any, {
@@ -238,13 +235,9 @@ describe("request editing", () => {
     })
 
     expect(allowed.status).toBe(200)
+    expect(mockAssertChefCanViewRequest).toHaveBeenCalledWith("chef-user", "request-1")
 
-    mockChefProfileFindUnique.mockResolvedValueOnce({
-      userId: "chef-user",
-      latitude: boundaryChefLatitude,
-      longitude: boundaryChefLongitude,
-      radius: Math.max(0, boundaryDistanceKm - 0.01),
-    })
+    mockAssertChefCanViewRequest.mockRejectedValueOnce(new Error("REQUEST_NOT_AVAILABLE:EARLY_ACCESS_LOCAL_ONLY"))
 
     const denied = await GET(new Request("http://localhost/api/requests/request-1") as any, {
       params: Promise.resolve({ requestId: "request-1" }),
@@ -258,6 +251,7 @@ describe("request editing", () => {
     mockGetServerSession.mockResolvedValue({
       user: { id: "chef-user", role: "CHEF", email: "chef@example.com" },
     })
+    mockAssertChefCanViewRequest.mockRejectedValue(new Error("REQUEST_NOT_AVAILABLE:REQUEST_LOCATION_UNAVAILABLE"))
     mockRequestFindUnique.mockResolvedValue({
       id: "request-1",
       latitude: null,

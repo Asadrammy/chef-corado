@@ -15,6 +15,13 @@ export type ChefMarketplaceFilters = {
   dateFrom: string | null
   dateTo: string | null
   radiusKm: number | null
+  earlyAccessOnly: boolean
+  directOnly: boolean
+  beFirstOnly: boolean
+  mapNorth: number | null
+  mapSouth: number | null
+  mapEast: number | null
+  mapWest: number | null
   sort: ChefRequestSortKey
   page: number
   limit: number
@@ -44,7 +51,13 @@ export type MarketplaceFilterSubject = {
   createdAt?: string | Date | null
   submittedAt?: string | Date | null
   distanceKm?: number | null
+  broaderMatching?: boolean
+  latitude?: number | null
+  longitude?: number | null
   clientName?: string | null
+  earlyAccess?: boolean
+  directRequest?: boolean
+  beFirstToRespond?: boolean
 }
 
 const DEFAULT_LIMIT = 12
@@ -90,6 +103,18 @@ function normalizeDate(value: string | undefined | null) {
   return Number.isFinite(date.getTime()) ? value.slice(0, 10) : null
 }
 
+function toBoolean(value: string | undefined) {
+  return value === "1" || value === "true"
+}
+
+function toLatitude(value: string | undefined) {
+  return toNumber(value, -90, 90)
+}
+
+function toLongitude(value: string | undefined) {
+  return toNumber(value, -180, 180)
+}
+
 export function parseMarketplaceFilters(input: Record<string, string | string[] | undefined>): ChefMarketplaceFilters {
   const dateFrom = normalizeDate(readValue(input, "dateFrom") ?? readValue(input, "date"))
   const dateTo = normalizeDate(readValue(input, "dateTo") ?? readValue(input, "date"))
@@ -106,6 +131,13 @@ export function parseMarketplaceFilters(input: Record<string, string | string[] 
     dateFrom,
     dateTo,
     radiusKm: toNumber(readValue(input, "radius"), 0),
+    earlyAccessOnly: toBoolean(readValue(input, "earlyAccess")),
+    directOnly: toBoolean(readValue(input, "direct")),
+    beFirstOnly: toBoolean(readValue(input, "beFirst")),
+    mapNorth: toLatitude(readValue(input, "north")),
+    mapSouth: toLatitude(readValue(input, "south")),
+    mapEast: toLongitude(readValue(input, "east")),
+    mapWest: toLongitude(readValue(input, "west")),
     sort: toSort(readValue(input, "sort")),
     page: toInteger(readValue(input, "page"), 1, 999, 1),
     limit: toInteger(readValue(input, "limit"), 6, 48, DEFAULT_LIMIT),
@@ -142,6 +174,10 @@ export function getMarketplaceActiveFilterCount(filters: ChefMarketplaceFilters)
     filters.dateFrom,
     filters.dateTo,
     filters.radiusKm != null && filters.radiusKm > 0 ? filters.radiusKm : null,
+    filters.earlyAccessOnly ? "earlyAccess" : null,
+    filters.directOnly ? "direct" : null,
+    filters.beFirstOnly ? "beFirst" : null,
+    filters.mapNorth != null && filters.mapSouth != null && filters.mapEast != null && filters.mapWest != null ? "mapBounds" : null,
   ].filter((value) => value != null && value !== "").length
 }
 
@@ -206,6 +242,8 @@ function matchesDateFilter(request: MarketplaceFilterSubject, filters: ChefMarke
 }
 
 function matchesRadiusFilter(request: MarketplaceFilterSubject, filters: ChefMarketplaceFilters, chefRadiusKm: number) {
+  if (request.broaderMatching && filters.radiusKm == null) return true
+
   const effectiveRadius = Math.min(filters.radiusKm ?? chefRadiusKm, chefRadiusKm)
   if (effectiveRadius <= 0) return false
   if (request.distanceKm == null) {
@@ -278,6 +316,21 @@ function matchesSearchFilter(request: MarketplaceFilterSubject, filters: ChefMar
   return tokens.every((token) => text.includes(token))
 }
 
+function matchesSpotlightFilters(request: MarketplaceFilterSubject, filters: ChefMarketplaceFilters) {
+  if (filters.earlyAccessOnly && !request.earlyAccess) return false
+  if (filters.directOnly && !request.directRequest) return false
+  if (filters.beFirstOnly && !request.beFirstToRespond) return false
+  return true
+}
+
+function matchesMapBoundsFilter(request: MarketplaceFilterSubject, filters: ChefMarketplaceFilters) {
+  if (filters.mapNorth == null || filters.mapSouth == null || filters.mapEast == null || filters.mapWest == null) return true
+  if (request.latitude == null || request.longitude == null) return false
+  if (request.latitude > filters.mapNorth || request.latitude < filters.mapSouth) return false
+  if (request.longitude < filters.mapWest || request.longitude > filters.mapEast) return false
+  return true
+}
+
 export function requestMatchesMarketplaceFilters(
   request: MarketplaceFilterSubject,
   filters: ChefMarketplaceFilters,
@@ -292,6 +345,8 @@ export function requestMatchesMarketplaceFilters(
   if (!matchesGuestFilter(request, filters)) return false
   if (!matchesDateFilter(request, filters)) return false
   if (!matchesRadiusFilter(request, filters, options.chefRadiusKm)) return false
+  if (!matchesSpotlightFilters(request, filters)) return false
+  if (!matchesMapBoundsFilter(request, filters)) return false
 
   return true
 }

@@ -38,6 +38,14 @@ export type ChefRequestMatchingRequest = {
   actualAttendeeCount?: number | null
   billableGuestCount?: number | null
   pricingGuestCount?: number | null
+  countryCode?: string | null
+}
+
+export type ChefRequestMatchEligibility = {
+  eligible: boolean
+  local: boolean
+  distanceKm: number | null
+  reasons: string[]
 }
 
 function parseStringList(value: unknown): string[] {
@@ -121,6 +129,94 @@ async function hasAvailabilityConflict(chefId: string, dateKeys: string[]) {
   return availability.some((slot) => !slot.isAvailable || slot.currentBookings >= slot.maxBookings)
 }
 
+export async function evaluateChefRequestMatch(
+  request: ChefRequestMatchingRequest,
+  chef: ChefRequestMatchingCandidate & { baseCountryCode?: string | null },
+  options: { enforceRadius?: boolean; enforceMarket?: boolean } = {}
+): Promise<ChefRequestMatchEligibility> {
+  const enforceRadius = options.enforceRadius ?? true
+  const enforceMarket = options.enforceMarket ?? false
+  const reasons: string[] = []
+  const requestedServiceTypes = getRequestedServiceTypes(request)
+  const requestedCuisineTerms = getRequestedCuisineTerms(request)
+  const requestedDateKeys = getRequestedDateKeys(request)
+
+  if (enforceMarket && request.countryCode && chef.baseCountryCode && request.countryCode !== chef.baseCountryCode) {
+    reasons.push("MARKET_MISMATCH")
+  }
+
+  if (enforceRadius && (chef.latitude == null || chef.longitude == null || chef.radius <= 0)) {
+    reasons.push("CHEF_LOCATION_UNAVAILABLE")
+  }
+
+  if (enforceRadius && (request.latitude == null || request.longitude == null)) {
+    reasons.push("REQUEST_LOCATION_UNAVAILABLE")
+  }
+
+  let distanceKm: number | null = null
+  let local = false
+  if (
+    request.latitude != null &&
+    request.longitude != null &&
+    chef.latitude != null &&
+    chef.longitude != null &&
+    chef.radius > 0
+  ) {
+    distanceKm = calculateDistance(request.latitude, request.longitude, chef.latitude, chef.longitude)
+    local = distanceKm <= chef.radius
+    if (enforceRadius && !local) {
+      reasons.push("OUTSIDE_SERVICE_RADIUS")
+    }
+  }
+
+  const chefText = buildChefText(chef)
+  const chefExperiences = chef.experiences ?? []
+  if (requestedServiceTypes.length > 0 && chefExperiences.length > 0) {
+    const hasServiceMatch = request.requestMode === "MULTI_DAY"
+      ? requestedServiceTypes.every((serviceType) =>
+          chefExperiences.some((experience) => experience.serviceType === serviceType) ||
+          chefText.includes(serviceType.toLowerCase().replaceAll("_", " "))
+        )
+      : requestedServiceTypes.some((serviceType) =>
+          chefExperiences.some((experience) => experience.serviceType === serviceType) ||
+          chefText.includes(serviceType.toLowerCase().replaceAll("_", " "))
+        )
+
+    if (!hasServiceMatch) {
+      reasons.push("SERVICE_MISMATCH")
+    }
+  }
+
+  if (requestedCuisineTerms.length > 0 && chefText) {
+    const hasCuisineMatch = requestedCuisineTerms.some((cuisine) => chefText.includes(cuisine))
+    if (!hasCuisineMatch) {
+      reasons.push("CUISINE_MISMATCH")
+    }
+  }
+
+  const pricingGuestCount = request.pricingGuestCount ?? request.billableGuestCount ?? request.actualAttendeeCount ?? request.guestCount
+  const hasGuestCapacityConflict = chefExperiences.some((experience) =>
+    requestedServiceTypes.some((serviceType) => experience.serviceType === serviceType) &&
+    ((experience.minGuests != null && pricingGuestCount != null && pricingGuestCount < experience.minGuests) ||
+      (experience.maxGuests != null && pricingGuestCount != null && pricingGuestCount > experience.maxGuests))
+  )
+
+  if (hasGuestCapacityConflict) {
+    reasons.push("GUEST_CAPACITY_MISMATCH")
+  }
+
+  if (await hasAvailabilityConflict(chef.id, requestedDateKeys)) {
+    reasons.push("AVAILABILITY_CONFLICT")
+  }
+
+  return {
+    eligible: reasons.length === 0,
+    local,
+    distanceKm,
+    reasons,
+  }
+}
+
 export function getChefRequestDistanceKm(
   requestLatitude: number,
   requestLongitude: number,
@@ -134,68 +230,10 @@ export async function filterEligibleChefsForRequest(
   request: ChefRequestMatchingRequest,
   chefs: ChefRequestMatchingCandidate[]
 ) {
-  const requestedServiceTypes = getRequestedServiceTypes(request)
-  const requestedCuisineTerms = getRequestedCuisineTerms(request)
-  const requestedDateKeys = getRequestedDateKeys(request)
-
-  const chefsWithinRules = chefs.filter((chef) => {
-    if (chef.latitude == null || chef.longitude == null || chef.radius <= 0) {
-      return false
-    }
-
-    if (request.latitude == null || request.longitude == null) {
-      return false
-    }
-
-    const distanceKm = calculateDistance(
-      request.latitude,
-      request.longitude,
-      chef.latitude,
-      chef.longitude
-    )
-
-    if (distanceKm > chef.radius) {
-      return false
-    }
-
-    const chefText = buildChefText(chef)
-    const chefExperiences = chef.experiences ?? []
-    if (requestedServiceTypes.length > 0 && chefExperiences.length > 0) {
-      const hasServiceMatch = request.requestMode === "MULTI_DAY"
-        ? requestedServiceTypes.every((serviceType) =>
-            chefExperiences.some((experience) => experience.serviceType === serviceType) ||
-            chefText.includes(serviceType.toLowerCase().replaceAll("_", " "))
-          )
-        : requestedServiceTypes.some((serviceType) =>
-            chefExperiences.some((experience) => experience.serviceType === serviceType) ||
-            chefText.includes(serviceType.toLowerCase().replaceAll("_", " "))
-          )
-
-      if (!hasServiceMatch) {
-        return false
-      }
-    }
-
-    if (requestedCuisineTerms.length > 0 && chefText) {
-      const hasCuisineMatch = requestedCuisineTerms.some((cuisine) => chefText.includes(cuisine))
-      if (!hasCuisineMatch) {
-        return false
-      }
-    }
-
-    const pricingGuestCount = request.pricingGuestCount ?? request.billableGuestCount ?? request.actualAttendeeCount ?? request.guestCount
-    const hasGuestCapacityConflict = chefExperiences.some((experience) =>
-      requestedServiceTypes.some((serviceType) => experience.serviceType === serviceType) &&
-      ((experience.minGuests != null && pricingGuestCount != null && pricingGuestCount < experience.minGuests) ||
-        (experience.maxGuests != null && pricingGuestCount != null && pricingGuestCount > experience.maxGuests))
-    )
-
-    return !hasGuestCapacityConflict
-  })
-
   const chefsWithoutAvailabilityConflicts: ChefRequestMatchingCandidate[] = []
-  for (const chef of chefsWithinRules) {
-    if (!(await hasAvailabilityConflict(chef.id, requestedDateKeys))) {
+  for (const chef of chefs) {
+    const result = await evaluateChefRequestMatch(request, chef, { enforceRadius: true })
+    if (result.eligible) {
       chefsWithoutAvailabilityConflicts.push(chef)
     }
   }

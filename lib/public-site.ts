@@ -63,6 +63,7 @@ const contactWhatsapp = contactWhatsappActive
 const socialFacebook = process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK_URL?.trim() || APPROVED_PUBLIC_CONTACT.facebookUrl;
 const socialInstagram = process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL?.trim() || APPROVED_PUBLIC_CONTACT.instagramUrl;
 const socialX = process.env.NEXT_PUBLIC_SOCIAL_X_URL?.trim() || APPROVED_PUBLIC_CONTACT.xUrl;
+const socialTikTok = process.env.NEXT_PUBLIC_SOCIAL_TIKTOK_URL?.trim() || APPROVED_PUBLIC_CONTACT.tiktokUrl;
 const socialYoutube = process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE_URL?.trim() || APPROVED_PUBLIC_CONTACT.youtubeUrl;
 
 const contactItems = [
@@ -75,6 +76,7 @@ const socialItems = [
   activeFooterItem("Facebook", socialFacebook),
   activeFooterItem("Instagram", socialInstagram),
   activeFooterItem("X/Twitter", socialX),
+  activeFooterItem("TikTok", socialTikTok),
   activeFooterItem("YouTube", socialYoutube),
 ].filter((item): item is FooterItem => Boolean(item));
 

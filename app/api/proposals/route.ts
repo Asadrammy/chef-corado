@@ -150,6 +150,17 @@ export async function POST(request: Request) {
       return response
     }
 
+    if (error instanceof Error && error.message.startsWith("REQUEST_NOT_AVAILABLE:")) {
+      const response = NextResponse.json(
+        { error: "This request is not available for proposals." },
+        { status: 403 }
+      )
+      Object.entries(securityHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value)
+      })
+      return response
+    }
+
     if (error instanceof Error && error.message === "REQUEST_PROPOSAL_LIMIT_REACHED") {
       const response = NextResponse.json(
         { error: "This request has already received the maximum of 10 quotes." },

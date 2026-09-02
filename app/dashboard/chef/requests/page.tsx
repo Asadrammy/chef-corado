@@ -14,6 +14,7 @@ import { proposalService } from "@/lib/services/proposal-service"
 import { SmartMatchingService } from "@/lib/services/smart-matching-service"
 import { ChefRequestsMarketplace } from "@/components/chef-requests-marketplace"
 import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
+import { evaluateChefRequestAccessForRecords } from "@/lib/services/request-eligibility-service"
 import { Role } from "@/types"
 
 export const metadata: Metadata = generateMeta({
@@ -244,11 +245,38 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
       where: { userId },
       select: {
         id: true,
+        userId: true,
         location: true,
         latitude: true,
         longitude: true,
         radius: true,
         preferredCurrency: true,
+        baseCountryCode: true,
+        isApproved: true,
+        isBanned: true,
+        user: {
+          select: {
+            name: true,
+            email: true,
+            role: true,
+            isBanned: true,
+          },
+        },
+        menus: {
+          select: {
+            cuisineType: true,
+            eventType: true,
+          },
+        },
+        experiences: {
+          select: {
+            serviceType: true,
+            cuisineType: true,
+            eventType: true,
+            minGuests: true,
+            maxGuests: true,
+          },
+        },
       },
     })
 
@@ -299,9 +327,22 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
       latitude: true,
       longitude: true,
       geocodingStatus: true,
+      countryCode: true,
       _count: {
         select: {
           proposals: true,
+        },
+      },
+      proposals: {
+        select: {
+          chefId: true,
+          status: true,
+        },
+      },
+      invitations: {
+        select: {
+          chefId: true,
+          status: true,
         },
       },
       multiDayDates: {
@@ -340,10 +381,18 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
       },
     })
 
+    const mapBoundsWhere = filters.mapNorth != null && filters.mapSouth != null && filters.mapEast != null && filters.mapWest != null
+      ? {
+          latitude: { gte: filters.mapSouth, lte: filters.mapNorth },
+          longitude: { gte: filters.mapWest, lte: filters.mapEast },
+        }
+      : {}
+
     const [allRequests, proposalHistory] = await Promise.all([
       withRequestPhotoFallback(
         () => prisma.request.findMany({
         where: {
+          ...mapBoundsWhere,
           OR: [
             { eventDate: { gte: new Date() } },
             { multiDayDates: { some: { date: { gte: new Date() } } } },
@@ -360,6 +409,7 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
         }),
         () => prisma.request.findMany({
           where: {
+            ...mapBoundsWhere,
             OR: [
               { eventDate: { gte: new Date() } },
               { multiDayDates: { some: { date: { gte: new Date() } } } },
@@ -378,7 +428,16 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
       proposalService.listProposals(userId, Role.CHEF)
     ])
 
-    const allOpenRequests = allRequests.map((request) => {
+    const allOpenRequests = (await Promise.all(allRequests.map(async (request) => {
+      const access = await evaluateChefRequestAccessForRecords({
+        chef: chefProfile,
+        request,
+      })
+
+      if (!access.canView || request.proposals.some((proposal) => proposal.chefId === chefProfile.id)) {
+        return null
+      }
+
       const hasExactDistance =
         chefProfile.latitude != null &&
         chefProfile.longitude != null &&
@@ -401,11 +460,16 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
         client: request.client,
         createdAt: request.createdAt,
         submittedAt: request.createdAt,
+        totalProposalCount: access.quoteCount,
+        earlyAccess: access.earlyAccess && access.local,
+        directRequest: access.directRequest && access.invited,
+        beFirstToRespond: access.beFirstToRespond,
+        canSubmitProposal: access.canPropose,
       }, {
-        distanceKm,
-        broaderMatching: distanceKm == null,
+        distanceKm: access.distanceKm != null ? Math.round(access.distanceKm * 10) / 10 : distanceKm,
+        broaderMatching: access.broaderAccess || distanceKm == null,
       })
-    })
+    }))).filter(Boolean) as ChefRequestView[]
 
     const allRespondedRequests = proposalHistory.map((proposal) => buildChefRespondedRequestView(proposal, {
       distanceKm: proposal.request?.latitude != null && proposal.request?.longitude != null && chefProfile.latitude != null && chefProfile.longitude != null

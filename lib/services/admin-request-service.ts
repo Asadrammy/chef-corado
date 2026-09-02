@@ -3,6 +3,7 @@ import { requestRepository } from "@/lib/repositories/request-repository"
 import { filterEligibleChefsForRequest } from "@/lib/chef-request-matching"
 import { notifyEligibleChefsAboutRequest } from "@/lib/services/request-notification-service"
 import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
+import { evaluateChefRequestAccessForRecords } from "@/lib/services/request-eligibility-service"
 
 export const adminRequestService = {
   async notifyChefsAboutRequest(requestId: string) {
@@ -16,6 +17,9 @@ export const adminRequestService = {
               firstName: true,
             },
           },
+          proposals: { select: { chefId: true, status: true } },
+          invitations: { select: { chefId: true, status: true } },
+          _count: { select: { proposals: true } },
           photos: {
             orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
             take: 3,
@@ -37,6 +41,9 @@ export const adminRequestService = {
               firstName: true,
             },
           },
+          proposals: { select: { chefId: true, status: true } },
+          invitations: { select: { chefId: true, status: true } },
+          _count: { select: { proposals: true } },
           multiDayDates: { orderBy: { sortOrder: "asc" } },
         },
       })
@@ -47,7 +54,7 @@ export const adminRequestService = {
     }
 
     const activeChefs = await requestRepository.findApprovedChefsWithCoordinates()
-    const matchingChefs = await filterEligibleChefsForRequest(
+    const localChefs = await filterEligibleChefsForRequest(
       {
         ...requestData,
         requestMode: requestData.requestMode,
@@ -68,6 +75,13 @@ export const adminRequestService = {
       } as any,
       activeChefs
     )
+    const matchingChefs = []
+    for (const chef of localChefs) {
+      const access = await evaluateChefRequestAccessForRecords({ chef, request: requestData })
+      if (access.canView) {
+        matchingChefs.push(chef)
+      }
+    }
 
     const notificationResults = await notifyEligibleChefsAboutRequest({
       request: requestData,

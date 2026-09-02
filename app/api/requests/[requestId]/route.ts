@@ -3,12 +3,12 @@ import { z } from "zod"
 import { getServerSession } from "next-auth"
 
 import { authOptions } from "@/lib/auth"
-import { getChefRequestDistanceKm } from "@/lib/chef-request-matching"
 import { prisma } from "@/lib/prisma"
 import { requestService } from "@/lib/services/request-service"
 import { requestSchema } from "@/lib/validation-schemas"
 import { Role } from "@/types"
 import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
+import { assertChefCanViewRequest } from "@/lib/services/request-eligibility-service"
 
 const requestNotesUpdateSchema = z.object({
   mode: z.literal("notes"),
@@ -37,11 +37,11 @@ export async function GET(
             select: {
               id: true,
               name: true,
-              email: true,
+              firstName: true,
             },
           },
           proposals: role === Role.CHEF ? {
-            where: { chefId: userId },
+            where: { chef: { userId } },
             include: {
               chef: {
                 select: {
@@ -76,11 +76,11 @@ export async function GET(
             select: {
               id: true,
               name: true,
-              email: true,
+              firstName: true,
             },
           },
           proposals: role === Role.CHEF ? {
-            where: { chefId: userId },
+            where: { chef: { userId } },
             include: {
               chef: {
                 select: {
@@ -103,32 +103,8 @@ export async function GET(
     }
 
     if (role === Role.CHEF) {
-      const chefProfile = await prisma.chefProfile.findUnique({
-        where: { userId },
-      })
-
-      if (!chefProfile) {
-        return NextResponse.json({ error: "Chef profile not found" }, { status: 404 })
-      }
-
-      if (
-        chefProfile.radius <= 0 ||
-        requestRecord.latitude == null ||
-        requestRecord.longitude == null ||
-        chefProfile.latitude == null ||
-        chefProfile.longitude == null
-      ) {
-        return NextResponse.json({ error: "Request not available in your area" }, { status: 403 })
-      }
-
-      const distanceKm = getChefRequestDistanceKm(
-        requestRecord.latitude,
-        requestRecord.longitude,
-        chefProfile.latitude,
-        chefProfile.longitude
-      )
-
-      if (distanceKm > chefProfile.radius) {
+      const access = await assertChefCanViewRequest(userId, requestId).catch(() => null)
+      if (!access) {
         return NextResponse.json({ error: "Request not available in your area" }, { status: 403 })
       }
     }

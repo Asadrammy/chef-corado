@@ -21,7 +21,7 @@ interface ChefRequestCardProps {
   }
 }
 
-function getPriorityBadge(requestId: string, matchScore?: number) {
+function getPriorityBadge(matchScore?: number) {
   // Use actual match score if available, otherwise fallback to hash
   if (matchScore !== undefined) {
     if (matchScore >= 90) {
@@ -38,26 +38,6 @@ function getPriorityBadge(requestId: string, matchScore?: number) {
     }
     return null
   }
-
-  // Fallback to hash-based for backward compatibility
-  const hash = requestId.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0)
-  const normalized = hash % 100
-
-  if (normalized > 70) {
-    return {
-      label: "Urgent match",
-      className: "border-destructive/20 bg-destructive/10 text-destructive",
-    }
-  }
-
-  if (normalized > 40) {
-    return {
-      label: "New request",
-      className: "border-primary/20 bg-primary/10 text-primary",
-    }
-  }
-
-  return null
 }
 
 export function ChefRequestCard({ request }: ChefRequestCardProps) {
@@ -91,7 +71,7 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
     ? `${safeMultiDayDates.length} service dates`
     : new Date(request.eventDate).toLocaleDateString()
 
-  const priorityBadge = React.useMemo(() => getPriorityBadge(request.id, matchScore), [request.id, matchScore])
+  const priorityBadge = React.useMemo(() => getPriorityBadge(matchData?.matchScore), [matchData?.matchScore])
 
   return (
     <Card
@@ -118,6 +98,15 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
                   </h3>
                   {priorityBadge ? (
                     <Badge className={priorityBadge.className}>{priorityBadge.label}</Badge>
+                  ) : null}
+                  {request.earlyAccess ? (
+                    <Badge className="border-emerald-500/30 bg-emerald-500/15 text-emerald-700">Early Access</Badge>
+                  ) : null}
+                  {request.directRequest ? (
+                    <Badge className="border-sky-500/30 bg-sky-500/15 text-sky-700">Direct Request</Badge>
+                  ) : null}
+                  {request.beFirstToRespond ? (
+                    <Badge className="border-amber-500/30 bg-amber-500/15 text-amber-800">Be First to Respond</Badge>
                   ) : null}
                 </div>
                 <p className="text-muted-foreground text-sm leading-6 line-clamp-2">

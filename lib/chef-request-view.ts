@@ -74,6 +74,10 @@ export type ChefRequestView = {
   totalProposalCount?: number | null
   maxProposalCount?: number | null
   perPersonBudget?: number | null
+  earlyAccess?: boolean
+  directRequest?: boolean
+  beFirstToRespond?: boolean
+  canSubmitProposal?: boolean
 }
 
 export type ChefRespondedRequestView = ChefRequestView & {
@@ -321,6 +325,10 @@ export function buildChefRequestView(request: any, options: {
     totalProposalCount: request.totalProposalCount ?? request._count?.proposals ?? null,
     maxProposalCount: 10,
     perPersonBudget: getRequestPerPersonBudget(request),
+    earlyAccess: Boolean(request.earlyAccess),
+    directRequest: Boolean(request.directRequest),
+    beFirstToRespond: Boolean(request.beFirstToRespond),
+    canSubmitProposal: request.canSubmitProposal ?? true,
   }
 }
 

@@ -30,6 +30,7 @@ describe("Phase 4 client-visible polish contracts", () => {
     delete process.env.NEXT_PUBLIC_CONTACT_WHATSAPP_URL;
     delete process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL;
     delete process.env.NEXT_PUBLIC_SOCIAL_X_URL;
+    delete process.env.NEXT_PUBLIC_SOCIAL_TIKTOK_URL;
     delete process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE_URL;
 
     const { footerSections } = await import("@/lib/public-site");
@@ -38,8 +39,8 @@ describe("Phase 4 client-visible polish contracts", () => {
 
     expect(contact?.items).not.toEqual(expect.arrayContaining([expect.objectContaining({ label: "WhatsApp" })]));
     expect(contact?.items).toContainEqual({ label: "Telephone", href: "tel:+447942641878", value: "+44 07942 641878" });
-    expect(contact?.items).toContainEqual({ label: "Email", href: "mailto:info@chefachef.com", value: "info@chefachef.com" });
-    expect(social?.items).toEqual([{ label: "Facebook", href: "https://www.facebook.com/chefachefUK" }]);
+    expect(contact?.items).toContainEqual({ label: "Email", href: "mailto:info@chefachef.co.uk", value: "info@chefachef.co.uk" });
+    expect(social?.items).toEqual([]);
   });
 
   it("makes FAQ searchable and avoids presenting WhatsApp as active", () => {

@@ -23,7 +23,7 @@ jest.mock("@/lib/email", () => ({
 
 jest.mock("@/lib/marketplace-rules", () => ({
   APPROVED_PUBLIC_CONTACT: {
-    email: "info@chefachef.com",
+    email: "info@chefachef.co.uk",
   },
 }))
 

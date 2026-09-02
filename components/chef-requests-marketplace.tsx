@@ -16,6 +16,12 @@ import {
   Users,
   Wallet,
   Clock3,
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react"
 
 import { ChefRequestCard } from "@/components/dashboard/chef/chef-request-card"
@@ -174,6 +180,128 @@ function makeQueryUpdater(pathname: string, searchParams: URLSearchParams, repla
   }
 }
 
+function getMapBounds(requests: ChefRequestView[], filters: ReturnType<typeof parseMarketplaceFilters>) {
+  if (filters.mapNorth != null && filters.mapSouth != null && filters.mapEast != null && filters.mapWest != null) {
+    return {
+      north: filters.mapNorth,
+      south: filters.mapSouth,
+      east: filters.mapEast,
+      west: filters.mapWest,
+    }
+  }
+
+  const located = requests.filter((request) => request.latitude != null && request.longitude != null)
+  if (!located.length) {
+    return { north: 56, south: 49, east: 2, west: -8 }
+  }
+
+  const latitudes = located.map((request) => request.latitude as number)
+  const longitudes = located.map((request) => request.longitude as number)
+  const north = Math.max(...latitudes)
+  const south = Math.min(...latitudes)
+  const east = Math.max(...longitudes)
+  const west = Math.min(...longitudes)
+  const latPad = Math.max((north - south) * 0.2, 0.05)
+  const lngPad = Math.max((east - west) * 0.2, 0.05)
+  return {
+    north: Math.min(90, north + latPad),
+    south: Math.max(-90, south - latPad),
+    east: Math.min(180, east + lngPad),
+    west: Math.max(-180, west - lngPad),
+  }
+}
+
+function RequestAreaMap({
+  requests,
+  filters,
+  onSearchBounds,
+}: {
+  requests: ChefRequestView[]
+  filters: ReturnType<typeof parseMarketplaceFilters>
+  onSearchBounds: (bounds: { north: number; south: number; east: number; west: number }) => void
+}) {
+  const [bounds, setBounds] = React.useState(() => getMapBounds(requests, filters))
+
+  React.useEffect(() => {
+    setBounds(getMapBounds(requests, filters))
+  }, [requests, filters])
+
+  const latSpan = Math.max(bounds.north - bounds.south, 0.01)
+  const lngSpan = Math.max(bounds.east - bounds.west, 0.01)
+  const locatedRequests = requests.filter((request) =>
+    request.latitude != null &&
+    request.longitude != null &&
+    request.latitude <= bounds.north &&
+    request.latitude >= bounds.south &&
+    request.longitude <= bounds.east &&
+    request.longitude >= bounds.west
+  )
+
+  const shift = (latFactor: number, lngFactor: number) => {
+    const latDelta = latSpan * latFactor
+    const lngDelta = lngSpan * lngFactor
+    setBounds((current) => ({
+      north: Math.min(90, current.north + latDelta),
+      south: Math.max(-90, current.south + latDelta),
+      east: Math.min(180, current.east + lngDelta),
+      west: Math.max(-180, current.west + lngDelta),
+    }))
+  }
+
+  const zoom = (factor: number) => {
+    const centerLat = (bounds.north + bounds.south) / 2
+    const centerLng = (bounds.east + bounds.west) / 2
+    const nextLatSpan = Math.max(latSpan * factor, 0.01)
+    const nextLngSpan = Math.max(lngSpan * factor, 0.01)
+    setBounds({
+      north: Math.min(90, centerLat + nextLatSpan / 2),
+      south: Math.max(-90, centerLat - nextLatSpan / 2),
+      east: Math.min(180, centerLng + nextLngSpan / 2),
+      west: Math.max(-180, centerLng - nextLngSpan / 2),
+    })
+  }
+
+  return (
+    <Card className="rounded-[28px] border border-white/60 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5">
+      <CardContent className="space-y-4 p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-medium text-foreground">Map search</p>
+            <p className="text-xs text-muted-foreground">{locatedRequests.length} request markers in the current viewport</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="icon" variant="outline" className="rounded-xl" onClick={() => zoom(0.65)} aria-label="Zoom in"><ZoomIn className="h-4 w-4" /></Button>
+            <Button size="icon" variant="outline" className="rounded-xl" onClick={() => zoom(1.35)} aria-label="Zoom out"><ZoomOut className="h-4 w-4" /></Button>
+            <Button size="icon" variant="outline" className="rounded-xl" onClick={() => shift(0.35, 0)} aria-label="Pan north"><ArrowUp className="h-4 w-4" /></Button>
+            <Button size="icon" variant="outline" className="rounded-xl" onClick={() => shift(-0.35, 0)} aria-label="Pan south"><ArrowDown className="h-4 w-4" /></Button>
+            <Button size="icon" variant="outline" className="rounded-xl" onClick={() => shift(0, -0.35)} aria-label="Pan west"><ArrowLeft className="h-4 w-4" /></Button>
+            <Button size="icon" variant="outline" className="rounded-xl" onClick={() => shift(0, 0.35)} aria-label="Pan east"><ArrowRight className="h-4 w-4" /></Button>
+            <Button className="rounded-xl" onClick={() => onSearchBounds(bounds)}>Search This Area</Button>
+          </div>
+        </div>
+        <div className="relative h-72 overflow-hidden rounded-2xl border border-border/60 bg-[linear-gradient(135deg,#f8fafc,#e2e8f0)] dark:bg-[linear-gradient(135deg,#101827,#182235)]">
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(15,23,42,0.08)_1px,transparent_1px),linear-gradient(to_bottom,rgba(15,23,42,0.08)_1px,transparent_1px)] bg-[size:48px_48px]" />
+          {locatedRequests.map((request) => {
+            const left = (((request.longitude as number) - bounds.west) / lngSpan) * 100
+            const top = ((bounds.north - (request.latitude as number)) / latSpan) * 100
+            return (
+              <Link
+                key={request.id}
+                href={`/dashboard/chef/requests/${request.id}`}
+                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary p-1.5 text-primary-foreground shadow-lg ring-4 ring-white/70"
+                style={{ left: `${left}%`, top: `${top}%` }}
+                aria-label={`Open request ${request.title}`}
+              >
+                <MapPin className="h-4 w-4" />
+              </Link>
+            )
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export function ChefRequestsMarketplace({
   requests,
   respondedRequests,
@@ -192,7 +320,7 @@ export function ChefRequestsMarketplace({
     () => parseMarketplaceFilters(Object.fromEntries(currentSearchParams.entries())),
     [currentSearchParams]
   )
-  const [showFilters, setShowFilters] = React.useState(Boolean(currentFilters.search || currentFilters.budgetMin != null || currentFilters.budgetMax != null || currentFilters.perPersonMin != null || currentFilters.perPersonMax != null || currentFilters.guestsMin != null || currentFilters.guestsMax != null || currentFilters.dateFrom || currentFilters.dateTo || currentFilters.radiusKm != null))
+  const [showFilters, setShowFilters] = React.useState(Boolean(currentFilters.search || currentFilters.budgetMin != null || currentFilters.budgetMax != null || currentFilters.perPersonMin != null || currentFilters.perPersonMax != null || currentFilters.guestsMin != null || currentFilters.guestsMax != null || currentFilters.dateFrom || currentFilters.dateTo || currentFilters.radiusKm != null || currentFilters.earlyAccessOnly || currentFilters.directOnly || currentFilters.beFirstOnly))
   const [radiusDraft, setRadiusDraft] = React.useState(currentFilters.radiusKm ?? serviceRadiusKm ?? 50)
 
   React.useEffect(() => {
@@ -344,6 +472,36 @@ export function ChefRequestsMarketplace({
                 Saved radius caps eligibility at {serviceRadiusKm ?? 0} km{baseLocation ? ` from ${baseLocation}` : ""}.
               </p>
             </div>
+
+            <div className="space-y-2 md:col-span-2 xl:col-span-3">
+              <p className="text-sm font-medium text-foreground">Spotlight</p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant={currentFilters.earlyAccessOnly ? "default" : "outline"}
+                  className="rounded-2xl"
+                  onClick={() => updateQuery({ earlyAccess: currentFilters.earlyAccessOnly ? null : "1" })}
+                >
+                  Early Access
+                </Button>
+                <Button
+                  type="button"
+                  variant={currentFilters.directOnly ? "default" : "outline"}
+                  className="rounded-2xl"
+                  onClick={() => updateQuery({ direct: currentFilters.directOnly ? null : "1" })}
+                >
+                  Direct Requests
+                </Button>
+                <Button
+                  type="button"
+                  variant={currentFilters.beFirstOnly ? "default" : "outline"}
+                  className="rounded-2xl"
+                  onClick={() => updateQuery({ beFirst: currentFilters.beFirstOnly ? null : "1" })}
+                >
+                  Be First to Respond
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       ) : null}
@@ -446,6 +604,16 @@ export function ChefRequestsMarketplace({
 
             <TabsContent value="requests" className="mt-4 space-y-4">
               {controls}
+              <RequestAreaMap
+                requests={requests}
+                filters={currentFilters}
+                onSearchBounds={(bounds) => updateQuery({
+                  north: bounds.north.toFixed(6),
+                  south: bounds.south.toFixed(6),
+                  east: bounds.east.toFixed(6),
+                  west: bounds.west.toFixed(6),
+                })}
+              />
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <DashboardStatCard
                   label="Available requests"

@@ -43,6 +43,10 @@ jest.mock("@/lib/services/quote-limit-service", () => ({
   assertRequestCanReceiveQuote: jest.fn(() => Promise.resolve()),
 }))
 
+jest.mock("@/lib/services/request-eligibility-service", () => ({
+  assertChefCanProposeForRequest: jest.fn(() => Promise.resolve()),
+}))
+
 import { proposalRepository } from "@/lib/repositories/proposal-repository"
 import { proposalService } from "@/lib/services/proposal-service"
 

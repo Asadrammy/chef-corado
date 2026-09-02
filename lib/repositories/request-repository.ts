@@ -175,6 +175,23 @@ export const requestRepository = {
               firstName: true,
             },
           },
+          _count: {
+            select: {
+              proposals: true,
+            },
+          },
+          proposals: {
+            select: {
+              chefId: true,
+              status: true,
+            },
+          },
+          invitations: {
+            select: {
+              chefId: true,
+              status: true,
+            },
+          },
         },
         orderBy: { eventDate: "desc" },
         take: 100,
@@ -195,6 +212,23 @@ export const requestRepository = {
               id: true,
               name: true,
               firstName: true,
+            },
+          },
+          _count: {
+            select: {
+              proposals: true,
+            },
+          },
+          proposals: {
+            select: {
+              chefId: true,
+              status: true,
+            },
+          },
+          invitations: {
+            select: {
+              chefId: true,
+              status: true,
             },
           },
         },

@@ -13,6 +13,7 @@ describe("Phase 2 public site configuration", () => {
     delete process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK_URL
     delete process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL
     delete process.env.NEXT_PUBLIC_SOCIAL_X_URL
+    delete process.env.NEXT_PUBLIC_SOCIAL_TIKTOK_URL
     delete process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE_URL
   })
 
@@ -28,11 +29,9 @@ describe("Phase 2 public site configuration", () => {
 
     expect(contact?.items).toEqual([
       { label: "Telephone", href: "tel:+447942641878", value: "+44 07942 641878" },
-      { label: "Email", href: "mailto:info@chefachef.com", value: "info@chefachef.com" },
+      { label: "Email", href: "mailto:info@chefachef.co.uk", value: "info@chefachef.co.uk" },
     ])
-    expect(social?.items).toEqual([
-      { label: "Facebook", href: "https://www.facebook.com/chefachefUK" },
-    ])
+    expect(social?.items).toEqual([])
   })
 
   it("uses configured contact and social values without rendering missing social placeholders", async () => {
@@ -45,7 +44,7 @@ describe("Phase 2 public site configuration", () => {
     const social = footerSections.find((section: { title: string }) => section.title === "Social")
 
     expect(contact?.items).toContainEqual({ label: "Telephone", href: "tel:+447700900123", value: "+44 07942 641878" })
-    expect(contact?.items).toContainEqual({ label: "Email", href: "mailto:info@chefachef.com", value: "info@chefachef.com" })
+    expect(contact?.items).toContainEqual({ label: "Email", href: "mailto:info@chefachef.co.uk", value: "info@chefachef.co.uk" })
     expect(social?.items).toContainEqual({ label: "Instagram", href: "https://instagram.com/approved-brand" })
     expect(social?.items).not.toEqual(expect.arrayContaining([expect.objectContaining({ label: "YouTube" })]))
   })
@@ -74,6 +73,7 @@ describe("Phase 2 public site configuration", () => {
     process.env.NEXT_PUBLIC_SOCIAL_FACEBOOK_URL = "https://facebook.com/approved-brand"
     process.env.NEXT_PUBLIC_SOCIAL_INSTAGRAM_URL = "https://instagram.com/approved-brand"
     process.env.NEXT_PUBLIC_SOCIAL_X_URL = "https://x.com/approved-brand"
+    process.env.NEXT_PUBLIC_SOCIAL_TIKTOK_URL = "https://tiktok.com/@approved-brand"
     process.env.NEXT_PUBLIC_SOCIAL_YOUTUBE_URL = "https://youtube.com/@approved-brand"
     jest.resetModules()
 
@@ -90,6 +90,7 @@ describe("Phase 2 public site configuration", () => {
       { label: "Facebook", href: "https://facebook.com/approved-brand" },
       { label: "Instagram", href: "https://instagram.com/approved-brand" },
       { label: "X/Twitter", href: "https://x.com/approved-brand" },
+      { label: "TikTok", href: "https://tiktok.com/@approved-brand" },
       { label: "YouTube", href: "https://youtube.com/@approved-brand" },
     ])
   })

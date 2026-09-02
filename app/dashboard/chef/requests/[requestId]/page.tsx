@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
 import { buildChefRequestView } from "@/lib/chef-request-view"
 import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
+import { assertChefCanViewRequest } from "@/lib/services/request-eligibility-service"
 
 interface ChefRequestDetailPageProps {
   params: Promise<{ requestId: string }>
@@ -188,15 +189,27 @@ export default async function ChefRequestDetailPage({ params }: ChefRequestDetai
       notFound()
     }
 
+    const access = await assertChefCanViewRequest(userId, requestId).catch(() => null)
+    if (!access) {
+      notFound()
+    }
+
     const requestForView = {
       ...buildChefRequestView({
         ...request,
         client: request.client,
         createdAt: request.createdAt,
         submittedAt: request.createdAt,
+      }, {
+        distanceKm: access.distanceKm != null ? Math.round(access.distanceKm * 10) / 10 : null,
+        broaderMatching: access.broaderAccess,
       }),
       status: request.proposals[0]?.status ?? "OPEN",
       totalProposalCount: request._count.proposals,
+      earlyAccess: access.earlyAccess && access.local,
+      directRequest: access.directRequest && access.invited,
+      beFirstToRespond: access.beFirstToRespond,
+      canSubmitProposal: access.canPropose,
       proposals: request.proposals.map((proposal) => ({
         id: proposal.id,
         price: proposal.price,

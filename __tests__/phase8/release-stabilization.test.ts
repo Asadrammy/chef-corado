@@ -25,11 +25,11 @@ describe("final production stabilization source contracts", () => {
     const publicSite = read("lib/public-site.ts")
     const siteConfig = read("lib/site-config.ts")
 
-    expect(rules).toContain('email: "info@chefachef.com"')
+    expect(rules).toContain('email: "info@chefachef.co.uk"')
     expect(chat).toContain("APPROVED_PUBLIC_CONTACT.email")
     expect(publicSite).toContain("APPROVED_PUBLIC_CONTACT.email")
     expect(siteConfig).toContain('OFFICIAL_WEBSITE_URL = "https://chefachef.co.uk"')
-    expect(rules).not.toContain("info@chefachef.co.uk")
+    expect(rules).not.toContain("info@chefachef.com")
   })
 
   it("requires durable image storage in production while allowing local development fallback", () => {

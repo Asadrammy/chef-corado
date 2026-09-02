@@ -15,7 +15,9 @@
     "migrate": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
-    "seed": "ts-node prisma/seed-production.ts"
+    "seed": "ts-node prisma/seed-production.ts",
+    "auth:diagnose:staging": "node scripts/staging-auth-diagnostic.cjs",
+    "auth:reconcile:staging": "node scripts/staging-account-reconcile.cjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

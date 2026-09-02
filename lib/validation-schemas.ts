@@ -77,6 +77,7 @@ const requestBaseSchema = z.object({
   guestCount: z.number().int().min(1, 'Guest count must be at least 1').max(200, 'Guest count cannot exceed 200'),
   budget: priceSchema,
   details: z.string().max(5000, 'Details cannot exceed 5000 characters').optional(),
+  targetChefId: z.string().cuid().optional(),
 });
 
 export const requestSchema = requestBaseSchema.superRefine((data, context) => {

@@ -11,10 +11,10 @@ import { assertProposalMeetsActivePricingRule } from "@/lib/services/pricing-rul
 import { enforceUserModeration, enforceChefModeration } from "@/lib/security/moderation-guard"
 import { enforceChefCompliance } from "@/lib/security/legal-compliance"
 import { validateMessageContent } from "@/lib/security/communication-policy"
-import { assertRequestCanReceiveQuote } from "@/lib/services/quote-limit-service"
 import { marketConfigurationService } from "@/lib/services/market-configuration-service"
 import { assertProposalMessageLength } from "@/lib/proposal-message"
 import { getSafeClientGreetingName } from "@/lib/chef-request-view"
+import { assertChefCanProposeForRequest } from "@/lib/services/request-eligibility-service"
 
 // Proposal state machine constants
 const PROPOSAL_STATUS = {
@@ -65,9 +65,6 @@ export const proposalService = {
     assertProposalMessageLength(input.message)
     validateMessageContent(input.message)
 
-    // Enforce unified quote limit (10 quotes per request)
-    await assertRequestCanReceiveQuote(input.requestId)
-
     const chefProfile = await proposalRepository.findChefProfileByUserId(userId)
 
     if (!chefProfile) {
@@ -89,6 +86,8 @@ export const proposalService = {
     if (!targetRequest) {
       throw new Error("REQUEST_NOT_FOUND")
     }
+
+    await assertChefCanProposeForRequest(userId, input.requestId)
 
     await marketConfigurationService.assertBookingMarketEnabled(targetRequest.countryCode)
 

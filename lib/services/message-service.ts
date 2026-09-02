@@ -4,7 +4,7 @@ import { ProposalStatus, Role } from "@/types"
 import { validateMessageContent } from "@/lib/security/communication-policy"
 import { enforceUserModeration } from "@/lib/security/moderation-guard"
 import { enforceChefCompliance, enforceClientCompliance } from "@/lib/security/legal-compliance"
-import { assertRequestCanReceiveQuote } from "@/lib/services/quote-limit-service"
+import { assertChefCanProposeForRequest } from "@/lib/services/request-eligibility-service"
 
 const PROPOSAL_EXPIRY_HOURS = 72
 const EDITABLE_PROPOSAL_STATUSES = new Set<string>([
@@ -215,9 +215,6 @@ export const messageService = {
     // Enforce chef compliance (terms + structured legal confirmations + approval)
     await enforceChefCompliance(input.senderId)
 
-    // Enforce unified quote limit (10 quotes per request)
-    await assertRequestCanReceiveQuote(input.requestId)
-
     const sender = await messageRepository.findUserById(input.senderId)
     const receiver = await messageRepository.findUserById(input.receiverId)
 
@@ -234,6 +231,8 @@ export const messageService = {
     if (!chefProfile) {
       throw new Error("CHEF_PROFILE_NOT_FOUND")
     }
+
+    await assertChefCanProposeForRequest(input.senderId, input.requestId)
 
     const request = await messageRepository.findRequestForChefClientConversation(input.requestId, input.senderId, input.receiverId)
 

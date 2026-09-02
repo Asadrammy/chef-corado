@@ -57,6 +57,7 @@ export async function POST(request: Request) {
         budgetStatus: "LOCAL_DEMO",
         budget: body.budget,
         details: body.details ?? null,
+        targetChefId: body.targetChefId ?? null,
         status: "OPEN",
         localDemo: true,
       }, { status: 201 })
@@ -67,6 +68,10 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof Error && ["INVALID_SERVICE_TYPE", "SERVICE_COUNTRY_NOT_SUPPORTED"].includes(error.message)) {
       return NextResponse.json({ error: "Selected service is not supported for this country." }, { status: 422 })
+    }
+
+    if (error instanceof Error && error.message === "TARGET_CHEF_NOT_AVAILABLE") {
+      return NextResponse.json({ error: "The selected chef is not available for direct requests." }, { status: 422 })
     }
 
     if (error instanceof Error && error.message.startsWith("MARKET_BOOKING_INACTIVE:")) {

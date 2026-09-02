@@ -21,6 +21,8 @@ import { marketConfigurationService } from "@/lib/services/market-configuration-
 import { Role } from "@/types"
 import { filterEligibleChefsForRequest } from "@/lib/chef-request-matching"
 import { notifyEligibleChefsAboutRequest } from "@/lib/services/request-notification-service"
+import { eventQueueService } from "@/lib/services/event-queue-service"
+import { EARLY_ACCESS_WINDOW_MS, evaluateChefRequestAccessForRecords } from "@/lib/services/request-eligibility-service"
 
 const toDateKey = (date: Date | string) => new Date(date).toISOString().slice(0, 10)
 
@@ -97,6 +99,7 @@ export const requestService = {
     longitude?: number
     budget: number
     details?: string
+    targetChefId?: string
   }) {
     await enforceUserModeration(userId)
     await enforceClientCompliance(userId)
@@ -174,6 +177,44 @@ export const requestService = {
         }
       : await geocodeAddress(input.location, input.country)
 
+    let directChef: any = null
+    if (input.targetChefId) {
+      directChef = await prisma.chefProfile.findUnique({
+        where: { id: input.targetChefId },
+        include: {
+          user: {
+            select: {
+              role: true,
+              isBanned: true,
+              name: true,
+              email: true,
+            },
+          },
+          menus: {
+            select: {
+              cuisineType: true,
+              eventType: true,
+              price: true,
+            },
+          },
+          experiences: {
+            select: {
+              serviceType: true,
+              cuisineType: true,
+              eventType: true,
+              price: true,
+              minGuests: true,
+              maxGuests: true,
+            },
+          },
+        },
+      })
+
+      if (!directChef || !directChef.isApproved || directChef.isBanned || directChef.user?.isBanned || directChef.user?.role !== Role.CHEF) {
+        throw new Error("TARGET_CHEF_NOT_AVAILABLE")
+      }
+    }
+
     const created = await requestRepository.createRequest({
       clientId: userId,
       title,
@@ -215,7 +256,26 @@ export const requestService = {
       details: input.details,
     })
 
-    if (created.latitude != null && created.longitude != null) {
+    if (input.targetChefId) {
+      await prisma.requestInvitation.upsert({
+        where: {
+          requestId_chefId: {
+            requestId: created.id,
+            chefId: input.targetChefId,
+          },
+        },
+        create: {
+          requestId: created.id,
+          chefId: input.targetChefId,
+          status: "PENDING",
+        },
+        update: {
+          status: "PENDING",
+        },
+      })
+    }
+
+    if (directChef || (created.latitude != null && created.longitude != null)) {
       const requestForAlerts = await withRequestPhotoFallback(
         () => prisma.request.findUnique({
           where: { id: created.id },
@@ -238,6 +298,9 @@ export const requestService = {
             multiDayDates: {
               orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
             },
+            proposals: { select: { chefId: true, status: true } },
+            invitations: { select: { chefId: true, status: true } },
+            _count: { select: { proposals: true } },
           },
         }),
         () => prisma.request.findUnique({
@@ -252,29 +315,38 @@ export const requestService = {
             multiDayDates: {
               orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
             },
+            proposals: { select: { chefId: true, status: true } },
+            invitations: { select: { chefId: true, status: true } },
+            _count: { select: { proposals: true } },
           },
         })
       )
 
-      const matchingChefs = await requestRepository.findApprovedChefsWithCoordinates()
-      const eligibleChefs = await filterEligibleChefsForRequest(
-        {
-          ...created,
-          clientId: userId,
-          requestMode: "STANDARD",
-          cuisineTypes: input.cuisinePreferences,
-          dietaryRequirements: input.dietaryRequirements,
-          eventDates: input.eventDates,
-          eventDate: input.eventDate,
-          latitude: created.latitude,
-          longitude: created.longitude,
-          pricingGuestCount: guestComposition.pricingGuestCount,
-          billableGuestCount: guestComposition.billableGuestCount,
-          actualAttendeeCount: guestComposition.actualAttendeeCount,
-          guestCount: guestComposition.actualAttendeeCount,
-        } as any,
-        matchingChefs
-      )
+      const matchingChefs = directChef ? [directChef as any] : await requestRepository.findApprovedChefsWithCoordinates()
+      let eligibleChefs = []
+      if (directChef && requestForAlerts) {
+        const access = await evaluateChefRequestAccessForRecords({ chef: directChef, request: requestForAlerts as any })
+        eligibleChefs = access.canView ? matchingChefs : []
+      } else {
+        eligibleChefs = await filterEligibleChefsForRequest(
+          {
+            ...created,
+            clientId: userId,
+            requestMode: "STANDARD",
+            cuisineTypes: input.cuisinePreferences,
+            dietaryRequirements: input.dietaryRequirements,
+            eventDates: input.eventDates,
+            eventDate: input.eventDate,
+            latitude: created.latitude,
+            longitude: created.longitude,
+            pricingGuestCount: guestComposition.pricingGuestCount,
+            billableGuestCount: guestComposition.billableGuestCount,
+            actualAttendeeCount: guestComposition.actualAttendeeCount,
+            guestCount: guestComposition.actualAttendeeCount,
+          } as any,
+          matchingChefs
+        )
+      }
 
       if (requestForAlerts) {
         await notifyEligibleChefsAboutRequest({
@@ -282,6 +354,16 @@ export const requestService = {
           chefs: eligibleChefs,
         })
       }
+    }
+
+    if (!input.targetChefId) {
+      await eventQueueService.emit({
+        eventType: "REQUEST_BROADER_ACCESS_NOTIFY",
+        payload: { requestId: created.id },
+        priority: 5,
+        nextRunAt: new Date(created.createdAt.getTime() + EARLY_ACCESS_WINDOW_MS),
+        dedupeKey: `REQUEST_BROADER_ACCESS_NOTIFY:${created.id}`,
+      })
     }
 
     return created
@@ -860,7 +942,14 @@ export const requestService = {
         throw new Error("UNAUTHORIZED")
       }
 
-      const chefProfile = await requestRepository.findChefProfileByUserId(userId)
+      const chefProfile = await prisma.chefProfile.findUnique({
+        where: { userId },
+        include: {
+          user: { select: { name: true, email: true, role: true, isBanned: true } },
+          menus: { select: { cuisineType: true, eventType: true } },
+          experiences: { select: { serviceType: true, cuisineType: true, eventType: true, minGuests: true, maxGuests: true } },
+        },
+      })
 
       if (!chefProfile) {
         return {
@@ -882,8 +971,13 @@ export const requestService = {
       }
 
       const allRequests = await requestRepository.listChefMarketplaceRequests(chefProfile.id)
-      const filteredRequests = allRequests
-        .map((request) => {
+      const filteredRequests = (await Promise.all(allRequests
+        .map(async (request) => {
+          const access = await evaluateChefRequestAccessForRecords({ chef: chefProfile, request })
+          if (!access.canView || request.proposals.some((proposal) => proposal.chefId === chefProfile.id)) {
+            return null
+          }
+
           if (
             chefProfile.latitude == null ||
             chefProfile.longitude == null ||
@@ -893,7 +987,11 @@ export const requestService = {
             return {
               ...request,
               distanceKm: null,
-              broaderMatching: true,
+              broaderMatching: access.broaderAccess,
+              earlyAccess: access.earlyAccess && access.local,
+              directRequest: access.directRequest && access.invited,
+              beFirstToRespond: access.beFirstToRespond,
+              canSubmitProposal: access.canPropose,
             }
           }
 
@@ -906,10 +1004,14 @@ export const requestService = {
 
           return {
             ...request,
-            distanceKm: Math.round(distance * 10) / 10,
+            distanceKm: access.distanceKm != null ? Math.round(access.distanceKm * 10) / 10 : Math.round(distance * 10) / 10,
+            broaderMatching: access.broaderAccess,
+            earlyAccess: access.earlyAccess && access.local,
+            directRequest: access.directRequest && access.invited,
+            beFirstToRespond: access.beFirstToRespond,
+            canSubmitProposal: access.canPropose,
           }
-        })
-        .filter((request) => request.distanceKm == null || request.distanceKm <= chefProfile.radius)
+        }))).filter((request): request is NonNullable<typeof request> => request != null)
 
       const availabilityFilteredRequests = []
       for (const request of filteredRequests) {

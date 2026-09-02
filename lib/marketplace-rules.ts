@@ -28,13 +28,14 @@ export type MarketConfigurationShape = {
 }
 
 export const APPROVED_PUBLIC_CONTACT = {
-  email: "info@chefachef.com",
+  email: "info@chefachef.co.uk",
   phone: "+447942641878",
   phoneDisplay: "+44 07942 641878",
   whatsappUrl: "https://wa.me/447942641878",
-  facebookUrl: "https://www.facebook.com/chefachefUK",
+  facebookUrl: "",
   instagramUrl: "",
   xUrl: "",
+  tiktokUrl: "",
   youtubeUrl: "",
 } as const;
 
@@ -246,7 +247,7 @@ export const MARKETPLACE_PAYMENT_RULES = {
   serviceInclusiveness:
     "Quoted customer fees cover the agreed scope of work, including grocery shopping where included, ingredient handling, cooking on-site, and cleanup of the cooking site such as ovens, BBQ equipment, and workstations.",
   escrow:
-    "Client funds are held through the platform payment flow and payment provider records, then released to the chef after the event is completed and the payment record is eligible for payout.",
+    "Client payments are processed through the platform payment flow and payment provider records, then released to the chef after the event is completed and the payment record is eligible for payout. This is not described as regulated escrow unless ChefaChef adopts a separate legal escrow product.",
   chefPayout:
     "For UK bookings, chefs receive the booking amount minus the flat 20% ChefaChef marketplace commission. Internal VAT accounting is handled within that platform fee and does not create an extra chef deduction.",
   chefInvoiceResponsibility:

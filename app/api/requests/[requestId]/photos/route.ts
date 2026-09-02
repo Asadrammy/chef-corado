@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma"
 import { uploadImageFile } from "@/lib/image-upload-storage"
 import { Role } from "@/types"
 import { isRequestPhotoSchemaMismatch } from "@/lib/request-photo-schema"
+import { assertChefCanViewRequest } from "@/lib/services/request-eligibility-service"
 
 function serializePhoto(photo: {
   id: string
@@ -44,10 +45,8 @@ async function canViewRequestPhotos(requestId: string, userId: string, role?: st
   if (request.clientId === userId || role === Role.ADMIN) return { allowed: true, request }
 
   if (role === Role.CHEF) {
-    const hasUpcomingDate =
-      request.eventDate.getTime() >= Date.now() ||
-      request.multiDayDates.some((date) => date.date.getTime() >= Date.now())
-    return { allowed: hasUpcomingDate, status: hasUpcomingDate ? undefined : 403 as const, request }
+    const access = await assertChefCanViewRequest(userId, requestId).catch(() => null)
+    return { allowed: Boolean(access), status: access ? undefined : 403 as const, request }
   }
 
   return { allowed: false, status: 403 as const, request }

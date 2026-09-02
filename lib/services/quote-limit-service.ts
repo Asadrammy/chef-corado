@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { MAX_QUOTES_PER_REQUEST } from '@/lib/services/request-eligibility-service';
 
 /**
  * Unified Quote Limit Service
@@ -10,8 +11,6 @@ import { prisma } from '@/lib/prisma';
  * 
  * Uses atomic database operations to ensure consistency and prevent race conditions.
  */
-
-const MAX_QUOTES_PER_REQUEST = 10;
 
 export interface QuoteLimitCheckResult {
   allowed: boolean;
@@ -39,7 +38,8 @@ export async function assertRequestCanReceiveQuote(requestId: string): Promise<v
  * Returns current count and remaining quota.
  */
 export async function checkQuoteLimit(requestId: string): Promise<QuoteLimitCheckResult> {
-  // Count all proposals for this request (includes marketplace and chat-based quotes)
+  // Proposal is the source-of-truth quote model. Obsolete offer rows are not part
+  // of the current Prisma schema and must not be counted.
   const proposalCount = await prisma.proposal.count({
     where: {
       requestId,
@@ -49,16 +49,7 @@ export async function checkQuoteLimit(requestId: string): Promise<QuoteLimitChec
     }
   });
 
-  const offerCount = await (prisma as any).offer.count({
-    where: {
-      requestId,
-      status: {
-        in: ['PENDING', 'ACCEPTED', 'REJECTED']
-      }
-    }
-  });
-
-  const totalCount = proposalCount + offerCount;
+  const totalCount = proposalCount;
 
   const remaining = Math.max(0, MAX_QUOTES_PER_REQUEST - totalCount);
   

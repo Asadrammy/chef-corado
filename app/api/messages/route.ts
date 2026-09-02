@@ -134,6 +134,10 @@ export async function POST(request: NextRequest) {
 
     return apiSuccess(message, 201);
   } catch (error) {
+    if (error instanceof Error && error.message.startsWith("REQUEST_NOT_AVAILABLE:")) {
+      return NextResponse.json({ error: "This request is not available for quotes." }, { status: 403 })
+    }
+
     if (isPrismaConnectionError(error) && process.env.NODE_ENV === 'development') {
       const parsedMessage = createMessageSchema.safeParse(body);
       if (parsedMessage.success) {
