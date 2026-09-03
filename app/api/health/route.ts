@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma, withPrismaReconnect } from '@/lib/prisma';
+import { getDeploymentInfo, getSafeRuntimeConfigStatus } from '@/lib/deployment-info';
 
 export async function GET() {
   try {
@@ -21,6 +22,8 @@ export async function GET() {
         },
         environment: process.env.NODE_ENV || 'development',
         version: process.env.npm_package_version || '1.0.0',
+        deployment: getDeploymentInfo(),
+        runtimeConfig: getSafeRuntimeConfigStatus(),
         services: {
           stripe: !!process.env.STRIPE_SECRET_KEY,
           email: !!process.env.RESEND_API_KEY,

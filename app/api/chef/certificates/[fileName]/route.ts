@@ -5,6 +5,28 @@ import { readCertificateReference } from "@/lib/certificate-storage"
 import { prisma } from "@/lib/prisma"
 import { Role } from "@/types"
 
+function certificateReadErrorResponse(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  const code = typeof error === "object" && error && "code" in error ? String((error as { code?: unknown }).code) : null
+
+  if (message === "INVALID_CERTIFICATE_REFERENCE") {
+    return NextResponse.json({ error: "Invalid certificate reference" }, { status: 422 })
+  }
+
+  if (code === "ENOENT" || message.includes("ENOENT")) {
+    return NextResponse.json(
+      { error: "Certificate file is unavailable. Ask the chef to re-upload the private certificate." },
+      { status: 404 }
+    )
+  }
+
+  console.error("Certificate retrieval failed", error)
+  return NextResponse.json(
+    { error: "Certificate file could not be opened. Ask the chef to re-upload the private certificate." },
+    { status: 422 }
+  )
+}
+
 export async function GET(
   _request: NextRequest,
   context: { params: Promise<{ fileName: string }> }
@@ -32,7 +54,12 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
   }
 
-  const certificate = await readCertificateReference(fileName)
+  let certificate
+  try {
+    certificate = await readCertificateReference(fileName)
+  } catch (error) {
+    return certificateReadErrorResponse(error)
+  }
 
   if ("redirectUrl" in certificate && certificate.redirectUrl) {
     return NextResponse.redirect(certificate.redirectUrl)
