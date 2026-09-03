@@ -3,6 +3,7 @@ import { logger } from "@/lib/logger"
 import { requestRepository } from "@/lib/repositories/request-repository"
 import { notifyEligibleChefsAboutRequest } from "@/lib/services/request-notification-service"
 import { evaluateChefRequestAccessForRecords, isRequestOpenForQuotes, MAX_QUOTES_PER_REQUEST } from "@/lib/services/request-eligibility-service"
+import { isDirectRequestReleasedToLocalChefs } from "@/lib/services/direct-request-access"
 import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
 
 export type EventType =
@@ -26,6 +27,7 @@ export type EventType =
   | "PROPOSAL_ACCEPTED"
   | "PROPOSAL_EXPIRED"
   | "REQUEST_BROADER_ACCESS_NOTIFY"
+  | "DIRECT_REQUEST_RELEASE_NOTIFY"
 
 export interface EventPayload {
   [key: string]: unknown
@@ -179,6 +181,9 @@ export const eventQueueService = {
       case "REQUEST_BROADER_ACCESS_NOTIFY":
         await this.handleRequestBroaderAccessNotify(data)
         break
+      case "DIRECT_REQUEST_RELEASE_NOTIFY":
+        await this.handleDirectRequestReleaseNotify(data)
+        break
       default:
         logger.warn(`[EVENT] No handler for event type: ${eventType}`)
     }
@@ -272,9 +277,9 @@ export const eventQueueService = {
       () => prisma.request.findUnique({
         where: { id: requestId },
         include: {
-          client: { select: { name: true, firstName: true } },
+          client: { select: { name: true, firstName: true, verified: true } },
           proposals: { select: { chefId: true, status: true } },
-          invitations: { select: { chefId: true, status: true } },
+          invitations: { select: { chefId: true, status: true, createdAt: true } },
           photos: {
             orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
             take: 3,
@@ -287,9 +292,9 @@ export const eventQueueService = {
       () => prisma.request.findUnique({
         where: { id: requestId },
         include: {
-          client: { select: { name: true, firstName: true } },
+          client: { select: { name: true, firstName: true, verified: true } },
           proposals: { select: { chefId: true, status: true } },
-          invitations: { select: { chefId: true, status: true } },
+          invitations: { select: { chefId: true, status: true, createdAt: true } },
           multiDayDates: { orderBy: [{ date: "asc" }, { sortOrder: "asc" }] },
           _count: { select: { proposals: true } },
         },
@@ -311,6 +316,56 @@ export const eventQueueService = {
 
     if (broaderChefs.length > 0) {
       await notifyEligibleChefsAboutRequest({ request, chefs: broaderChefs })
+    }
+  },
+
+  async handleDirectRequestReleaseNotify(data: EventPayload): Promise<void> {
+    const requestId = typeof data.requestId === "string" ? data.requestId : null
+    if (!requestId) return
+
+    const request = await withRequestPhotoFallback(
+      () => prisma.request.findUnique({
+        where: { id: requestId },
+        include: {
+          client: { select: { name: true, firstName: true, verified: true } },
+          proposals: { select: { chefId: true, status: true } },
+          invitations: { select: { chefId: true, status: true, createdAt: true } },
+          photos: {
+            orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+            take: 3,
+            select: { id: true, url: true, originalName: true },
+          },
+          multiDayDates: { orderBy: [{ date: "asc" }, { sortOrder: "asc" }] },
+          _count: { select: { proposals: true } },
+        },
+      }),
+      () => prisma.request.findUnique({
+        where: { id: requestId },
+        include: {
+          client: { select: { name: true, firstName: true, verified: true } },
+          proposals: { select: { chefId: true, status: true } },
+          invitations: { select: { chefId: true, status: true, createdAt: true } },
+          multiDayDates: { orderBy: [{ date: "asc" }, { sortOrder: "asc" }] },
+          _count: { select: { proposals: true } },
+        },
+      })
+    )
+
+    if (!request) return
+    if (!isRequestOpenForQuotes(request) || request._count.proposals >= MAX_QUOTES_PER_REQUEST) return
+    if (!isDirectRequestReleasedToLocalChefs(request)) return
+
+    const chefs = await requestRepository.findApprovedChefsWithCoordinates()
+    const localChefs = []
+    for (const chef of chefs) {
+      const access = await evaluateChefRequestAccessForRecords({ chef, request })
+      if (access.canView && access.local && !access.invited) {
+        localChefs.push(chef)
+      }
+    }
+
+    if (localChefs.length > 0) {
+      await notifyEligibleChefsAboutRequest({ request, chefs: localChefs })
     }
   },
 

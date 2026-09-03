@@ -43,6 +43,10 @@ function getArg(name) {
   return undefined
 }
 
+function hasFlag(name) {
+  return process.argv.includes(`--${name}`) || process.env[`STAGING_ACCOUNT_${name.replaceAll("-", "_").toUpperCase()}`] === "true"
+}
+
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase()
 }
@@ -71,9 +75,7 @@ function assertStagingOnly() {
   const stagingHost =
     appEnv === "staging" ||
     nextAuthHost.includes("staging") ||
-    publicHost.includes("staging") ||
-    nextAuthHost.endsWith(".onrender.com") ||
-    publicHost.endsWith(".onrender.com")
+    publicHost.includes("staging")
 
   if (!stagingHost) {
     throw new Error("Refusing to modify accounts because the environment is not identifiable as staging.")
@@ -90,28 +92,91 @@ async function main() {
   const email = normalizeEmail(getArg("email") || process.env.STAGING_ACCOUNT_EMAIL)
   const role = String(getArg("role") || process.env.STAGING_ACCOUNT_ROLE || "").toUpperCase()
   const password = getArg("password") || process.env.STAGING_ACCOUNT_PASSWORD
-  const name = getArg("name") || process.env.STAGING_ACCOUNT_NAME || (role === "CHEF" ? "Simulation Chef" : "Simulation Client")
+  const requestedName = getArg("name") || process.env.STAGING_ACCOUNT_NAME
+  const execute = hasFlag("execute") || process.env.EXECUTE_STAGING_ACCOUNT_RECONCILIATION === "true"
+  const createMissing = hasFlag("create-missing")
+  const allowNameChange = hasFlag("allow-name-change")
+  const allowRoleChange = hasFlag("allow-role-change")
+  const repairChefProfile = hasFlag("repair-chef-profile")
 
   if (!email || !password || !["CHEF", "CLIENT"].includes(role)) {
-    throw new Error("Usage: node scripts/staging-account-reconcile.cjs --email user@example.com --role CHEF|CLIENT --password <secret> [--name Name]")
+    throw new Error("Usage: node scripts/staging-account-reconcile.cjs --email user@example.com --role CHEF|CLIENT --password <secret> [--execute] [--create-missing] [--allow-name-change --name Name] [--allow-role-change] [--repair-chef-profile]")
   }
 
-  const passwordHash = await bcrypt.hash(password, 12)
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
+  const matchingUsers = await prisma.user.findMany({
+    where: { email: { equals: email, mode: "insensitive" } },
     select: {
       id: true,
       email: true,
+      name: true,
+      firstName: true,
+      surname: true,
       role: true,
+      verified: true,
+      isBanned: true,
+      createdAt: true,
+      updatedAt: true,
       chefProfile: { select: { id: true } },
     },
   })
+
+  const normalizedMatches = matchingUsers.filter((user) => normalizeEmail(user.email) === email)
+  if (normalizedMatches.length > 1) {
+    throw new Error(`Ambiguous account repair refused. ${normalizedMatches.length} users share the normalized email.`)
+  }
+
+  const existingUser = normalizedMatches[0] || null
+  const plannedActions = []
+  if (!existingUser && !createMissing) {
+    throw new Error("No existing user found. Creation refused unless --create-missing is provided after manual review.")
+  }
+
+  if (existingUser && existingUser.role !== role && !allowRoleChange) {
+    throw new Error(`Existing user role is ${existingUser.role}. Role change to ${role} refused unless --allow-role-change is provided after manual review.`)
+  }
+
+  if (requestedName && existingUser?.name !== requestedName && !allowNameChange) {
+    throw new Error("Name change refused. Authentication repair must preserve business identity unless --allow-name-change is provided after manual review.")
+  }
+
+  if (role === "CHEF" && existingUser && !existingUser.chefProfile && !repairChefProfile) {
+    throw new Error("Existing chef user has no ChefProfile. Profile creation refused unless --repair-chef-profile is provided after manual review.")
+  }
+
+  plannedActions.push(existingUser ? "update-auth-fields" : "create-missing-user")
+  if (requestedName && allowNameChange) plannedActions.push("update-name")
+  if (existingUser?.role !== role && allowRoleChange) plannedActions.push("update-role")
+  if (role === "CHEF" && (!existingUser?.chefProfile || repairChefProfile)) plannedActions.push("repair-chef-profile")
+
+  if (!execute) {
+    console.log(JSON.stringify({
+      dryRun: true,
+      email,
+      existingUser: existingUser ? {
+        id: existingUser.id,
+        role: existingUser.role,
+        name: existingUser.name,
+        firstName: existingUser.firstName,
+        surname: existingUser.surname,
+        verified: existingUser.verified,
+        isBanned: existingUser.isBanned,
+        createdAt: existingUser.createdAt,
+        updatedAt: existingUser.updatedAt,
+        chefProfileId: existingUser.chefProfile?.id ?? null,
+      } : null,
+      plannedActions,
+      executeRequired: "--execute or EXECUTE_STAGING_ACCOUNT_RECONCILIATION=true",
+    }, null, 2))
+    return
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12)
   const user = existingUser
     ? await prisma.user.update({
         where: { id: existingUser.id },
         data: {
-          name,
-          role,
+          ...(allowNameChange && requestedName ? { name: requestedName } : {}),
+          ...(allowRoleChange ? { role } : {}),
           password: passwordHash,
           verified: true,
           isBanned: false,
@@ -129,7 +194,7 @@ async function main() {
     : await prisma.user.create({
         data: {
       email,
-      name,
+      name: requestedName || (role === "CHEF" ? "Simulation Chef" : "Simulation Client"),
       role,
       password: passwordHash,
       verified: true,
@@ -153,6 +218,9 @@ async function main() {
     const longitude = parseNumber(process.env.STAGING_CHEF_LONGITUDE, -0.1278)
     const radius = parseNumber(process.env.STAGING_CHEF_RADIUS_KM, 50)
     const existingChefProfile = user.chefProfile
+    if (!existingChefProfile && !repairChefProfile) {
+      throw new Error("ChefProfile creation refused unless --repair-chef-profile is provided after manual review.")
+    }
 
     const chefProfile = existingChefProfile
       ? await prisma.chefProfile.update({
@@ -164,8 +232,10 @@ async function main() {
             verificationStatus: "APPROVED",
             rightToWorkUkConfirmed: true,
             foodHygieneLevel2Confirmed: true,
-            foodHygieneCertificateUrl: process.env.STAGING_CHEF_FOOD_HYGIENE_CERTIFICATE_URL || "staging-reconcile",
-            foodHygieneCertificateReviewStatus: "APPROVED",
+            ...(process.env.STAGING_CHEF_FOOD_HYGIENE_CERTIFICATE_URL ? {
+              foodHygieneCertificateUrl: process.env.STAGING_CHEF_FOOD_HYGIENE_CERTIFICATE_URL,
+              foodHygieneCertificateReviewStatus: "PENDING",
+            } : {}),
             latitude,
             longitude,
             radius,
@@ -184,8 +254,10 @@ async function main() {
             verificationStatus: "APPROVED",
             rightToWorkUkConfirmed: true,
             foodHygieneLevel2Confirmed: true,
-            foodHygieneCertificateUrl: process.env.STAGING_CHEF_FOOD_HYGIENE_CERTIFICATE_URL || "staging-reconcile",
-            foodHygieneCertificateReviewStatus: "APPROVED",
+            ...(process.env.STAGING_CHEF_FOOD_HYGIENE_CERTIFICATE_URL ? {
+              foodHygieneCertificateUrl: process.env.STAGING_CHEF_FOOD_HYGIENE_CERTIFICATE_URL,
+              foodHygieneCertificateReviewStatus: "PENDING",
+            } : {}),
             latitude,
             longitude,
             radius,

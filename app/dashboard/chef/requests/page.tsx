@@ -252,6 +252,13 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
         radius: true,
         preferredCurrency: true,
         baseCountryCode: true,
+        bio: true,
+        specialties: true,
+        careerStage: true,
+        cuisineTypes: true,
+        certifications: true,
+        chefType: true,
+        cuisineType: true,
         isApproved: true,
         isBanned: true,
         user: {
@@ -300,6 +307,7 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
         select: {
           name: true,
           firstName: true,
+          verified: true,
         },
       },
       locationCity: true,
@@ -343,6 +351,7 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
         select: {
           chefId: true,
           status: true,
+          createdAt: true,
         },
       },
       multiDayDates: {

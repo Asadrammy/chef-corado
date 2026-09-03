@@ -45,7 +45,7 @@ export function ProductCalendar({
 
   const getAvailabilityStatus = (date: Date) => {
     const slots = getAvailabilityForDate(date);
-    if (slots.length === 0) return null;
+    if (slots.length === 0) return "available-default";
 
     if (slots.some((slot) => !slot.isAvailable)) return "unavailable";
     
@@ -60,6 +60,7 @@ export function ProductCalendar({
   const getStatusColor = (status: string | null) => {
     switch (status) {
       case "available": return "bg-emerald-500/20 text-emerald-700 border-emerald-500/30";
+      case "available-default": return "bg-emerald-500/10 text-emerald-700 border-emerald-500/20";
       case "partial": return "bg-amber-500/20 text-amber-700 border-amber-500/30";
       case "full": return "bg-rose-500/20 text-rose-700 border-rose-500/30";
       case "unavailable": return "bg-slate-300 text-slate-700 border-slate-400";
@@ -70,6 +71,7 @@ export function ProductCalendar({
   const getStatusDot = (status: string | null) => {
     switch (status) {
       case "available": return "bg-emerald-500";
+      case "available-default": return "bg-emerald-300";
       case "partial": return "bg-amber-500";
       case "full": return "bg-rose-500";
       case "unavailable": return "bg-slate-400";
@@ -181,8 +183,12 @@ export function ProductCalendar({
         {/* Legend */}
         <div className="flex items-center justify-center gap-6 mt-6 pt-4 border-t border-gray-100">
           <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded-full bg-emerald-300" />
+            <span className="text-xs text-gray-600">Available by default</span>
+          </div>
+          <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-emerald-500" />
-            <span className="text-xs text-gray-600">Available</span>
+            <span className="text-xs text-gray-600">Available with time limit</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-amber-500" />

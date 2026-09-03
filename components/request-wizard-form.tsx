@@ -58,6 +58,8 @@ const stepDescriptions = [
   "Add optional notes and review everything before publishing.",
 ] as const
 
+const STANDARD_REQUEST_DRAFT_KEY = "chefachef:request-draft:standard"
+
 type RequestWizardFormState = {
   title: string
   eventType: string
@@ -111,6 +113,8 @@ type RequestPhotoDraft = {
 }
 
 type StoredRequestDraft = Partial<{
+  title: string
+  stepIndex: number
   eventType: string
   serviceType: string
   cuisinePreferences: string[]
@@ -273,6 +277,7 @@ export function RequestWizardForm({ mode = "create", chefId, initialDraftId, ini
     }
 
     window.sessionStorage.setItem(`chefachef:request-draft:${draftId}`, JSON.stringify({
+      title: nextData.title,
       eventType,
       serviceType: nextData.serviceType,
       cuisinePreferences: nextData.cuisinePreferences,
@@ -288,10 +293,11 @@ export function RequestWizardForm({ mode = "create", chefId, initialDraftId, ini
       childrenUnder10: nextData.childrenUnder10,
       budget: nextData.budget,
       details: nextData.details,
+      stepIndex,
     }))
     router.push(path)
     return true
-  }, [formData, initialDraftId, router])
+  }, [formData, initialDraftId, router, stepIndex])
 
   React.useEffect(() => {
     if (!initialDraftId || typeof window === "undefined") {
@@ -307,6 +313,54 @@ export function RequestWizardForm({ mode = "create", chefId, initialDraftId, ini
       const draft = JSON.parse(rawDraft) as StoredRequestDraft
       setFormData((prev) => ({
         ...prev,
+        eventType: isKnownOption(EVENT_TYPES, draft.eventType) ? draft.eventType! : prev.eventType,
+        title: typeof draft.title === "string" ? draft.title.slice(0, 100) : prev.title,
+        serviceType: isKnownOption(SERVICE_TYPE_OPTIONS.map((option) => option.id), draft.serviceType)
+          ? draft.serviceType!
+          : prev.serviceType,
+        serviceTier: typeof draft.serviceTier === "string" ? draft.serviceTier : prev.serviceTier,
+        serviceSpecificAnswers: draft.serviceSpecificAnswers && typeof draft.serviceSpecificAnswers === "object"
+          ? Object.fromEntries(Object.entries(draft.serviceSpecificAnswers).map(([key, value]) => [key, String(value ?? "")]))
+          : prev.serviceSpecificAnswers,
+        cuisinePreferences: Array.isArray(draft.cuisinePreferences)
+          ? draft.cuisinePreferences.filter((value) => isKnownOption(CUISINE_TYPES, value)).slice(0, 3)
+          : prev.cuisinePreferences,
+        dietaryRequirements: Array.isArray(draft.dietaryRequirements)
+          ? draft.dietaryRequirements.filter((value) => isKnownOption(DIETARY_REQUIREMENTS, value)).slice(0, 8)
+          : prev.dietaryRequirements,
+        eventDate: typeof draft.eventDate === "string" ? draft.eventDate : prev.eventDate,
+        eventTime: typeof draft.eventTime === "string" ? draft.eventTime : prev.eventTime,
+        location: typeof draft.location === "string" ? draft.location.slice(0, 100) : prev.location,
+        country: isKnownOption(COUNTRY_OPTIONS.map((option) => option.value), draft.country) ? draft.country! : prev.country,
+        guestCount: draft.guestCount != null ? String(draft.guestCount) : prev.guestCount,
+        adultCount: draft.adultCount != null ? String(draft.adultCount) : prev.adultCount,
+        childrenUnder10: draft.childrenUnder10 != null ? String(draft.childrenUnder10) : prev.childrenUnder10,
+        budget: draft.budget != null ? String(draft.budget) : prev.budget,
+        details: typeof draft.details === "string" ? draft.details.slice(0, 5000) : prev.details,
+      }))
+      if (typeof draft.stepIndex === "number") {
+        setStepIndex(Math.min(Math.max(Math.floor(draft.stepIndex), 0), steps.length - 1))
+      }
+    } catch {
+      window.sessionStorage.removeItem(`chefachef:request-draft:${initialDraftId}`)
+    }
+  }, [initialDraftId])
+
+  React.useEffect(() => {
+    if (isEditMode || initialRequest || initialDraftId || typeof window === "undefined") {
+      return
+    }
+
+    const rawDraft = window.sessionStorage.getItem(STANDARD_REQUEST_DRAFT_KEY)
+    if (!rawDraft) {
+      return
+    }
+
+    try {
+      const draft = JSON.parse(rawDraft) as StoredRequestDraft
+      setFormData((prev) => ({
+        ...prev,
+        title: typeof draft.title === "string" ? draft.title.slice(0, 100) : prev.title,
         eventType: isKnownOption(EVENT_TYPES, draft.eventType) ? draft.eventType! : prev.eventType,
         serviceType: isKnownOption(SERVICE_TYPE_OPTIONS.map((option) => option.id), draft.serviceType)
           ? draft.serviceType!
@@ -331,10 +385,24 @@ export function RequestWizardForm({ mode = "create", chefId, initialDraftId, ini
         budget: draft.budget != null ? String(draft.budget) : prev.budget,
         details: typeof draft.details === "string" ? draft.details.slice(0, 5000) : prev.details,
       }))
+      if (typeof draft.stepIndex === "number") {
+        setStepIndex(Math.min(Math.max(Math.floor(draft.stepIndex), 0), steps.length - 1))
+      }
     } catch {
-      window.sessionStorage.removeItem(`chefachef:request-draft:${initialDraftId}`)
+      window.sessionStorage.removeItem(STANDARD_REQUEST_DRAFT_KEY)
     }
-  }, [initialDraftId])
+  }, [initialDraftId, initialRequest, isEditMode])
+
+  React.useEffect(() => {
+    if (isEditMode || initialRequest || initialDraftId || typeof window === "undefined") {
+      return
+    }
+
+    window.sessionStorage.setItem(STANDARD_REQUEST_DRAFT_KEY, JSON.stringify({
+      ...formData,
+      stepIndex,
+    }))
+  }, [formData, initialDraftId, initialRequest, isEditMode, stepIndex])
 
   React.useEffect(() => {
     if (!initialRequest) {
@@ -576,6 +644,11 @@ export function RequestWizardForm({ mode = "create", chefId, initialDraftId, ini
     event.preventDefault()
     setSubmitError(null)
 
+    if (stepIndex < steps.length - 1) {
+      nextStep()
+      return
+    }
+
     if (selectedEventNeedsTailoredFlow && storeDraftAndRouteToTailoredFlow(formData.eventType)) {
       return
     }
@@ -626,6 +699,9 @@ export function RequestWizardForm({ mode = "create", chefId, initialDraftId, ini
 
       requestPhotos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl))
       setRequestPhotos([])
+      if (!isEditMode && typeof window !== "undefined") {
+        window.sessionStorage.removeItem(STANDARD_REQUEST_DRAFT_KEY)
+      }
       toast.success(
         isEditMode
           ? "Request updated successfully"

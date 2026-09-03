@@ -37,12 +37,12 @@ export function AlivePanel({
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const handleDelete = async (slotId: string) => {
-    if (!confirm("Are you sure you want to delete this availability slot?")) return;
+    if (!confirm("Remove this calendar override? The date will return to the default availability state.")) return;
 
     setDeletingId(slotId);
     try {
       await axios.delete(`/api/availability/${slotId}`);
-      toast.success("Availability deleted successfully!");
+      toast.success("Calendar override removed.");
       onSlotDeleted?.();
     } catch (error: any) {
       console.error("Error deleting availability:", error);
@@ -155,10 +155,10 @@ export function AlivePanel({
               </motion.div>
               <div className="space-y-3">
                 <h3 className="text-xl font-semibold text-gray-900">
-                  No Availability Set For This Date
+                  Available by default
                 </h3>
                 <p className="text-gray-500">
-                  Mark this date available by adding time slots, or use Block Dates from the header if you are unavailable. Blocked dates prevent new bookings but do not affect existing confirmed bookings.
+                  No override is set for this date. Add an unavailable block only when you cannot accept new work.
                 </p>
               </div>
               {onAddSlot && (
@@ -172,7 +172,7 @@ export function AlivePanel({
                     className="gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/30"
                   >
                     <Sparkles className="h-4 w-4" />
-                    Add Time Slot
+                    Mark Unavailable
                   </Button>
                 </motion.div>
               )}
@@ -270,7 +270,7 @@ export function AlivePanel({
                   className="w-full gap-2 rounded-2xl border-2 border-dashed border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/50 transition-all"
                 >
                   <Plus className="h-4 w-4" />
-                  Mark Another Time Slot Available
+                  Add Another Override
                 </Button>
               </motion.div>
             )}

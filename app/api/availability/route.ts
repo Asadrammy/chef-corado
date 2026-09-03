@@ -244,6 +244,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const parsedMaxBookings = maxBookings == null || maxBookings === ""
+      ? (availabilityState ? 1 : 0)
+      : parseInt(maxBookings)
+
     const availability = await prisma.availability.create({
       data: {
         date: normalizedDate,
@@ -251,7 +255,7 @@ export async function POST(request: NextRequest) {
         endTime,
         isAvailable: availabilityState,
         recurringPattern,
-        maxBookings: maxBookings ? parseInt(maxBookings) : 1,
+        maxBookings: Number.isFinite(parsedMaxBookings) ? parsedMaxBookings : availabilityState ? 1 : 0,
         chefId: chefProfile.id,
       },
       include: {

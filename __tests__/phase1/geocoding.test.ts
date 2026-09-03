@@ -68,7 +68,7 @@ describe("Phase 1 geocoding and radius matching", () => {
     })
   })
 
-  it("returns null for invalid provider result or provider failure", async () => {
+  it("returns null for invalid provider result and uses local UK fallback for provider failure", async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ status: "ZERO_RESULTS", results: [] }),
@@ -77,7 +77,12 @@ describe("Phase 1 geocoding and radius matching", () => {
     await expect(geocodeAddress("not a real place", "GB")).resolves.toBeNull()
 
     global.fetch = jest.fn().mockRejectedValue(new Error("provider unavailable")) as any
-    await expect(geocodeAddress("London", "GB")).resolves.toBeNull()
+    await expect(geocodeAddress("London", "GB")).resolves.toMatchObject({
+      latitude: 51.5074,
+      longitude: -0.1278,
+      provider: "local-uk-fallback",
+      status: "APPROXIMATE",
+    })
   })
 
   it("filters inside-radius matches and excludes outside-radius chefs", () => {

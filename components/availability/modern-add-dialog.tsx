@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import {
   Dialog,
@@ -40,11 +40,21 @@ export function ModernAddDialog({
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     startTime: editingSlot?.startTime || "09:00",
-    endTime: editingSlot?.endTime || "17:00",
+    endTime: editingSlot?.endTime || "23:59",
     maxBookings: editingSlot?.maxBookings?.toString() || "1",
-    isAvailable: editingSlot?.isAvailable !== undefined ? editingSlot.isAvailable.toString() : "true",
+    isAvailable: editingSlot?.isAvailable !== undefined ? editingSlot.isAvailable.toString() : "false",
     recurringPattern: editingSlot?.recurringPattern || "NONE",
   });
+
+  useEffect(() => {
+    setFormData({
+      startTime: editingSlot?.startTime || "09:00",
+      endTime: editingSlot?.endTime || "23:59",
+      maxBookings: editingSlot?.maxBookings?.toString() || "1",
+      isAvailable: editingSlot?.isAvailable !== undefined ? editingSlot.isAvailable.toString() : "false",
+      recurringPattern: editingSlot?.recurringPattern || "NONE",
+    });
+  }, [editingSlot, open]);
 
   const handleSubmit = async () => {
     if (!selectedDate) {
@@ -72,7 +82,7 @@ export function ModernAddDialog({
       }
       
       onOpenChange(false);
-      setFormData({ startTime: "09:00", endTime: "17:00", maxBookings: "1", recurringPattern: "NONE", isAvailable: "true" });
+      setFormData({ startTime: "09:00", endTime: "23:59", maxBookings: "1", recurringPattern: "NONE", isAvailable: "false" });
       onSuccess();
     } catch (error: any) {
       console.error("Error saving availability:", error);
@@ -87,12 +97,12 @@ export function ModernAddDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>
-            {editingSlot ? "Edit Availability" : "Add Availability"}
+            {editingSlot ? "Edit Calendar Override" : "Mark Unavailable"}
           </DialogTitle>
           <DialogDescription>
             {editingSlot 
-              ? "Update your time slot settings"
-              : `Set your available time slots for ${selectedDate && format(selectedDate, "MMM d, yyyy")}`
+              ? "Update this calendar override"
+              : `Block new work for ${selectedDate && format(selectedDate, "MMM d, yyyy")}`
             }
           </DialogDescription>
         </DialogHeader>
@@ -132,7 +142,7 @@ export function ModernAddDialog({
           {/* Max Bookings */}
           <div className="space-y-3">
             <Label htmlFor="maxBookings" className="text-sm font-medium">
-              Maximum Bookings
+              Maximum Bookings for Explicit Available Slots
             </Label>
             <Input
               id="maxBookings"
@@ -143,7 +153,7 @@ export function ModernAddDialog({
               className="h-10"
             />
             <p className="text-xs text-muted-foreground">
-              How many bookings can this time slot accommodate?
+              Used only when you intentionally add an available time-slot limit.
             </p>
           </div>
 
@@ -160,8 +170,8 @@ export function ModernAddDialog({
                 <SelectValue placeholder="Choose status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="true">Available for bookings</SelectItem>
                 <SelectItem value="false">Unavailable / blocked</SelectItem>
+                <SelectItem value="true">Available with time-slot limit</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -186,7 +196,7 @@ export function ModernAddDialog({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
-              Automatically repeat this availability pattern
+              Automatically repeat this override pattern
             </p>
           </div>
         </div>
@@ -204,7 +214,7 @@ export function ModernAddDialog({
             disabled={submitting}
             className="flex-1"
           >
-            {submitting ? "Saving..." : editingSlot ? "Update" : "Add Availability"}
+            {submitting ? "Saving..." : editingSlot ? "Update" : "Mark Unavailable"}
           </Button>
         </div>
       </DialogContent>

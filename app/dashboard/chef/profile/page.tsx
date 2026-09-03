@@ -293,7 +293,7 @@ export default function ChefProfilePage() {
       payload.append("file", file)
       payload.append("purpose", "profile")
 
-      const response = await fetch("/api/upload", {
+      const response = await fetch("/api/chef/profile/photo", {
         method: "POST",
         body: payload,
       })
@@ -304,26 +304,11 @@ export default function ChefProfilePage() {
       }
 
       const result = await response.json()
-      const profileImage = result.url as string
+      const profileImage = result.profileImage as string
 
-      if (profile?.id) {
-        const saveResponse = await fetch("/api/chef/profile/photo", {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ profileImage }),
-        })
-
-        if (!saveResponse.ok) {
-          const saveResult = await saveResponse.json().catch(() => null)
-          throw new Error(saveResult?.error || "Profile image uploaded, but could not be saved. Please try again.")
-        }
-
-        setProfile((current) => current ? { ...current, profileImage } : current)
-        setSuccess(true)
-        setTimeout(() => setSuccess(false), 3000)
-      }
+      setProfile((current) => current ? { ...current, profileImage } : current)
+      setSuccess(true)
+      setTimeout(() => setSuccess(false), 3000)
 
       setFormData((prev) => ({ ...prev, profileImage }))
     } catch (uploadError) {

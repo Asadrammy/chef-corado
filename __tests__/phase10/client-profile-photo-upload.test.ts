@@ -178,13 +178,16 @@ describe("client profile photo upload flow", () => {
     })
   })
 
-  it("preserves the existing chef upload path unchanged", () => {
+  it("keeps chef profile photos on the database-backed chef endpoint", () => {
     const chefProfile = read("app/dashboard/chef/profile/page.tsx")
-    const uploadRoute = read("app/api/upload/route.ts")
+    const chefPhotoRoute = read("app/api/chef/profile/photo/route.ts")
+    const photoFetchRoute = read("app/api/user/profile-photo/[userId]/route.ts")
 
     expect(chefProfile).toContain('payload.append("purpose", "profile")')
-    expect(chefProfile).toContain('fetch("/api/upload"')
-    expect(uploadRoute).toContain("uploadImageFile")
-    expect(uploadRoute).toContain("ownerId: session.user.id")
+    expect(chefProfile).toContain('fetch("/api/chef/profile/photo"')
+    expect(chefPhotoRoute).toContain("request.formData()")
+    expect(chefPhotoRoute).toContain("fileToUserProfileImageData")
+    expect(chefPhotoRoute).toContain('WHERE "id" = ${userId} AND "role" = \'CHEF\'')
+    expect(photoFetchRoute).toContain('row.role !== "CHEF"')
   })
 })

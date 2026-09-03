@@ -21,7 +21,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    const purpose = formData.get('purpose') === 'profile' ? 'profile' : 'menu';
+    const submittedPurpose = formData.get('purpose');
+    const purpose = submittedPurpose === 'profile' ? 'profile' : 'menu';
+    if (purpose === 'menu' && session.user.role !== 'CHEF') {
+      return NextResponse.json({ error: 'Only chefs can upload menu images.' }, { status: 403 });
+    }
+
     const uploaded = await uploadImageFile({
       file,
       ownerId: session.user.id,

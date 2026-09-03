@@ -2,6 +2,7 @@ import { ProposalStatus } from "@/types"
 import { evaluateChefRequestMatch, type ChefRequestMatchingCandidate, type ChefRequestMatchingRequest } from "@/lib/chef-request-matching"
 import { hasLockedRequestProposalStatus } from "@/lib/request-lifecycle"
 import { marketConfigurationService } from "@/lib/services/market-configuration-service"
+import { getActiveDirectExclusivity, isDirectRequestReleasedToLocalChefs } from "@/lib/services/direct-request-access"
 import { prisma } from "@/lib/prisma"
 
 export const EARLY_ACCESS_WINDOW_HOURS = 24
@@ -16,6 +17,7 @@ export type ChefRequestAccessReason =
   | "MARKET_INACTIVE"
   | "MARKET_MISMATCH"
   | "DIRECT_REQUEST_RESTRICTED"
+  | "DIRECT_REQUEST_LOCAL_RELEASE_ONLY"
   | "DIRECT_REQUEST_DECLINED"
   | "EARLY_ACCESS_LOCAL_ONLY"
   | "QUOTE_CAP_REACHED"
@@ -59,7 +61,7 @@ type RequestForEligibility = ChefRequestMatchingRequest & {
   countryCode?: string | null
   createdAt?: Date | string | null
   proposals?: Array<{ chefId?: string | null; status?: string | null }>
-  invitations?: Array<{ chefId?: string | null; status?: string | null }>
+  invitations?: Array<{ chefId?: string | null; status?: string | null; createdAt?: Date | string | null }>
   _count?: { proposals?: number | null } | null
 }
 
@@ -107,10 +109,11 @@ export async function evaluateChefRequestAccessForRecords(input: {
   const quoteCount = request._count?.proposals ?? proposals.length
   const chefProposal = proposals.find((proposal) => proposal.chefId === chef.id)
   const directInvitations = request.invitations ?? []
-  const activeDirectInvitations = directInvitations.filter((invitation) => invitation.status !== "DECLINED")
-  const directRequest = activeDirectInvitations.length > 0
-  const invitation = activeDirectInvitations.find((item) => item.chefId === chef.id)
-  const invited = Boolean(invitation)
+  const directRequest = directInvitations.length > 0
+  const activeDirectInvitation = getActiveDirectExclusivity({ invitations: directInvitations, proposals }, now)
+  const releasedDirectToLocal = isDirectRequestReleasedToLocalChefs({ invitations: directInvitations, proposals }, now)
+  const invitation = directInvitations.find((item) => item.chefId === chef.id)
+  const invited = Boolean(invitation && invitation.status !== "DECLINED")
   const earlyAccess = isWithinEarlyAccessWindow(request, now)
 
   if (!chef.isApproved) reasons.push("CHEF_NOT_APPROVED")
@@ -124,7 +127,7 @@ export async function evaluateChefRequestAccessForRecords(input: {
     reasons.push("MARKET_MISMATCH")
   }
 
-  if (directRequest && !invited && !chefProposal) {
+  if (activeDirectInvitation && activeDirectInvitation.chefId !== chef.id && !chefProposal) {
     reasons.push("DIRECT_REQUEST_RESTRICTED")
   }
   if (directInvitations.some((item) => item.chefId === chef.id && item.status === "DECLINED")) {
@@ -138,7 +141,10 @@ export async function evaluateChefRequestAccessForRecords(input: {
     pushReasons(reasons, broadMatch.reasons)
   }
 
-  if (earlyAccess && !localMatch.eligible && !invited && !chefProposal) {
+  if (releasedDirectToLocal && !invited && !chefProposal && !localMatch.eligible) {
+    reasons.push("DIRECT_REQUEST_LOCAL_RELEASE_ONLY")
+    pushReasons(reasons, localMatch.reasons)
+  } else if (earlyAccess && !localMatch.eligible && !invited && !chefProposal) {
     reasons.push("EARLY_ACCESS_LOCAL_ONLY")
     pushReasons(reasons, localMatch.reasons)
   }
@@ -160,7 +166,7 @@ export async function evaluateChefRequestAccessForRecords(input: {
     canPropose,
     local: localMatch.eligible,
     earlyAccess,
-    broaderAccess: !earlyAccess && !localMatch.eligible && broadMatch.eligible,
+    broaderAccess: !releasedDirectToLocal && !earlyAccess && !localMatch.eligible && broadMatch.eligible,
     directRequest,
     invited,
     beFirstToRespond: canPropose && quoteCount === 0,
@@ -185,7 +191,7 @@ export async function getChefRequestAccess(userId: string, requestId: string, no
       where: { id: requestId },
       include: {
         proposals: { select: { chefId: true, status: true } },
-        invitations: { select: { chefId: true, status: true } },
+        invitations: { select: { chefId: true, status: true, createdAt: true } },
         multiDayDates: { select: { date: true, serviceType: true, cuisineTypes: true, dietaryRequirements: true } },
         _count: { select: { proposals: true } },
       },

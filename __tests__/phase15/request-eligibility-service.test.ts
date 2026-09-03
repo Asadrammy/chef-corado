@@ -1,7 +1,9 @@
+const mockAvailabilityFindMany = jest.fn()
+
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     availability: {
-      findMany: jest.fn().mockResolvedValue([]),
+      findMany: (...args: unknown[]) => mockAvailabilityFindMany(...args),
     },
   },
 }))
@@ -60,6 +62,10 @@ function request(overrides: Record<string, unknown> = {}) {
 }
 
 describe("request eligibility service", () => {
+  beforeEach(() => {
+    mockAvailabilityFindMany.mockResolvedValue([])
+  })
+
   it("allows a local approved chef during the first 24 hours", async () => {
     const access = await evaluateChefRequestAccessForRecords({ chef: chef(), request: request(), now })
 
@@ -115,10 +121,10 @@ describe("request eligibility service", () => {
     expect(access.reasons).toContain("CHEF_LOCATION_UNAVAILABLE")
   })
 
-  it("enforces direct request exclusivity for unrelated chefs", async () => {
+  it("enforces direct request exclusivity for unrelated chefs inside 48 hours", async () => {
     const access = await evaluateChefRequestAccessForRecords({
       chef: chef({ id: "chef-uninvited" }),
-      request: request({ invitations: [{ chefId: "chef-target", status: "PENDING" }] }),
+      request: request({ invitations: [{ chefId: "chef-target", status: "PENDING", createdAt: new Date("2026-09-02T00:30:00.000Z") }] }),
       now,
     })
 
@@ -129,7 +135,7 @@ describe("request eligibility service", () => {
   it("allows the targeted chef to view and respond to a direct request", async () => {
     const access = await evaluateChefRequestAccessForRecords({
       chef: chef({ id: "chef-target" }),
-      request: request({ invitations: [{ chefId: "chef-target", status: "PENDING" }] }),
+      request: request({ invitations: [{ chefId: "chef-target", status: "PENDING", createdAt: new Date("2026-09-02T00:30:00.000Z") }] }),
       now,
     })
 
@@ -137,6 +143,52 @@ describe("request eligibility service", () => {
     expect(access.canPropose).toBe(true)
     expect(access.directRequest).toBe(true)
     expect(access.invited).toBe(true)
+  })
+
+  it("releases expired direct requests to eligible local chefs after 48 hours", async () => {
+    const access = await evaluateChefRequestAccessForRecords({
+      chef: chef({ id: "chef-local-release" }),
+      request: request({
+        createdAt: new Date("2026-08-30T00:00:00.000Z"),
+        invitations: [{ chefId: "chef-target", status: "PENDING", createdAt: new Date("2026-08-30T00:00:00.000Z") }],
+      }),
+      now,
+    })
+
+    expect(access.canView).toBe(true)
+    expect(access.canPropose).toBe(true)
+    expect(access.directRequest).toBe(true)
+    expect(access.invited).toBe(false)
+    expect(access.local).toBe(true)
+  })
+
+  it("does not release expired direct requests to non-local chefs", async () => {
+    const access = await evaluateChefRequestAccessForRecords({
+      chef: chef({ id: "chef-far-release", latitude: 53.4808, longitude: -2.2426, radius: 10 }),
+      request: request({
+        createdAt: new Date("2026-08-30T00:00:00.000Z"),
+        invitations: [{ chefId: "chef-target", status: "PENDING", createdAt: new Date("2026-08-30T00:00:00.000Z") }],
+      }),
+      now,
+    })
+
+    expect(access.canView).toBe(false)
+    expect(access.reasons).toContain("DIRECT_REQUEST_LOCAL_RELEASE_ONLY")
+  })
+
+  it("keeps direct request exclusive after the targeted chef has responded", async () => {
+    const access = await evaluateChefRequestAccessForRecords({
+      chef: chef({ id: "chef-uninvited-after-response" }),
+      request: request({
+        createdAt: new Date("2026-08-30T00:00:00.000Z"),
+        invitations: [{ chefId: "chef-target", status: "PENDING", createdAt: new Date("2026-08-30T00:00:00.000Z") }],
+        proposals: [{ chefId: "chef-target", status: "PENDING" }],
+      }),
+      now,
+    })
+
+    expect(access.canView).toBe(false)
+    expect(access.reasons).toContain("DIRECT_REQUEST_RESTRICTED")
   })
 
   it("blocks new proposals once the quote cap is reached", async () => {
@@ -160,5 +212,39 @@ describe("request eligibility service", () => {
 
     expect(first.beFirstToRespond).toBe(true)
     expect(second.beFirstToRespond).toBe(false)
+  })
+
+  it("treats no availability row as available for local early access", async () => {
+    mockAvailabilityFindMany.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+
+    const access = await evaluateChefRequestAccessForRecords({ chef: chef(), request: request(), now })
+
+    expect(access.canPropose).toBe(true)
+    expect(access.reasons).not.toContain("AVAILABILITY_CONFLICT")
+  })
+
+  it("blocks a local chef with an explicit unavailable row", async () => {
+    mockAvailabilityFindMany
+      .mockResolvedValueOnce([
+        {
+          date: new Date("2026-09-06T00:00:00.000Z"),
+          isAvailable: false,
+          currentBookings: 0,
+          maxBookings: 0,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          date: new Date("2026-09-06T00:00:00.000Z"),
+          isAvailable: false,
+          currentBookings: 0,
+          maxBookings: 0,
+        },
+      ])
+
+    const access = await evaluateChefRequestAccessForRecords({ chef: chef(), request: request(), now })
+
+    expect(access.canPropose).toBe(false)
+    expect(access.reasons).toContain("AVAILABILITY_CONFLICT")
   })
 })

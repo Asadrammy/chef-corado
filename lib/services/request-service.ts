@@ -23,6 +23,7 @@ import { filterEligibleChefsForRequest } from "@/lib/chef-request-matching"
 import { notifyEligibleChefsAboutRequest } from "@/lib/services/request-notification-service"
 import { eventQueueService } from "@/lib/services/event-queue-service"
 import { EARLY_ACCESS_WINDOW_MS, evaluateChefRequestAccessForRecords } from "@/lib/services/request-eligibility-service"
+import { DIRECT_REQUEST_EXCLUSIVITY_MS } from "@/lib/services/direct-request-access"
 
 const toDateKey = (date: Date | string) => new Date(date).toISOString().slice(0, 10)
 
@@ -251,7 +252,7 @@ export const requestService = {
       locationRegion: coordinates?.region,
       formattedAddress: coordinates?.formattedAddress,
       geocodingProvider: coordinates?.provider,
-      geocodingStatus: coordinates ? "VERIFIED" : "UNAVAILABLE",
+      geocodingStatus: coordinates?.status ?? "UNAVAILABLE",
       budget: input.budget,
       details: input.details,
     })
@@ -284,6 +285,7 @@ export const requestService = {
               select: {
                 name: true,
                 firstName: true,
+                verified: true,
               },
             },
             photos: {
@@ -299,7 +301,7 @@ export const requestService = {
               orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
             },
             proposals: { select: { chefId: true, status: true } },
-            invitations: { select: { chefId: true, status: true } },
+            invitations: { select: { chefId: true, status: true, createdAt: true } },
             _count: { select: { proposals: true } },
           },
         }),
@@ -310,13 +312,14 @@ export const requestService = {
               select: {
                 name: true,
                 firstName: true,
+                verified: true,
               },
             },
             multiDayDates: {
               orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
             },
             proposals: { select: { chefId: true, status: true } },
-            invitations: { select: { chefId: true, status: true } },
+            invitations: { select: { chefId: true, status: true, createdAt: true } },
             _count: { select: { proposals: true } },
           },
         })
@@ -356,7 +359,15 @@ export const requestService = {
       }
     }
 
-    if (!input.targetChefId) {
+    if (input.targetChefId) {
+      await eventQueueService.emit({
+        eventType: "DIRECT_REQUEST_RELEASE_NOTIFY",
+        payload: { requestId: created.id },
+        priority: 6,
+        nextRunAt: new Date(created.createdAt.getTime() + DIRECT_REQUEST_EXCLUSIVITY_MS),
+        dedupeKey: `DIRECT_REQUEST_RELEASE_NOTIFY:${created.id}`,
+      })
+    } else {
       await eventQueueService.emit({
         eventType: "REQUEST_BROADER_ACCESS_NOTIFY",
         payload: { requestId: created.id },
@@ -540,7 +551,7 @@ export const requestService = {
         locationRegion: coordinates?.region,
         formattedAddress: coordinates?.formattedAddress,
         geocodingProvider: coordinates?.provider,
-        geocodingStatus: coordinates ? "VERIFIED" : "UNAVAILABLE",
+        geocodingStatus: coordinates?.status ?? "UNAVAILABLE",
         budget: input.budget,
         details: input.details,
       },
@@ -752,7 +763,7 @@ export const requestService = {
           locationRegion: coordinates?.region ?? null,
           formattedAddress: coordinates?.formattedAddress ?? null,
           geocodingProvider: coordinates?.provider ?? null,
-          geocodingStatus: coordinates ? "VERIFIED" : "UNAVAILABLE",
+          geocodingStatus: coordinates?.status ?? "UNAVAILABLE",
           budget: requestBudget,
           budgetMode: input.budgetMode,
           totalBudget: input.budgetMode === "TOTAL_EVENT" ? requestBudget : estimatedTotalBudget,
@@ -799,6 +810,7 @@ export const requestService = {
               select: {
                 name: true,
                 firstName: true,
+                verified: true,
               },
             },
             photos: {
@@ -822,6 +834,7 @@ export const requestService = {
               select: {
                 name: true,
                 firstName: true,
+                verified: true,
               },
             },
             multiDayDates: {

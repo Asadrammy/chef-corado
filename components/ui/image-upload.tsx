@@ -45,6 +45,7 @@ export function ImageUpload({ value, onChange, onRemove, className }: ImageUploa
     setUploading(true);
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('purpose', 'menu');
 
     try {
       const response = await fetch('/api/upload', {

@@ -11,6 +11,10 @@ export type PolicyViolation = {
   message: string
 }
 
+function hasMinimumDigits(value: string, minimumDigits: number) {
+  return value.replace(/\D/g, "").length >= minimumDigits
+}
+
 /**
  * Robust patterns to detect prohibited contact information
  */
@@ -90,6 +94,10 @@ export function detectPolicyViolations(content: string): PolicyViolation[] {
     const matches = content.match(pattern)
     if (matches) {
       for (const match of matches) {
+        if (!hasMinimumDigits(match, 7)) {
+          continue
+        }
+
         violations.push({
           type: 'phone',
           detected: match,

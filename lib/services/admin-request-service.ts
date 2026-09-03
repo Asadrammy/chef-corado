@@ -18,7 +18,7 @@ export const adminRequestService = {
             },
           },
           proposals: { select: { chefId: true, status: true } },
-          invitations: { select: { chefId: true, status: true } },
+          invitations: { select: { chefId: true, status: true, createdAt: true } },
           _count: { select: { proposals: true } },
           photos: {
             orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -42,7 +42,7 @@ export const adminRequestService = {
             },
           },
           proposals: { select: { chefId: true, status: true } },
-          invitations: { select: { chefId: true, status: true } },
+          invitations: { select: { chefId: true, status: true, createdAt: true } },
           _count: { select: { proposals: true } },
           multiDayDates: { orderBy: { sortOrder: "asc" } },
         },

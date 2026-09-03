@@ -28,6 +28,18 @@ function serializePhoto(photo: {
   }
 }
 
+function hasUpcomingDate(request: {
+  eventDate?: Date | string | null
+  multiDayDates?: Array<{ date?: Date | string | null }>
+}, now = new Date()) {
+  const dates = [
+    request.eventDate,
+    ...(request.multiDayDates ?? []).map((item) => item.date),
+  ].filter((date): date is Date | string => Boolean(date))
+
+  return dates.some((date) => new Date(date).getTime() >= now.getTime())
+}
+
 async function canViewRequestPhotos(requestId: string, userId: string, role?: string | null) {
   const request = await prisma.request.findUnique({
     where: { id: requestId },
@@ -104,7 +116,14 @@ export async function POST(
   const { requestId } = await context.params
   const existingRequest = await prisma.request.findUnique({
     where: { id: requestId },
-    select: { id: true, clientId: true },
+    select: {
+      id: true,
+      clientId: true,
+      eventDate: true,
+      multiDayDates: {
+        select: { date: true },
+      },
+    },
   })
 
   if (!existingRequest) {
@@ -113,6 +132,10 @@ export async function POST(
 
   if (existingRequest.clientId !== session.user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
+
+  if (!hasUpcomingDate(existingRequest)) {
+    return NextResponse.json({ error: "Photos can only be added to upcoming requests." }, { status: 400 })
   }
 
   try {

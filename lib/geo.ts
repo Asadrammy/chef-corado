@@ -23,7 +23,7 @@ function toRadians(degrees: number): number {
   return degrees * (Math.PI / 180);
 }
 
-export type GeocodeStatus = "VERIFIED" | "UNAVAILABLE" | "PROVIDER_ERROR"
+export type GeocodeStatus = "VERIFIED" | "APPROXIMATE" | "UNAVAILABLE" | "PROVIDER_ERROR"
 
 export type GeocodeResult = {
   latitude: number
@@ -33,7 +33,7 @@ export type GeocodeResult = {
   region?: string
   countryCode?: string
   provider: string
-  status: "VERIFIED"
+  status: "VERIFIED" | "APPROXIMATE"
 }
 
 type GeocodingProvider = {
@@ -133,6 +133,63 @@ function getGeocodingProvider(): GeocodingProvider | null {
   return createGoogleGeocodingProvider()
 }
 
+const UK_LOCATION_FALLBACKS: Record<string, { latitude: number; longitude: number; city: string; region?: string }> = {
+  london: { latitude: 51.5074, longitude: -0.1278, city: "London", region: "England" },
+  westminster: { latitude: 51.4975, longitude: -0.1357, city: "London", region: "England" },
+  chelsea: { latitude: 51.4875, longitude: -0.1687, city: "London", region: "England" },
+  kensington: { latitude: 51.4991, longitude: -0.1938, city: "London", region: "England" },
+  manchester: { latitude: 53.4808, longitude: -2.2426, city: "Manchester", region: "England" },
+  birmingham: { latitude: 52.4862, longitude: -1.8904, city: "Birmingham", region: "England" },
+  leeds: { latitude: 53.8008, longitude: -1.5491, city: "Leeds", region: "England" },
+  liverpool: { latitude: 53.4084, longitude: -2.9916, city: "Liverpool", region: "England" },
+  bristol: { latitude: 51.4545, longitude: -2.5879, city: "Bristol", region: "England" },
+  sheffield: { latitude: 53.3811, longitude: -1.4701, city: "Sheffield", region: "England" },
+  nottingham: { latitude: 52.9548, longitude: -1.1581, city: "Nottingham", region: "England" },
+  cardiff: { latitude: 51.4816, longitude: -3.1791, city: "Cardiff", region: "Wales" },
+  edinburgh: { latitude: 55.9533, longitude: -3.1883, city: "Edinburgh", region: "Scotland" },
+  glasgow: { latitude: 55.8642, longitude: -4.2518, city: "Glasgow", region: "Scotland" },
+  belfast: { latitude: 54.5973, longitude: -5.9301, city: "Belfast", region: "Northern Ireland" },
+  oxford: { latitude: 51.752, longitude: -1.2577, city: "Oxford", region: "England" },
+  cambridge: { latitude: 52.2053, longitude: 0.1218, city: "Cambridge", region: "England" },
+}
+
+const LONDON_POSTCODE_AREA_PATTERN = /\b(?:E|EC|N|NW|SE|SW|W|WC)\d{1,2}[A-Z]?\b/i
+
+function geocodeWithLocalFallback(address: string, countryCode?: string): GeocodeResult | null {
+  const normalizedCountry = countryCode?.toUpperCase()
+  const normalizedAddress = address.toLowerCase()
+
+  if (normalizedCountry && normalizedCountry !== "GB" && normalizedCountry !== "UK") {
+    return null
+  }
+
+  const postcodeArea = address.match(LONDON_POSTCODE_AREA_PATTERN)
+  if (postcodeArea) {
+    const fallback = UK_LOCATION_FALLBACKS.london
+    return {
+      ...fallback,
+      countryCode: "GB",
+      formattedAddress: normalizeAddress(address, countryCode),
+      provider: "local-uk-fallback",
+      status: "APPROXIMATE",
+    }
+  }
+
+  const match = Object.entries(UK_LOCATION_FALLBACKS).find(([key]) => normalizedAddress.includes(key))
+  if (!match) {
+    return null
+  }
+
+  const fallback = match[1]
+  return {
+    ...fallback,
+    countryCode: "GB",
+    formattedAddress: normalizeAddress(address, countryCode),
+    provider: "local-uk-fallback",
+    status: "APPROXIMATE",
+  }
+}
+
 // Get coordinates only when a safe deterministic source or configured provider is available.
 export async function geocodeAddress(address: string, countryCode?: string): Promise<GeocodeResult | null> {
   try {
@@ -154,13 +211,13 @@ export async function geocodeAddress(address: string, countryCode?: string): Pro
 
     const provider = getGeocodingProvider()
     if (!provider) {
-      return null
+      return geocodeWithLocalFallback(address, countryCode)
     }
 
-    return await provider.geocode(address, countryCode)
+    return (await provider.geocode(address, countryCode)) ?? geocodeWithLocalFallback(address, countryCode)
   } catch (error) {
     console.error('Error geocoding address:', error);
-    return null;
+    return geocodeWithLocalFallback(address, countryCode);
   }
 }
 

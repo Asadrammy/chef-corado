@@ -1,6 +1,7 @@
 import { getServiceTypeLabel } from "@/lib/request-options"
 import { ProposalStatus } from "@/types"
 import { formatRelativeRequestAge, formatSubmittedDate, getCanonicalRequestSubmittedAt } from "@/lib/request-age"
+import { evaluateHighIntent, getRequestUrgency, type UrgencyTier } from "@/lib/request-priority"
 
 export type ChefRequestPhotoView = {
   id: string
@@ -78,6 +79,12 @@ export type ChefRequestView = {
   directRequest?: boolean
   beFirstToRespond?: boolean
   canSubmitProposal?: boolean
+  urgent?: boolean
+  urgentTier?: UrgencyTier
+  hoursUntilEvent?: number | null
+  daysUntilEvent?: number | null
+  highIntent?: boolean
+  highIntentScore?: number
 }
 
 export type ChefRespondedRequestView = ChefRequestView & {
@@ -250,6 +257,8 @@ export function buildChefRequestView(request: any, options: {
   const dietaryRequirements = parseStringList(request.dietaryRequirements)
   const multiDayDates = Array.isArray(request.multiDayDates) ? request.multiDayDates.filter(Boolean) : []
   const serviceSpecificAnswers = parseServiceSpecificAnswers(request.serviceSpecificAnswers)
+  const urgency = getRequestUrgency({ eventDate: request.eventDate })
+  const highIntent = evaluateHighIntent({ request })
   const serviceSpecificAnswerSummary = Object.entries(serviceSpecificAnswers ?? {})
     .map(([key, value]) => {
       const formatted = formatAnswerValue(value)
@@ -329,6 +338,12 @@ export function buildChefRequestView(request: any, options: {
     directRequest: Boolean(request.directRequest),
     beFirstToRespond: Boolean(request.beFirstToRespond),
     canSubmitProposal: request.canSubmitProposal ?? true,
+    urgent: urgency.isUrgent,
+    urgentTier: urgency.tier,
+    hoursUntilEvent: urgency.hoursUntilEvent,
+    daysUntilEvent: urgency.daysUntilEvent,
+    highIntent: highIntent.qualifiesHighIntent,
+    highIntentScore: highIntent.score,
   }
 }
 

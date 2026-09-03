@@ -12,6 +12,7 @@ const localDemoProfilePhotoBackedEmails: Record<string, string> = {
 
 type UserProfileImageDataRow = {
   imageData: string | null
+  role: string | null
 }
 
 async function canReadProfilePhoto(requestedUserId: string, sessionUser: {
@@ -36,26 +37,35 @@ async function canReadProfilePhoto(requestedUserId: string, sessionUser: {
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ userId: string }> }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
     const { userId } = await params
-    if (!(await canReadProfilePhoto(userId, session.user))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
 
     if (!(await ensureUserProfileImageColumns())) {
       return NextResponse.json({ error: "Profile photo storage is not configured." }, { status: 503 })
     }
 
     const rows = await prisma.$queryRaw<UserProfileImageDataRow[]>`
-      SELECT "imageData"
+      SELECT "imageData", "role"
       FROM "User"
-      WHERE "id" = ${userId} AND "role" = 'CLIENT'
+      WHERE "id" = ${userId}
       LIMIT 1
     `
-    const photo = parseUserProfileImageData(rows[0]?.imageData)
+    const row = rows[0]
+
+    if (!row) {
+      return NextResponse.json({ error: "Profile photo not found." }, { status: 404 })
+    }
+
+    if (row.role !== "CHEF") {
+      if (!session?.user?.id) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      }
+
+      if (!(await canReadProfilePhoto(userId, session.user))) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      }
+    }
+
+    const photo = parseUserProfileImageData(row.imageData)
 
     if (!photo) {
       return NextResponse.json({ error: "Profile photo not found." }, { status: 404 })

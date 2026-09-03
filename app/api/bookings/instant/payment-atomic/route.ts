@@ -94,19 +94,19 @@ export async function POST(request: NextRequest) {
 
       // Step 2: Check availability with pessimistic locking
       const bookingDate = new Date(payload.eventDate);
+      const availabilityDate = new Date(Date.UTC(
+        bookingDate.getUTCFullYear(),
+        bookingDate.getUTCMonth(),
+        bookingDate.getUTCDate()
+      ));
       const availability = await tx.availability.findFirst({
         where: {
           chefId: experience.chefId,
-          date: bookingDate,
-          isAvailable: true,
+          date: availabilityDate,
         },
       });
 
-      if (!availability) {
-        throw new Error("Chef is not available on this date");
-      }
-
-      if (availability.currentBookings >= availability.maxBookings) {
+      if (availability && (!availability.isAvailable || availability.currentBookings >= availability.maxBookings)) {
         throw new Error("No availability left for this date");
       }
 
@@ -173,12 +173,14 @@ export async function POST(request: NextRequest) {
       });
 
       // Step 7: Update availability (atomic)
-      await tx.availability.update({
-        where: { id: availability.id },
-        data: {
-          currentBookings: availability.currentBookings + 1,
-        },
-      });
+      if (availability) {
+        await tx.availability.update({
+          where: { id: availability.id },
+          data: {
+            currentBookings: availability.currentBookings + 1,
+          },
+        });
+      }
 
       return {
         booking,
@@ -220,7 +222,7 @@ export async function POST(request: NextRequest) {
         bookingId: result.booking.id,
         paymentId: result.payment.id,
         bookingType: "INSTANT_ATOMIC",
-        availabilityId: result.availability.id,
+        ...(result.availability ? { availabilityId: result.availability.id } : {}),
         currency: normalizeCurrency((result.booking as any).currency || 'GBP'),
       },
       // CRITICAL: Add payment intent data for webhook processing

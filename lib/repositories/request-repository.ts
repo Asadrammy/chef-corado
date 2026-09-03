@@ -173,6 +173,7 @@ export const requestRepository = {
               id: true,
               name: true,
               firstName: true,
+              verified: true,
             },
           },
           _count: {
@@ -190,6 +191,7 @@ export const requestRepository = {
             select: {
               chefId: true,
               status: true,
+              createdAt: true,
             },
           },
         },
@@ -212,6 +214,7 @@ export const requestRepository = {
               id: true,
               name: true,
               firstName: true,
+              verified: true,
             },
           },
           _count: {
@@ -229,6 +232,7 @@ export const requestRepository = {
             select: {
               chefId: true,
               status: true,
+              createdAt: true,
             },
           },
         },

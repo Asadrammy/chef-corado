@@ -108,6 +108,14 @@ export function ChefRequestCard({ request }: ChefRequestCardProps) {
                   {request.beFirstToRespond ? (
                     <Badge className="border-amber-500/30 bg-amber-500/15 text-amber-800">Be First to Respond</Badge>
                   ) : null}
+                  {request.urgentTier === "LAST_MINUTE" ? (
+                    <Badge className="border-red-500/30 bg-red-500/15 text-red-700">24-72h</Badge>
+                  ) : request.urgent ? (
+                    <Badge className="border-orange-500/30 bg-orange-500/15 text-orange-800">Urgent</Badge>
+                  ) : null}
+                  {request.highIntent ? (
+                    <Badge className="border-violet-500/30 bg-violet-500/15 text-violet-800">High Intent</Badge>
+                  ) : null}
                 </div>
                 <p className="text-muted-foreground text-sm leading-6 line-clamp-2">
                   {request.details || "Client details will appear here once more information is provided."}

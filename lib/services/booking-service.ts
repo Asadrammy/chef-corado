@@ -175,6 +175,11 @@ export const bookingService = {
   }) {
     const { prisma } = await import("@/lib/prisma")
     const bookingDate = new Date(input.eventDate)
+    const availabilityDate = new Date(Date.UTC(
+      bookingDate.getUTCFullYear(),
+      bookingDate.getUTCMonth(),
+      bookingDate.getUTCDate()
+    ))
 
     // Enforce client moderation and compliance
     await enforceUserModeration(input.userId)
@@ -239,16 +244,11 @@ export const bookingService = {
       const availability = await tx.availability.findFirst({
         where: {
           chefId: experience.chefId,
-          date: bookingDate,
-          isAvailable: true,
+          date: availabilityDate,
         },
       })
 
-      if (!availability) {
-        throw new ApiError(400, 'Chef is not available on this date')
-      }
-
-      if (availability.currentBookings >= availability.maxBookings) {
+      if (availability && (!availability.isAvailable || availability.currentBookings >= availability.maxBookings)) {
         throw new ApiError(400, 'No availability left for this date')
       }
 
@@ -301,15 +301,17 @@ export const bookingService = {
       })
 
       // Update availability with race condition prevention
-      const updateResult = await tx.availability.updateMany({
-        where: { 
-          id: availability.id,
-          currentBookings: availability.currentBookings // Ensure no concurrent modification
-        },
-        data: {
-          currentBookings: availability.currentBookings + 1,
-        },
-      })
+      const updateResult = availability
+        ? await tx.availability.updateMany({
+            where: {
+              id: availability.id,
+              currentBookings: availability.currentBookings // Ensure no concurrent modification
+            },
+            data: {
+              currentBookings: availability.currentBookings + 1,
+            },
+          })
+        : { count: 1 }
 
       if (updateResult.count === 0) {
         throw new ApiError(409, 'Race condition detected: Availability was modified by another request. Please try again.')
@@ -372,17 +374,25 @@ export const bookingService = {
       throw new ApiError(404, 'Experience not found')
     }
 
+    const requestedDate = new Date(date)
+    const availabilityDate = new Date(Date.UTC(
+      requestedDate.getUTCFullYear(),
+      requestedDate.getUTCMonth(),
+      requestedDate.getUTCDate()
+    ))
     const availability = await prisma.availability.findFirst({
       where: {
         chefId: experience.chefId,
-        date: new Date(date),
-        isAvailable: true,
+        date: availabilityDate,
       },
     })
 
+    const explicitlyBlocked = availability && !availability.isAvailable
+    const remainingSlots = availability ? availability.maxBookings - availability.currentBookings : 1
+
     return {
-      canBook: !!availability && availability.currentBookings < availability.maxBookings,
-      remainingSlots: availability ? availability.maxBookings - availability.currentBookings : 0,
+      canBook: !explicitlyBlocked && remainingSlots > 0,
+      remainingSlots: Math.max(remainingSlots, 0),
       availability: availability
         ? {
             startTime: availability.startTime,

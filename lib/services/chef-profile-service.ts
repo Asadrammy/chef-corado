@@ -127,7 +127,7 @@ export const chefProfileService = {
       locationRegion: coordinates?.region ?? null,
       formattedAddress: coordinates?.formattedAddress ?? null,
       geocodingProvider: coordinates?.provider ?? null,
-      geocodingStatus: coordinates ? "VERIFIED" : "UNAVAILABLE",
+      geocodingStatus: coordinates?.status ?? "UNAVAILABLE",
     })
 
     const profile = await chefProfileRepository.findByUserId(userId)
@@ -145,18 +145,39 @@ export const chefProfileService = {
       certifications: input.certifications,
     })
 
+    const existingProfile = await prisma.chefProfile.findUnique({
+      where: { userId },
+      select: {
+        location: true,
+        baseCountryCode: true,
+        latitude: true,
+        longitude: true,
+        locationCity: true,
+        locationRegion: true,
+        formattedAddress: true,
+        geocodingProvider: true,
+        geocodingStatus: true,
+      },
+    })
     const coordinates = await geocodeAddress(input.location, input.baseCountryCode)
+    const locationUnchanged =
+      existingProfile?.location === input.location &&
+      existingProfile?.baseCountryCode === input.baseCountryCode
+    const retainedCoordinates = !coordinates && locationUnchanged && existingProfile?.latitude != null && existingProfile.longitude != null
+      ? existingProfile
+      : null
+
     await chefProfileRepository.updateByUserId(userId, {
       ...input,
       careerStage: normalizeChefCareerStage(input.careerStage, input.chefType) ?? null,
       specialties: encodeChefSpecialties(input.specialties),
-      latitude: coordinates?.latitude ?? null,
-      longitude: coordinates?.longitude ?? null,
-      locationCity: coordinates?.city ?? null,
-      locationRegion: coordinates?.region ?? null,
-      formattedAddress: coordinates?.formattedAddress ?? null,
-      geocodingProvider: coordinates?.provider ?? null,
-      geocodingStatus: coordinates ? "VERIFIED" : "UNAVAILABLE",
+      latitude: coordinates?.latitude ?? retainedCoordinates?.latitude ?? null,
+      longitude: coordinates?.longitude ?? retainedCoordinates?.longitude ?? null,
+      locationCity: coordinates?.city ?? retainedCoordinates?.locationCity ?? null,
+      locationRegion: coordinates?.region ?? retainedCoordinates?.locationRegion ?? null,
+      formattedAddress: coordinates?.formattedAddress ?? retainedCoordinates?.formattedAddress ?? null,
+      geocodingProvider: coordinates?.provider ?? retainedCoordinates?.geocodingProvider ?? null,
+      geocodingStatus: coordinates?.status ?? retainedCoordinates?.geocodingStatus ?? "UNAVAILABLE",
     })
 
     const profile = await chefProfileRepository.findByUserId(userId)

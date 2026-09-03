@@ -320,7 +320,7 @@ export function ChefRequestsMarketplace({
     () => parseMarketplaceFilters(Object.fromEntries(currentSearchParams.entries())),
     [currentSearchParams]
   )
-  const [showFilters, setShowFilters] = React.useState(Boolean(currentFilters.search || currentFilters.budgetMin != null || currentFilters.budgetMax != null || currentFilters.perPersonMin != null || currentFilters.perPersonMax != null || currentFilters.guestsMin != null || currentFilters.guestsMax != null || currentFilters.dateFrom || currentFilters.dateTo || currentFilters.radiusKm != null || currentFilters.earlyAccessOnly || currentFilters.directOnly || currentFilters.beFirstOnly))
+  const [showFilters, setShowFilters] = React.useState(Boolean(currentFilters.search || currentFilters.budgetMin != null || currentFilters.budgetMax != null || currentFilters.perPersonMin != null || currentFilters.perPersonMax != null || currentFilters.guestsMin != null || currentFilters.guestsMax != null || currentFilters.dateFrom || currentFilters.dateTo || currentFilters.radiusKm != null || currentFilters.earlyAccessOnly || currentFilters.directOnly || currentFilters.beFirstOnly || currentFilters.urgentOnly || currentFilters.lastMinuteOnly || currentFilters.highIntentOnly))
   const [radiusDraft, setRadiusDraft] = React.useState(currentFilters.radiusKm ?? serviceRadiusKm ?? 50)
 
   React.useEffect(() => {
@@ -396,6 +396,8 @@ export function ChefRequestsMarketplace({
             <SelectItem value="newest">Newest First</SelectItem>
             <SelectItem value="event-date">Event Date</SelectItem>
             <SelectItem value="closest">Closest to Me</SelectItem>
+            <SelectItem value="urgent">Urgent First</SelectItem>
+            <SelectItem value="high-intent">High Intent First</SelectItem>
             <SelectItem value="budget-high">Budget: High to Low</SelectItem>
             <SelectItem value="budget-low">Budget: Low to High</SelectItem>
           </SelectContent>
@@ -499,6 +501,30 @@ export function ChefRequestsMarketplace({
                   onClick={() => updateQuery({ beFirst: currentFilters.beFirstOnly ? null : "1" })}
                 >
                   Be First to Respond
+                </Button>
+                <Button
+                  type="button"
+                  variant={currentFilters.urgentOnly ? "default" : "outline"}
+                  className="rounded-2xl"
+                  onClick={() => updateQuery({ urgent: currentFilters.urgentOnly ? null : "1" })}
+                >
+                  Urgent
+                </Button>
+                <Button
+                  type="button"
+                  variant={currentFilters.lastMinuteOnly ? "default" : "outline"}
+                  className="rounded-2xl"
+                  onClick={() => updateQuery({ lastMinute: currentFilters.lastMinuteOnly ? null : "1" })}
+                >
+                  24-72h
+                </Button>
+                <Button
+                  type="button"
+                  variant={currentFilters.highIntentOnly ? "default" : "outline"}
+                  className="rounded-2xl"
+                  onClick={() => updateQuery({ highIntent: currentFilters.highIntentOnly ? null : "1" })}
+                >
+                  High Intent
                 </Button>
               </div>
             </div>

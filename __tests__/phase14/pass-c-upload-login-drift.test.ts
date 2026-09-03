@@ -14,9 +14,18 @@ describe("Pass C upload, login, and route stability contracts", () => {
       "Private dinner for 20 guests with 3 courses and a GBP 50 supplement.",
       "Chef has 10 years experience and can serve on 31 August 2026.",
     ].join("\n")
+    const freeFormMenuText = [
+      "Starters",
+      "A",
+      "guest may choose between",
+      "Bruschetta al pomodoro, aglio e oregano.",
+      "Lunch, Dinner, School Lunches, Office Get together",
+    ].join("\n\n")
 
     expect(detectPolicyViolations(normalMenuText)).toEqual([])
+    expect(detectPolicyViolations(freeFormMenuText)).toEqual([])
     expect(isContentSafe(normalMenuText)).toBe(true)
+    expect(isContentSafe(freeFormMenuText)).toBe(true)
 
     expect(detectPolicyViolations("Please call me on 07123 456789")).toEqual(
       expect.arrayContaining([expect.objectContaining({ type: "phone" })])
@@ -26,7 +35,7 @@ describe("Pass C upload, login, and route stability contracts", () => {
     )
   })
 
-  it("keeps menu and chef profile uploads on the shared authenticated image endpoint", () => {
+  it("keeps menu uploads on shared image storage and chef photos on database-backed persistence", () => {
     const menuDialog = read("components/dashboard/chef/menu-dialog.tsx")
     const imageUpload = read("components/ui/image-upload.tsx")
     const chefProfile = read("app/dashboard/chef/profile/page.tsx")
@@ -38,14 +47,15 @@ describe("Pass C upload, login, and route stability contracts", () => {
     expect(imageUpload).toContain("formData.append('file', file)")
     expect(imageUpload).toContain("fetch('/api/upload'")
     expect(chefProfile).toContain('payload.append("purpose", "profile")')
-    expect(chefProfile).toContain('fetch("/api/upload"')
     expect(chefProfile).toContain('fetch("/api/chef/profile/photo"')
     expect(uploadRoute).toContain("getServerSession")
     expect(uploadRoute).toContain("uploadImageFile")
     expect(uploadRoute).toContain("DURABLE_IMAGE_STORAGE_NOT_CONFIGURED")
     expect(chefPhotoRoute).toContain("getRequiredSession(Role.CHEF)")
-    expect(chefPhotoRoute).toContain("imageReferenceSchema")
-    expect(chefPhotoRoute).toContain("profileImage: payload.profileImage")
+    expect(chefPhotoRoute).toContain("request.formData()")
+    expect(chefPhotoRoute).toContain("fileToUserProfileImageData")
+    expect(chefPhotoRoute).toContain("profileImage")
+    expect(chefPhotoRoute).toContain("ensureUserProfileImageColumns")
     expect(uploadStorage).toContain('purpose: "menu" | "profile" | "request" | "admin-service-asset"')
   })
 
@@ -64,6 +74,30 @@ describe("Pass C upload, login, and route stability contracts", () => {
     expect(renderYaml).toContain("CLOUDINARY_CLOUD_NAME")
     expect(renderYaml).toContain("CLOUDINARY_API_KEY")
     expect(renderYaml).toContain("CLOUDINARY_API_SECRET")
+  })
+
+  it("does not render invalid certificate placeholders as admin-relative links", () => {
+    const adminChefReview = read("app/dashboard/admin/chefs/[id]/page.tsx")
+
+    expect(adminChefReview).toContain("getSafeCertificateHref")
+    expect(adminChefReview).toContain('value.startsWith("/api/chef/certificates/")')
+    expect(adminChefReview).toContain('url.protocol === "https:"')
+    expect(adminChefReview).toContain("Certificate reference is not viewable")
+  })
+
+  it("makes chef availability default-available in the calendar UI", () => {
+    const productHeader = read("components/availability/product-header.tsx")
+    const alivePanel = read("components/availability/alive-panel.tsx")
+    const calendar = read("components/availability/product-calendar.tsx")
+    const instantBookingService = read("lib/services/booking-service.ts")
+
+    expect(productHeader).toContain("Mark Unavailable")
+    expect(alivePanel).toContain("Available by default")
+    expect(alivePanel).not.toContain("No Availability Set For This Date")
+    expect(calendar).toContain("available-default")
+    expect(instantBookingService).toContain("const availabilityDate = new Date(Date.UTC")
+    expect(instantBookingService).toContain("availability && (!availability.isAvailable || availability.currentBookings >= availability.maxBookings)")
+    expect(instantBookingService).toContain("availability ? availability.maxBookings - availability.currentBookings : 1")
   })
 
   it("keeps login disabled and visibly pending after successful auth until navigation takes over", () => {

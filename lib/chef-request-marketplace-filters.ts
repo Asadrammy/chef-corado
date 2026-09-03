@@ -18,6 +18,9 @@ export type ChefMarketplaceFilters = {
   earlyAccessOnly: boolean
   directOnly: boolean
   beFirstOnly: boolean
+  urgentOnly: boolean
+  lastMinuteOnly: boolean
+  highIntentOnly: boolean
   mapNorth: number | null
   mapSouth: number | null
   mapEast: number | null
@@ -58,6 +61,9 @@ export type MarketplaceFilterSubject = {
   earlyAccess?: boolean
   directRequest?: boolean
   beFirstToRespond?: boolean
+  urgent?: boolean
+  urgentTier?: "LAST_MINUTE" | "URGENT" | "STANDARD" | null
+  highIntent?: boolean
 }
 
 const DEFAULT_LIMIT = 12
@@ -91,7 +97,7 @@ function toTab(value: string | undefined): ChefMarketplaceTab {
 }
 
 function toSort(value: string | undefined): ChefRequestSortKey {
-  if (value === "event-date" || value === "closest" || value === "budget-high" || value === "budget-low" || value === "match-score") {
+  if (value === "event-date" || value === "closest" || value === "budget-high" || value === "budget-low" || value === "match-score" || value === "urgent" || value === "high-intent") {
     return value
   }
   return DEFAULT_SORT
@@ -134,6 +140,9 @@ export function parseMarketplaceFilters(input: Record<string, string | string[] 
     earlyAccessOnly: toBoolean(readValue(input, "earlyAccess")),
     directOnly: toBoolean(readValue(input, "direct")),
     beFirstOnly: toBoolean(readValue(input, "beFirst")),
+    urgentOnly: toBoolean(readValue(input, "urgent")),
+    lastMinuteOnly: toBoolean(readValue(input, "lastMinute")),
+    highIntentOnly: toBoolean(readValue(input, "highIntent")),
     mapNorth: toLatitude(readValue(input, "north")),
     mapSouth: toLatitude(readValue(input, "south")),
     mapEast: toLongitude(readValue(input, "east")),
@@ -177,6 +186,9 @@ export function getMarketplaceActiveFilterCount(filters: ChefMarketplaceFilters)
     filters.earlyAccessOnly ? "earlyAccess" : null,
     filters.directOnly ? "direct" : null,
     filters.beFirstOnly ? "beFirst" : null,
+    filters.urgentOnly ? "urgent" : null,
+    filters.lastMinuteOnly ? "lastMinute" : null,
+    filters.highIntentOnly ? "highIntent" : null,
     filters.mapNorth != null && filters.mapSouth != null && filters.mapEast != null && filters.mapWest != null ? "mapBounds" : null,
   ].filter((value) => value != null && value !== "").length
 }
@@ -320,6 +332,9 @@ function matchesSpotlightFilters(request: MarketplaceFilterSubject, filters: Che
   if (filters.earlyAccessOnly && !request.earlyAccess) return false
   if (filters.directOnly && !request.directRequest) return false
   if (filters.beFirstOnly && !request.beFirstToRespond) return false
+  if (filters.urgentOnly && !request.urgent) return false
+  if (filters.lastMinuteOnly && request.urgentTier !== "LAST_MINUTE") return false
+  if (filters.highIntentOnly && !request.highIntent) return false
   return true
 }
 

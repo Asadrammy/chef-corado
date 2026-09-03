@@ -24,6 +24,13 @@ function buildRequestUrl(requestId: string) {
   return new URL(`/dashboard/chef/requests/${requestId}`, getConfiguredAppBaseUrl()).toString()
 }
 
+function getPriorityPrefix(requestView: ReturnType<typeof buildChefRequestView>) {
+  if (requestView.urgentTier === "LAST_MINUTE") return "Last-minute request"
+  if (requestView.urgent) return "Urgent request"
+  if (requestView.highIntent) return "High-intent request"
+  return "New request"
+}
+
 async function createAlertRecord(input: {
   chef: ChefAlertRecipient
   requestId: string
@@ -64,8 +71,8 @@ export async function notifyEligibleChefsAboutRequest({ request, chefs }: Notify
     }
 
     const message = requestView.requestMode === "MULTI_DAY"
-      ? `New Multi-Day request: ${requestView.title} in ${requestView.location} (${formatServiceDateSummary(requestView.multiDayDates)}).`
-      : `New request: ${requestView.title} in ${requestView.location}.`
+      ? `${getPriorityPrefix(requestView)}: ${requestView.title} in ${requestView.location} (${formatServiceDateSummary(requestView.multiDayDates)}).`
+      : `${getPriorityPrefix(requestView)}: ${requestView.title} in ${requestView.location}.`
 
     const record = await createAlertRecord({
       chef,
@@ -85,8 +92,8 @@ export async function notifyEligibleChefsAboutRequest({ request, chefs }: Notify
           topic: "requests",
           email: chef.user.email,
           subject: requestView.requestMode === "MULTI_DAY"
-            ? `New Multi-Day Chef Hire Request: ${requestView.title}`
-            : `New Service Request: ${requestView.title}`,
+            ? `${getPriorityPrefix(requestView)}: ${requestView.title}`
+            : `${getPriorityPrefix(requestView)}: ${requestView.title}`,
           html: requestView.requestMode === "MULTI_DAY"
             ? emailTemplates.newMultiDayRequestAlert({
                 chefName: chef.user.name ?? requestView.clientGreetingName,

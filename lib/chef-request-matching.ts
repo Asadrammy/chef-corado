@@ -7,6 +7,13 @@ export type ChefRequestMatchingCandidate = {
   latitude: number | null
   longitude: number | null
   radius: number
+  bio?: string | null
+  specialties?: string | null
+  careerStage?: string | null
+  cuisineTypes?: string | null
+  certifications?: string | null
+  chefType?: string | null
+  cuisineType?: string | null
   user: {
     name?: string | null
     email?: string | null
@@ -74,11 +81,24 @@ function toDateKey(value: string | Date) {
   return new Date(value).toISOString().slice(0, 10)
 }
 
-function buildChefText(chef: ChefRequestMatchingCandidate) {
+function buildChefServiceText(chef: ChefRequestMatchingCandidate) {
   return [
-    chef.user?.name,
+    chef.chefType,
+    chef.specialties,
+    chef.certifications,
     ...(chef.menus ?? []).flatMap((menu) => [menu.cuisineType, menu.eventType]),
     ...(chef.experiences ?? []).flatMap((experience) => [experience.serviceType, experience.cuisineType, experience.eventType]),
+  ].filter(Boolean).join(" ").toLowerCase()
+}
+
+function buildChefCuisineText(chef: ChefRequestMatchingCandidate) {
+  return [
+    chef.cuisineType,
+    chef.cuisineTypes,
+    chef.specialties,
+    chef.certifications,
+    ...(chef.menus ?? []).flatMap((menu) => [menu.cuisineType, menu.eventType]),
+    ...(chef.experiences ?? []).flatMap((experience) => [experience.cuisineType, experience.eventType]),
   ].filter(Boolean).join(" ").toLowerCase()
 }
 
@@ -169,17 +189,18 @@ export async function evaluateChefRequestMatch(
     }
   }
 
-  const chefText = buildChefText(chef)
+  const chefServiceText = buildChefServiceText(chef)
+  const chefCuisineText = buildChefCuisineText(chef)
   const chefExperiences = chef.experiences ?? []
-  if (requestedServiceTypes.length > 0 && chefExperiences.length > 0) {
+  if (requestedServiceTypes.length > 0 && (chefExperiences.length > 0 || chefServiceText)) {
     const hasServiceMatch = request.requestMode === "MULTI_DAY"
       ? requestedServiceTypes.every((serviceType) =>
           chefExperiences.some((experience) => experience.serviceType === serviceType) ||
-          chefText.includes(serviceType.toLowerCase().replaceAll("_", " "))
+          chefServiceText.includes(serviceType.toLowerCase().replaceAll("_", " "))
         )
       : requestedServiceTypes.some((serviceType) =>
           chefExperiences.some((experience) => experience.serviceType === serviceType) ||
-          chefText.includes(serviceType.toLowerCase().replaceAll("_", " "))
+          chefServiceText.includes(serviceType.toLowerCase().replaceAll("_", " "))
         )
 
     if (!hasServiceMatch) {
@@ -187,8 +208,8 @@ export async function evaluateChefRequestMatch(
     }
   }
 
-  if (requestedCuisineTerms.length > 0 && chefText) {
-    const hasCuisineMatch = requestedCuisineTerms.some((cuisine) => chefText.includes(cuisine))
+  if (requestedCuisineTerms.length > 0 && chefCuisineText) {
+    const hasCuisineMatch = requestedCuisineTerms.some((cuisine) => chefCuisineText.includes(cuisine))
     if (!hasCuisineMatch) {
       reasons.push("CUISINE_MISMATCH")
     }

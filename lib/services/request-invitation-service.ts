@@ -1,5 +1,7 @@
 import { createNotification } from "@/lib/notifications"
 import { requestInvitationRepository } from "@/lib/repositories/request-invitation-repository"
+import { eventQueueService } from "@/lib/services/event-queue-service"
+import { logger } from "@/lib/logger"
 
 function serializeInvitation(invitation: Awaited<ReturnType<typeof requestInvitationRepository.listInvitationsForChef>>[number]) {
   return {
@@ -61,6 +63,26 @@ export const requestInvitationService = {
         ? `${updated.chef.user?.name ?? "Chef"} accepted your invitation for ${updated.request.title}`
         : `${updated.chef.user?.name ?? "Chef"} declined your invitation for ${updated.request.title}`
     )
+
+    if (status === "DECLINED") {
+      await eventQueueService.emit({
+        eventType: "DIRECT_REQUEST_RELEASE_NOTIFY",
+        payload: { requestId: updated.requestId },
+        priority: 7,
+        nextRunAt: new Date(),
+        dedupeKey: `DIRECT_REQUEST_RELEASE_NOTIFY:${updated.requestId}:DECLINED`,
+      })
+
+      try {
+        await eventQueueService.handleDirectRequestReleaseNotify({ requestId: updated.requestId })
+      } catch (error) {
+        logger.error("[DIRECT REQUEST] Failed immediate decline release notification", {
+          requestId: updated.requestId,
+          invitationId,
+          error,
+        })
+      }
+    }
 
     return serializeInvitation(updated)
   },

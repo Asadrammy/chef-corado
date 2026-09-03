@@ -52,7 +52,7 @@ export function ProductHeader({
               </h1>
             </div>
             <p className="text-lg text-gray-500 pl-14">
-              Manage your schedule, available time slots, and unavailable dates
+              Manage unavailable dates, booking conflicts, and optional time-slot limits
             </p>
           </div>
 
@@ -80,13 +80,13 @@ export function ProductHeader({
                   onClick={onCopyPreviousWeek}
                   className="rounded-xl cursor-pointer"
                 >
-                  Copy Available Times from Previous Week
+                  Copy Time Limits from Previous Week
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   onClick={onClearAvailability}
                   className="rounded-xl cursor-pointer text-red-600"
                 >
-                  Remove All Availability
+                  Remove All Overrides
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -101,7 +101,7 @@ export function ProductHeader({
                 className="gap-2 rounded-2xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-lg shadow-indigo-500/30 transition-all"
               >
                 <Sparkles className="h-4 w-4" />
-                Mark Date Available
+                Mark Unavailable
               </Button>
             </motion.div>
           </div>

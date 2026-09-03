@@ -5,6 +5,8 @@ export type ChefRequestSortKey =
   | "budget-high"
   | "budget-low"
   | "match-score"
+  | "urgent"
+  | "high-intent"
 
 export type SortableChefRequest = {
   id: string
@@ -16,6 +18,9 @@ export type SortableChefRequest = {
   multiDayDates?: Array<unknown>
   budget: number
   distanceKm?: number | null
+  urgentTier?: "LAST_MINUTE" | "URGENT" | "STANDARD" | null
+  highIntent?: boolean | null
+  highIntentScore?: number | null
 }
 
 function toTime(value?: string | Date | null) {
@@ -90,6 +95,22 @@ export function sortChefMarketplaceRequests<T extends SortableChefRequest>(
         return b.budget - a.budget || tieBreak(a, b)
       case "budget-low":
         return a.budget - b.budget || tieBreak(a, b)
+      case "urgent": {
+        const urgencyRank = (request: SortableChefRequest) =>
+          request.urgentTier === "LAST_MINUTE" ? 2 : request.urgentTier === "URGENT" ? 1 : 0
+        return (
+          urgencyRank(b) - urgencyRank(a) ||
+          compareNullableNumber(getEarliestUpcomingRequestEventAt(a, now), getEarliestUpcomingRequestEventAt(b, now), "asc") ||
+          compareNullableNumber(getRequestSubmittedAt(b), getRequestSubmittedAt(a), "asc") ||
+          tieBreak(a, b)
+        )
+      }
+      case "high-intent":
+        return (
+          compareNullableNumber(b.highIntentScore ?? (b.highIntent ? 1 : 0), a.highIntentScore ?? (a.highIntent ? 1 : 0), "asc") ||
+          compareNullableNumber(getRequestSubmittedAt(b), getRequestSubmittedAt(a), "asc") ||
+          tieBreak(a, b)
+        )
       case "event-date":
         return (
           compareNullableNumber(getEarliestUpcomingRequestEventAt(a, now), getEarliestUpcomingRequestEventAt(b, now), "asc") ||

@@ -69,6 +69,18 @@ type AdminChefReview = {
   }
 }
 
+function getSafeCertificateHref(value?: string | null) {
+  if (!value) return null
+  if (value.startsWith("/api/chef/certificates/")) return value
+
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" ? value : null
+  } catch {
+    return null
+  }
+}
+
 export default function AdminChefReviewPage() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
@@ -141,6 +153,7 @@ export default function AdminChefReviewPage() {
   }
 
   const displayName = [chef.user.firstName, chef.user.surname].filter(Boolean).join(" ") || chef.user.name
+  const certificateHref = getSafeCertificateHref(chef.foodHygieneCertificateUrl)
   const careerStage = normalizeChefCareerStage(chef.careerStage, chef.chefType)
   const specialties = decodeChefSpecialties(chef.specialties, chef.chefType)
   const status = chef.verificationStatus ?? (chef.isApproved ? "APPROVED" : "PENDING")
@@ -276,13 +289,17 @@ export default function AdminChefReviewPage() {
                   {item.complete ? <CheckCircle className="h-4 w-4 text-green-600" /> : <XCircle className="h-4 w-4 text-red-600" />}
                 </div>
               ))}
-              {chef.foodHygieneCertificateUrl ? (
+              {certificateHref ? (
                 <Button variant="outline" className="w-full" asChild>
-                  <Link href={chef.foodHygieneCertificateUrl} target="_blank" rel="noreferrer">
+                  <Link href={certificateHref} target="_blank" rel="noreferrer">
                     <FileText className="mr-2 h-4 w-4" />
                     View food hygiene certificate
                   </Link>
                 </Button>
+              ) : chef.foodHygieneCertificateUrl ? (
+                <Alert>
+                  <AlertDescription>Certificate reference is not viewable. Ask the chef to re-upload the private certificate.</AlertDescription>
+                </Alert>
               ) : null}
               <ListBlock
                 title="Background checks"
