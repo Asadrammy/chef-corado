@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client"
+import { Prisma } from "@prisma/client"
 
 import { bookingRepository } from "@/lib/repositories/booking-repository"
 import { ledgerService } from "@/lib/services/ledger-service"
@@ -15,6 +15,7 @@ import { validatePolicyFields } from "@/lib/security/communication-policy"
 import { validateExperienceBookingCounts } from "@/lib/booking-counts"
 import { marketConfigurationService } from "@/lib/services/market-configuration-service"
 import { bookingInsuranceService } from "@/lib/services/booking-insurance-service"
+import { getChefDateAvailabilityStatus, incrementExplicitAvailabilityBookingCounts } from "@/lib/services/default-availability"
 
 const SORTABLE_BOOKING_FIELDS = new Set(["createdAt", "eventDate", "totalPrice", "status"])
 
@@ -240,15 +241,9 @@ export const bookingService = {
         throw new ApiError(400, `Maximum ${experience.maxGuests} guests allowed`)
       }
 
-      // Check availability with optimistic concurrency
-      const availability = await tx.availability.findFirst({
-        where: {
-          chefId: experience.chefId,
-          date: availabilityDate,
-        },
-      })
+      const availability = await getChefDateAvailabilityStatus(tx, experience.chefId, availabilityDate)
 
-      if (availability && (!availability.isAvailable || availability.currentBookings >= availability.maxBookings)) {
+      if (!availability.available) {
         throw new ApiError(400, 'No availability left for this date')
       }
 
@@ -301,21 +296,7 @@ export const bookingService = {
       })
 
       // Update availability with race condition prevention
-      const updateResult = availability
-        ? await tx.availability.updateMany({
-            where: {
-              id: availability.id,
-              currentBookings: availability.currentBookings // Ensure no concurrent modification
-            },
-            data: {
-              currentBookings: availability.currentBookings + 1,
-            },
-          })
-        : { count: 1 }
-
-      if (updateResult.count === 0) {
-        throw new ApiError(409, 'Race condition detected: Availability was modified by another request. Please try again.')
-      }
+      await incrementExplicitAvailabilityBookingCounts(tx, [availability])
 
       // Create notifications atomically
       await tx.notification.createMany({
@@ -339,6 +320,7 @@ export const bookingService = {
       return booking
     }, {
       timeout: 10000, // 10 second timeout for transaction
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     })
 
     // Emit event AFTER transaction succeeds (outside transaction)
@@ -380,25 +362,20 @@ export const bookingService = {
       requestedDate.getUTCMonth(),
       requestedDate.getUTCDate()
     ))
-    const availability = await prisma.availability.findFirst({
-      where: {
-        chefId: experience.chefId,
-        date: availabilityDate,
-      },
-    })
-
-    const explicitlyBlocked = availability && !availability.isAvailable
-    const remainingSlots = availability ? availability.maxBookings - availability.currentBookings : 1
+    const availability = await getChefDateAvailabilityStatus(prisma, experience.chefId, availabilityDate)
+    const remainingSlots = availability.explicitCapacity > 0
+      ? availability.explicitCapacity - Math.max(availability.explicitBookedCount, availability.activeBookingCount)
+      : 1 - availability.activeBookingCount
 
     return {
-      canBook: !explicitlyBlocked && remainingSlots > 0,
+      canBook: availability.available && remainingSlots > 0,
       remainingSlots: Math.max(remainingSlots, 0),
-      availability: availability
+      availability: availability.explicitCapacity > 0
         ? {
-            startTime: availability.startTime,
-            endTime: availability.endTime,
-            maxBookings: availability.maxBookings,
-            currentBookings: availability.currentBookings,
+            startTime: availability.displaySlot?.startTime ?? null,
+            endTime: availability.displaySlot?.endTime ?? null,
+            maxBookings: availability.explicitCapacity,
+            currentBookings: Math.max(availability.explicitBookedCount, availability.activeBookingCount),
           }
         : null,
     }

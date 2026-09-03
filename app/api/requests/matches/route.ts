@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { SmartMatchingService } from "@/lib/services/smart-matching-service"
 import { isPrismaConnectionError, prisma } from "@/lib/prisma"
+import { getChefDateAvailabilityStatuses } from "@/lib/services/default-availability"
 
 /**
  * GET /api/requests/matches
@@ -97,18 +98,11 @@ export async function GET(request: NextRequest) {
         : [request.eventDate.toISOString().slice(0, 10)]
     )))
 
-    const knownAvailability = requestedDates.length > 0
-      ? await prisma.availability.findMany({
-          where: {
-            chefId: chefProfile.id,
-            date: { in: requestedDates.map((date) => new Date(date)) },
-          },
-        })
+    const availabilityStatuses = requestedDates.length > 0
+      ? await getChefDateAvailabilityStatuses(prisma, chefProfile.id, requestedDates)
       : []
 
-    const availabilityByDate = new Map(
-      knownAvailability.map((slot) => [slot.date.toISOString().slice(0, 10), slot])
-    )
+    const availabilityByDate = new Map(availabilityStatuses.map((status) => [status.dateKey, status]))
 
     const availableRequests = nearbyRequests.filter((request) => {
       const dates = request.multiDayDates.length > 0
@@ -116,8 +110,8 @@ export async function GET(request: NextRequest) {
         : [request.eventDate.toISOString().slice(0, 10)]
 
       return dates.every((date) => {
-        const slot = availabilityByDate.get(date)
-        return !slot || (slot.isAvailable && slot.currentBookings < slot.maxBookings)
+        const status = availabilityByDate.get(date)
+        return status?.available ?? true
       })
     })
 

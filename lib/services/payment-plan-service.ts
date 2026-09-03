@@ -1,5 +1,5 @@
 import type Stripe from "stripe"
-import type { Prisma } from "@prisma/client"
+import { Prisma } from "@prisma/client"
 
 import { normalizeCurrency } from "@/lib/currency"
 import { prisma } from "@/lib/prisma"
@@ -35,6 +35,12 @@ import {
   type PaymentPlanType,
 } from "@/lib/payment-plan-rules"
 import { findBlockingProposalCheckoutLocks, releaseProposalCheckoutLocks } from "@/lib/services/proposal-checkout-locks"
+import {
+  getAvailabilityLockIds,
+  getBlockingAvailabilityStatus,
+  getChefDateAvailabilityStatuses,
+  incrementExplicitAvailabilityBookingCounts,
+} from "@/lib/services/default-availability"
 import { BookingStatus, ProposalStatus } from "@/types"
 
 type Tx = Prisma.TransactionClient
@@ -182,25 +188,20 @@ async function createPlanBookingWithoutLegacyPayment(input: {
         sortOrder: 0,
       }]
 
-  const availabilitySlots = []
-  for (const serviceDate of requestedServiceDates) {
-    const slot = await tx.availability.findFirst({
-      where: {
-        chefId: proposal.chefId,
-        date: serviceDate.date,
-        isAvailable: true,
-        currentBookings: { lt: tx.availability.fields.maxBookings },
-      },
-    })
-    if (!slot) {
-      throw new Error(`SLOT_NO_LONGER_AVAILABLE:${serviceDate.date.toISOString().slice(0, 10)}`)
-    }
-    availabilitySlots.push(slot)
+  const availabilityStatuses = await getChefDateAvailabilityStatuses(
+    tx,
+    proposal.chefId,
+    requestedServiceDates.map((serviceDate) => serviceDate.date)
+  )
+  const blockedAvailability = getBlockingAvailabilityStatus(availabilityStatuses)
+  if (blockedAvailability) {
+    throw new Error(`SLOT_NO_LONGER_AVAILABLE:${blockedAvailability.dateKey}`)
   }
+  const availabilityLockIds = getAvailabilityLockIds(availabilityStatuses)
 
   const blockingLocks = await findBlockingProposalCheckoutLocks({
     proposalId,
-    availabilityIds: availabilitySlots.map((slot) => slot.id),
+    availabilityIds: availabilityLockIds,
     tx,
   })
   if (blockingLocks.length) {
@@ -254,12 +255,7 @@ async function createPlanBookingWithoutLegacyPayment(input: {
     },
   })
 
-  for (const slot of availabilitySlots) {
-    await tx.availability.update({
-      where: { id: slot.id, currentBookings: { lt: tx.availability.fields.maxBookings } },
-      data: { currentBookings: { increment: 1 } },
-    })
-  }
+  await incrementExplicitAvailabilityBookingCounts(tx, availabilityStatuses)
 
   await tx.proposal.update({ where: { id: proposalId }, data: { status: ProposalStatus.BOOKED } })
   await tx.paymentPlan.update({ where: { id: paymentPlanId }, data: { bookingId: booking.id } })
@@ -749,6 +745,8 @@ export const paymentPlanService = {
           },
         })
       }
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     })
 
     logger.info("[PAYMENT_PLAN] Checkout session processed", {

@@ -4,6 +4,7 @@ import { filterChefsByRadius, geocodeAddress } from "@/lib/geo"
 import { isPrismaConnectionError, prisma, withPrismaReconnect } from "@/lib/prisma"
 import { applyPublicMinimumSpendFilter, derivePublicMinimumSpend, getActivePublicMinimumSpendRules } from "@/lib/public-chef-pricing"
 import { PUBLIC_COMPLETED_BOOKING_STATUSES, publicChefEligibilityWhere, serializePublicChef } from "@/lib/public-chef-view"
+import { getChefDateAvailabilityStatuses } from "@/lib/services/default-availability"
 
 function parseNumber(value: string | null) {
   if (!value) return null
@@ -277,29 +278,13 @@ export async function GET(request: NextRequest) {
     if (eventDate && publicChefs.length > 0) {
       const requestedDate = new Date(eventDate)
       if (!Number.isNaN(requestedDate.getTime())) {
-        const start = new Date(requestedDate)
-        start.setHours(0, 0, 0, 0)
-        const end = new Date(requestedDate)
-        end.setHours(23, 59, 59, 999)
+        const statuses = await Promise.all(publicChefs.map(async (chef) => {
+          const [status] = await getChefDateAvailabilityStatuses(prisma, chef.id, [requestedDate])
+          return [chef.id, status] as const
+        }))
+        const availabilityByChef = new Map(statuses)
 
-        const availability = await prisma.availability.findMany({
-          where: {
-            chefId: { in: publicChefs.map((chef) => chef.id) },
-            date: { gte: start, lte: end },
-          },
-          select: {
-            chefId: true,
-            isAvailable: true,
-            currentBookings: true,
-            maxBookings: true,
-          },
-        })
-        const availabilityByChef = new Map(availability.map((slot) => [slot.chefId, slot]))
-
-        publicChefs = publicChefs.filter((chef) => {
-          const slot = availabilityByChef.get(chef.id)
-          return !slot || (slot.isAvailable && slot.currentBookings < slot.maxBookings)
-        })
+        publicChefs = publicChefs.filter((chef) => availabilityByChef.get(chef.id)?.available ?? true)
       }
     }
 

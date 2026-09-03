@@ -96,8 +96,9 @@ describe("Pass C upload, login, and route stability contracts", () => {
     expect(alivePanel).not.toContain("No Availability Set For This Date")
     expect(calendar).toContain("available-default")
     expect(instantBookingService).toContain("const availabilityDate = new Date(Date.UTC")
-    expect(instantBookingService).toContain("availability && (!availability.isAvailable || availability.currentBookings >= availability.maxBookings)")
-    expect(instantBookingService).toContain("availability ? availability.maxBookings - availability.currentBookings : 1")
+    expect(instantBookingService).toContain("getChefDateAvailabilityStatus")
+    expect(instantBookingService).toContain("if (!availability.available)")
+    expect(instantBookingService).toContain("1 - availability.activeBookingCount")
   })
 
   it("keeps login disabled and visibly pending after successful auth until navigation takes over", () => {

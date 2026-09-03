@@ -14,7 +14,8 @@ export const HIGH_INTENT_WEIGHTS = {
   messagingEngagement: 15,
 } as const
 
-export const HIGH_INTENT_THRESHOLD = 45
+export const DEFAULT_HIGH_INTENT_THRESHOLD = 45
+export const HIGH_INTENT_THRESHOLD = DEFAULT_HIGH_INTENT_THRESHOLD
 
 const MS_PER_HOUR = 60 * 60 * 1000
 const MS_PER_DAY = 24 * MS_PER_HOUR
@@ -32,8 +33,18 @@ export type RequestUrgency = {
 export type HighIntentResult = {
   score: number
   qualifiesHighIntent: boolean
+  threshold: number
   signalCount: number
   internalReasons: string[]
+}
+
+export function getHighIntentThreshold() {
+  const configured = Number(process.env.CHEFACHEF_HIGH_INTENT_THRESHOLD)
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.min(100, Math.round(configured))
+  }
+
+  return DEFAULT_HIGH_INTENT_THRESHOLD
 }
 
 function toValidDate(value?: Date | string | null) {
@@ -170,9 +181,12 @@ export function evaluateHighIntent(input: {
     reasons.push("commercial basics present")
   }
 
+  const threshold = getHighIntentThreshold()
+
   return {
     score,
-    qualifiesHighIntent: score >= HIGH_INTENT_THRESHOLD,
+    qualifiesHighIntent: score >= threshold,
+    threshold,
     signalCount: reasons.length,
     internalReasons: reasons,
   }

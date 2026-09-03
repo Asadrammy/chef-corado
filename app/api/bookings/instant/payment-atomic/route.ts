@@ -3,6 +3,7 @@ import { z } from 'zod';
 import Stripe from 'stripe';
 import { authOptions } from '@/lib/auth';
 import { getServerSession } from 'next-auth';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { apiError, apiSuccess } from '@/lib/api-response';
 import { normalizeCurrency } from '@/lib/currency';
@@ -13,6 +14,7 @@ import { enforceClientCompliance } from '@/lib/security/legal-compliance';
 import { enforceChefModeration } from '@/lib/security/moderation-guard';
 import { validateExperienceBookingCounts } from '@/lib/booking-counts';
 import { getConfiguredAppBaseUrl } from '@/lib/site-config';
+import { getChefDateAvailabilityStatus, incrementExplicitAvailabilityBookingCounts } from '@/lib/services/default-availability';
 
 // Initialize Stripe
 const getStripeClient = () => {
@@ -99,14 +101,9 @@ export async function POST(request: NextRequest) {
         bookingDate.getUTCMonth(),
         bookingDate.getUTCDate()
       ));
-      const availability = await tx.availability.findFirst({
-        where: {
-          chefId: experience.chefId,
-          date: availabilityDate,
-        },
-      });
+      const availability = await getChefDateAvailabilityStatus(tx, experience.chefId, availabilityDate);
 
-      if (availability && (!availability.isAvailable || availability.currentBookings >= availability.maxBookings)) {
+      if (!availability.available) {
         throw new Error("No availability left for this date");
       }
 
@@ -172,15 +169,8 @@ export async function POST(request: NextRequest) {
         data: paymentData,
       });
 
-      // Step 7: Update availability (atomic)
-      if (availability) {
-        await tx.availability.update({
-          where: { id: availability.id },
-          data: {
-            currentBookings: availability.currentBookings + 1,
-          },
-        });
-      }
+      // Step 7: Update explicit availability capacity when a slot exists.
+      await incrementExplicitAvailabilityBookingCounts(tx, [availability]);
 
       return {
         booking,
@@ -190,6 +180,7 @@ export async function POST(request: NextRequest) {
       };
     }, {
       timeout: 15000, // 15 second timeout
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
 
     // Step 8: Create Stripe checkout session outside transaction
@@ -222,7 +213,7 @@ export async function POST(request: NextRequest) {
         bookingId: result.booking.id,
         paymentId: result.payment.id,
         bookingType: "INSTANT_ATOMIC",
-        ...(result.availability ? { availabilityId: result.availability.id } : {}),
+        ...(result.availability.reservableSlotIds[0] ? { availabilityId: result.availability.reservableSlotIds[0] } : {}),
         currency: normalizeCurrency((result.booking as any).currency || 'GBP'),
       },
       // CRITICAL: Add payment intent data for webhook processing

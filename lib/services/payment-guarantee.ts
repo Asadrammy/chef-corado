@@ -22,6 +22,12 @@ import {
   findBlockingProposalCheckoutLocks,
   releaseProposalCheckoutLocks,
 } from '@/lib/services/proposal-checkout-locks'
+import {
+  getAvailabilityLockIds,
+  getBlockingAvailabilityStatus,
+  getChefDateAvailabilityStatuses,
+  incrementExplicitAvailabilityBookingCounts,
+} from '@/lib/services/default-availability'
 import { BookingStatus, PaymentStatus, ProposalStatus } from '@/types'
 
 export interface PaymentGuaranteeResult {
@@ -89,34 +95,6 @@ export class PaymentGuarantee {
           }]
       const requestedDates = requestedServiceDates.map((item: { date: Date }) => item.date)
 
-      const availabilitySlots = []
-      for (const date of requestedDates) {
-        const slot = await tx.availability.findFirst({
-          where: {
-            chefId: proposal.chefId,
-            date,
-            isAvailable: true,
-            currentBookings: { lt: tx.availability.fields.maxBookings }
-          }
-        })
-
-        if (!slot) {
-          return { guaranteed: false, error: `Slot no longer available for ${date.toISOString().slice(0, 10)}` }
-        }
-
-        availabilitySlots.push(slot)
-      }
-
-      const blockingLocks = await findBlockingProposalCheckoutLocks({
-        proposalId,
-        availabilityIds: availabilitySlots.map((slot) => slot.id),
-        tx,
-      })
-
-      if (blockingLocks.length) {
-        return { guaranteed: false, error: 'Selected date is reserved by another active checkout' }
-      }
-
       // Step 2: Check if booking already exists (idempotency)
       const existingBooking = await tx.booking.findFirst({
         where: { proposalId },
@@ -139,6 +117,23 @@ export class PaymentGuarantee {
         } else {
           return { guaranteed: false, error: 'Booking exists but payment not confirmed' }
         }
+      }
+
+      const availabilityStatuses = await getChefDateAvailabilityStatuses(tx, proposal.chefId, requestedDates)
+      const blockedAvailability = getBlockingAvailabilityStatus(availabilityStatuses)
+      if (blockedAvailability) {
+        return { guaranteed: false, error: `Slot no longer available for ${blockedAvailability.dateKey}` }
+      }
+      const availabilityLockIds = getAvailabilityLockIds(availabilityStatuses)
+
+      const blockingLocks = await findBlockingProposalCheckoutLocks({
+        proposalId,
+        availabilityIds: availabilityLockIds,
+        tx,
+      })
+
+      if (blockingLocks.length) {
+        return { guaranteed: false, error: 'Selected date is reserved by another active checkout' }
       }
 
       // Step 3: Generate idempotency key
@@ -225,30 +220,7 @@ export class PaymentGuarantee {
         },
       })
 
-      // ATOMIC: Update availability to prevent overbooking
-      // Use the rechecked availability to ensure we're updating the correct record
-      for (const slot of availabilitySlots) {
-        const updatedAvailability = await tx.availability.update({
-          where: {
-            id: slot.id,
-            currentBookings: { lt: tx.availability.fields.maxBookings }
-          },
-          data: {
-            currentBookings: {
-              increment: 1
-            }
-          }
-        })
-
-        if (updatedAvailability.currentBookings > updatedAvailability.maxBookings) {
-          logger.error('[PAYMENT_GUARANTEE] Capacity constraint violation detected', {
-            availabilityId: updatedAvailability.id,
-            currentBookings: updatedAvailability.currentBookings,
-            maxBookings: updatedAvailability.maxBookings
-          })
-          throw new Error('CRITICAL: Capacity exceeded during update - database constraint violation')
-        }
-      }
+      await incrementExplicitAvailabilityBookingCounts(tx, availabilityStatuses)
 
       // ATOMIC: Update proposal status
       await tx.proposal.update({
@@ -267,7 +239,7 @@ export class PaymentGuarantee {
         paymentId: payment.id,
         proposalId,
         amount,
-        availabilityIds: availabilitySlots.map((slot) => slot.id),
+        availabilityIds: availabilityLockIds,
       })
 
       return {

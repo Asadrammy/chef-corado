@@ -24,6 +24,7 @@ import { notifyEligibleChefsAboutRequest } from "@/lib/services/request-notifica
 import { eventQueueService } from "@/lib/services/event-queue-service"
 import { EARLY_ACCESS_WINDOW_MS, evaluateChefRequestAccessForRecords } from "@/lib/services/request-eligibility-service"
 import { DIRECT_REQUEST_EXCLUSIVITY_MS } from "@/lib/services/direct-request-access"
+import { getBlockingAvailabilityStatus, getChefDateAvailabilityStatuses } from "@/lib/services/default-availability"
 
 const toDateKey = (date: Date | string) => new Date(date).toISOString().slice(0, 10)
 
@@ -31,20 +32,8 @@ async function requestHasAvailabilityConflictForChef(chefId: string, dates: Arra
   const uniqueDateKeys = [...new Set(dates.map(toDateKey))]
   if (uniqueDateKeys.length === 0) return false
 
-  const availability = await prisma.availability.findMany({
-    where: {
-      chefId,
-      date: { in: uniqueDateKeys.map((date) => new Date(date)) },
-    },
-    select: {
-      date: true,
-      isAvailable: true,
-      currentBookings: true,
-      maxBookings: true,
-    },
-  })
-
-  return availability.some((slot) => !slot.isAvailable || slot.currentBookings >= slot.maxBookings)
+  const statuses = await getChefDateAvailabilityStatuses(prisma, chefId, uniqueDateKeys)
+  return Boolean(getBlockingAvailabilityStatus(statuses))
 }
 
 const buildRequestTitle = (input: {

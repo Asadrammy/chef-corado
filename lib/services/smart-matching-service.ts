@@ -1,5 +1,6 @@
 import { calculateDistance } from "@/lib/geo"
 import { prisma } from "@/lib/prisma"
+import { getChefDateAvailabilityStatus } from "@/lib/services/default-availability"
 
 export interface MatchFactors {
   distance: number
@@ -267,28 +268,16 @@ export class SmartMatchingService {
       for (const date of dates) {
         const dayStart = new Date(date)
         dayStart.setHours(0, 0, 0, 0)
-        const dayEnd = new Date(date)
-        dayEnd.setHours(23, 59, 59, 999)
 
-        const availability = await prisma.availability.findFirst({
-          where: {
-            chefId: chef.id,
-            date: {
-              gte: dayStart,
-              lt: dayEnd,
-            },
-            isAvailable: true,
-            currentBookings: {
-              lt: prisma.availability.fields.maxBookings,
-            },
-          },
-        })
+        const availability = await getChefDateAvailabilityStatus(prisma, chef.id, dayStart)
 
-        if (availability) {
-          const bookingRatio = availability.currentBookings / availability.maxBookings
+        if (!availability.available) {
+          scores.push(0)
+        } else if (availability.explicitCapacity > 0) {
+          const bookingRatio = availability.explicitBookedCount / availability.explicitCapacity
           scores.push(Math.round(100 - bookingRatio * 30))
         } else {
-          scores.push(50)
+          scores.push(100)
         }
       }
 

@@ -36,10 +36,15 @@ const prisma = databaseUrl
     })
   : new PrismaClient()
 
-const writeMode = process.argv.includes("--write")
+const executeMode = process.argv.includes("--execute")
+const legacyWriteMode = process.argv.includes("--write")
+const ownerApproved = process.argv.includes("--owner-approved")
+const allowApproximate = process.argv.includes("--allow-approximate")
+const writeMode = executeMode || legacyWriteMode
 const target = process.argv.find((arg) => arg.startsWith("--target="))?.split("=")[1] ?? "all"
 const limitArg = process.argv.find((arg) => arg.startsWith("--limit="))?.split("=")[1]
 const limit = Number.isFinite(Number(limitArg)) && Number(limitArg) > 0 ? Math.floor(Number(limitArg)) : 50
+const googleApiKey = process.env.GOOGLE_GEOCODING_API_KEY || process.env.GOOGLE_MAPS_API_KEY
 
 const cityFallbacks = [
   { pattern: /\blondon\b/i, latitude: 51.5074, longitude: -0.1278, city: "London", region: "England" },
@@ -72,6 +77,52 @@ function fallbackFor(location, countryCode) {
   }
 }
 
+async function geocodeWithGoogle(location, countryCode) {
+  if (!googleApiKey) return null
+  const text = String(location ?? "").trim()
+  if (!text) return null
+
+  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json")
+  url.searchParams.set("address", text)
+  if (countryCode) {
+    url.searchParams.set("components", `country:${String(countryCode).toUpperCase() === "UK" ? "GB" : countryCode}`)
+  }
+  url.searchParams.set("key", googleApiKey)
+
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`GOOGLE_GEOCODING_HTTP_${response.status}`)
+  }
+  const payload = await response.json()
+  const result = payload.results?.[0]
+  const locationData = result?.geometry?.location
+  if (!locationData || typeof locationData.lat !== "number" || typeof locationData.lng !== "number") {
+    return null
+  }
+
+  return {
+    latitude: locationData.lat,
+    longitude: locationData.lng,
+    locationCity: result.address_components?.find((item) => item.types?.includes("postal_town") || item.types?.includes("locality"))?.long_name ?? null,
+    locationRegion: result.address_components?.find((item) => item.types?.includes("administrative_area_level_1"))?.long_name ?? null,
+    formattedAddress: result.formatted_address ?? text,
+    geocodingProvider: "google",
+    geocodingStatus: result.geometry?.location_type === "ROOFTOP" ? "ROOFTOP" : "APPROXIMATE",
+  }
+}
+
+async function resolveCoordinates(location, countryCode) {
+  const google = await geocodeWithGoogle(location, countryCode)
+  if (google) return google
+  return fallbackFor(location, countryCode)
+}
+
+function canWriteResult(result) {
+  if (!result) return false
+  if (result.geocodingProvider === "google") return true
+  return allowApproximate && process.env.NODE_ENV !== "production"
+}
+
 async function reconcileChefProfiles() {
   const rows = await prisma.chefProfile.findMany({
     where: {
@@ -89,11 +140,12 @@ async function reconcileChefProfiles() {
 
   const reconciled = []
   for (const row of rows) {
-    const fallback = fallbackFor(row.location, row.baseCountryCode)
-    if (!fallback) continue
-    reconciled.push({ model: "ChefProfile", id: row.id, userId: row.userId, status: fallback.geocodingStatus, city: fallback.locationCity })
+    const coordinates = await resolveCoordinates(row.location, row.baseCountryCode)
+    if (!coordinates) continue
+    reconciled.push({ model: "ChefProfile", id: row.id, userId: row.userId, provider: coordinates.geocodingProvider, status: coordinates.geocodingStatus, city: coordinates.locationCity, writeEligible: canWriteResult(coordinates) })
     if (writeMode) {
-      await prisma.chefProfile.update({ where: { id: row.id }, data: fallback })
+      if (!canWriteResult(coordinates)) throw new Error(`Refusing approximate production geocoding write for ChefProfile ${row.id}`)
+      await prisma.chefProfile.update({ where: { id: row.id }, data: coordinates })
     }
   }
 
@@ -116,11 +168,12 @@ async function reconcileRequests() {
 
   const reconciled = []
   for (const row of rows) {
-    const fallback = fallbackFor(row.location, row.countryCode)
-    if (!fallback) continue
-    reconciled.push({ model: "Request", id: row.id, clientId: row.clientId, status: fallback.geocodingStatus, city: fallback.locationCity })
+    const coordinates = await resolveCoordinates(row.location, row.countryCode)
+    if (!coordinates) continue
+    reconciled.push({ model: "Request", id: row.id, clientId: row.clientId, provider: coordinates.geocodingProvider, status: coordinates.geocodingStatus, city: coordinates.locationCity, writeEligible: canWriteResult(coordinates) })
     if (writeMode) {
-      await prisma.request.update({ where: { id: row.id }, data: fallback })
+      if (!canWriteResult(coordinates)) throw new Error(`Refusing approximate production geocoding write for Request ${row.id}`)
+      await prisma.request.update({ where: { id: row.id }, data: coordinates })
     }
   }
 
@@ -128,6 +181,9 @@ async function reconcileRequests() {
 }
 
 async function main() {
+  if (writeMode && !ownerApproved) {
+    throw new Error("Refusing geocoding writes without --owner-approved. Run dry-run first, then use --execute --owner-approved only after approval.")
+  }
   if (process.env.NODE_ENV === "production" && writeMode && process.env.ALLOW_PRODUCTION_GEOCODING_RECONCILE !== "true") {
     throw new Error("Refusing production write without ALLOW_PRODUCTION_GEOCODING_RECONCILE=true")
   }
@@ -139,6 +195,7 @@ async function main() {
   console.log(JSON.stringify({
     mode: writeMode ? "write" : "dry-run",
     target,
+    provider: googleApiKey ? "google" : "local-uk-fallback-dry-run",
     count: results.length,
     results,
   }, null, 2))

@@ -1,5 +1,6 @@
 import { calculateDistance } from "@/lib/geo"
 import { prisma } from "@/lib/prisma"
+import { getBlockingAvailabilityStatus, getChefDateAvailabilityStatuses } from "@/lib/services/default-availability"
 
 export type ChefRequestMatchingCandidate = {
   id: string
@@ -133,20 +134,8 @@ function getRequestedDateKeys(request: ChefRequestMatchingRequest) {
 async function hasAvailabilityConflict(chefId: string, dateKeys: string[]) {
   if (dateKeys.length === 0) return false
 
-  const availability = await prisma.availability.findMany({
-    where: {
-      chefId,
-      date: { in: dateKeys.map((date) => new Date(date)) },
-    },
-    select: {
-      date: true,
-      isAvailable: true,
-      currentBookings: true,
-      maxBookings: true,
-    },
-  })
-
-  return availability.some((slot) => !slot.isAvailable || slot.currentBookings >= slot.maxBookings)
+  const statuses = await getChefDateAvailabilityStatuses(prisma, chefId, dateKeys)
+  return Boolean(getBlockingAvailabilityStatus(statuses))
 }
 
 export async function evaluateChefRequestMatch(

@@ -16,6 +16,11 @@ import {
   acquireProposalCheckoutLocks,
   releaseProposalCheckoutLocks,
 } from "@/lib/services/proposal-checkout-locks"
+import {
+  getAvailabilityLockIds,
+  getBlockingAvailabilityStatus,
+  getChefDateAvailabilityStatuses,
+} from "@/lib/services/default-availability"
 import { paymentPlanService } from "@/lib/services/payment-plan-service"
 import {
   fromMinorUnits,
@@ -170,27 +175,23 @@ export async function POST(request: Request) {
       ? proposal.request.multiDayDates.map((item) => item.date)
       : [proposal.request.eventDate]
 
-    const availabilitySlots = await prisma.availability.findMany({
-      where: {
-        chefId: proposal.chefId,
-        date: { in: requestedDates },
-        isAvailable: true,
-        currentBookings: { lt: prisma.availability.fields.maxBookings }
-      }
-    })
-    
-    if (availabilitySlots.length !== requestedDates.length) {
+    const availabilityStatuses = await getChefDateAvailabilityStatuses(prisma, proposal.chefId, requestedDates)
+    const blockedAvailability = getBlockingAvailabilityStatus(availabilityStatuses)
+
+    if (blockedAvailability) {
       logger.warn('[PAYMENT_CHECKOUT] Slot no longer available', { 
         proposalId: payload.proposalId,
-        eventDates: requestedDates.map((date) => date.toISOString().slice(0, 10)),
+        eventDate: blockedAvailability.dateKey,
+        reason: blockedAvailability.reason,
         chefId: proposal.chefId
       })
       return apiError("CONFLICT", "Slot no longer available", 409)
     }
+    const availabilityLockIds = getAvailabilityLockIds(availabilityStatuses)
 
     const checkoutLocks = await acquireProposalCheckoutLocks({
       proposalId: payload.proposalId,
-      availabilityIds: availabilitySlots.map((slot) => slot.id),
+      availabilityIds: availabilityLockIds,
       ttlSeconds: PROPOSAL_CHECKOUT_LOCK_TTL_SECONDS,
     })
 
@@ -200,7 +201,7 @@ export async function POST(request: Request) {
     
     logger.info('[PAYMENT_CHECKOUT] Capacity check passed', { 
       proposalId: payload.proposalId,
-      availabilityIds: availabilitySlots.map((slot) => slot.id),
+      availabilityIds: availabilityLockIds,
     })
 
   const amount = Number(proposal.price)
