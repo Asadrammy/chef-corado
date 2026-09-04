@@ -95,14 +95,71 @@ function hasMeaningfulValue(value: unknown): boolean {
   return String(value).trim().length > 0
 }
 
-function getRequestGuestCount(request: any) {
-  const actualAttendeeCount = Number(request.actualAttendeeCount)
-  if (Number.isFinite(actualAttendeeCount) && actualAttendeeCount > 0) return actualAttendeeCount
+function hasActivePaymentEvidence(value: any, seen = new WeakSet<object>()): boolean {
+  if (!value) return false
+  if (Array.isArray(value)) return value.some((item) => hasActivePaymentEvidence(item, seen))
+  if (typeof value !== "object") return false
+  if (seen.has(value)) return false
+  seen.add(value)
 
-  const guestCount = Number(request.guestCount)
-  if (Number.isFinite(guestCount) && guestCount > 0) return guestCount
+  const status = String(value.status ?? "").toUpperCase()
+  const planType = String(value.planType ?? "").toUpperCase()
+  const installmentStatus = String(value.paymentStatus ?? value.installmentStatus ?? "").toUpperCase()
 
-  return null
+  if ([
+    "PAID",
+    "HELD",
+    "DEPOSIT_PAID",
+    "PARTIALLY_PAID",
+    "BALANCE_SCHEDULED",
+    "FULLY_PAID",
+    "PROCESSING",
+    "SUCCEEDED",
+  ].includes(status) || ["PAID", "PROCESSING", "SUCCEEDED"].includes(installmentStatus)) {
+    return true
+  }
+
+  if (["DEPOSIT", "SPLIT_BILL", "FULL_PAYMENT"].includes(planType)) return true
+  if (value.stripePaymentIntentId || value.stripeCheckoutSessionId || value.stripeSetupIntentId) return true
+  if (Number(value.paidAmountMinor) > 0) return true
+
+  return hasActivePaymentEvidence(value.payment, seen) ||
+    hasActivePaymentEvidence(value.payments, seen) ||
+    hasActivePaymentEvidence(value.paymentPlan, seen) ||
+    hasActivePaymentEvidence(value.paymentPlans, seen) ||
+    hasActivePaymentEvidence(value.installments, seen) ||
+    hasActivePaymentEvidence(value.splitShares, seen) ||
+    hasActivePaymentEvidence(value.booking, seen) ||
+    hasActivePaymentEvidence(value.bookings, seen) ||
+    hasActivePaymentEvidence(value.proposals, seen)
+}
+
+function hasMessagingEvidence(value: any, seen = new WeakSet<object>()): boolean {
+  if (!value) return false
+  if (Array.isArray(value)) return value.some((item) => hasMessagingEvidence(item, seen))
+  if (typeof value !== "object") return false
+  if (seen.has(value)) return false
+  seen.add(value)
+
+  const messages = value.messages ?? value.conversationMessages
+  if (Array.isArray(messages) && messages.length > 0) return true
+  if (Number(value.messageCount ?? value._count?.messages) > 0) return true
+
+  return hasMessagingEvidence(value.booking, seen) ||
+    hasMessagingEvidence(value.bookings, seen) ||
+    hasMessagingEvidence(value.conversation, seen) ||
+    hasMessagingEvidence(value.conversations, seen) ||
+    hasMessagingEvidence(value.proposals, seen)
+}
+
+function hasInstantBookEvidence(request: any, explicit?: boolean) {
+  return Boolean(explicit) ||
+    request.requestMode === "INSTANT" ||
+    request.bookingType === "INSTANT" ||
+    request.instantBook === true ||
+    request.isInstantBooking === true ||
+    request.booking?.bookingType === "INSTANT" ||
+    (Array.isArray(request.bookings) && request.bookings.some((booking: any) => booking?.bookingType === "INSTANT"))
 }
 
 export function getRequestUrgency(input: {
@@ -165,21 +222,16 @@ export function evaluateHighIntent(input: {
   const serviceAnswers = parseRecord(request.serviceSpecificAnswers)
   const urgency = getRequestUrgency({ eventDate: request.eventDate, now: input.now })
   const client = request.client ?? {}
-  const guestCount = getRequestGuestCount(request)
 
-  add(Boolean(input.paymentActivity), "paymentActivity", "payment activity")
-  add(Boolean(input.instantBook) || request.requestMode === "INSTANT", "instantBook", "instant book path")
+  add(Boolean(input.paymentActivity) || hasActivePaymentEvidence(request), "paymentActivity", "payment activity")
+  add(hasInstantBookEvidence(request, input.instantBook), "instantBook", "instant book path")
   add(dietary.length > 0, "dietaryOrAllergyDetail", "dietary or allergy detail")
   add(Object.values(serviceAnswers).some(hasMeaningfulValue) || Boolean(request.details?.trim()), "kitchenOrServiceDetail", "service brief detail")
   add(cuisines.length > 0, "cuisineSpecificity", "specific cuisine selected")
   add(hasExactUkPostcode(request), "exactUkPostcode", "exact UK postcode")
   add((urgency.daysUntilEvent ?? Number.POSITIVE_INFINITY) >= 2 && (urgency.daysUntilEvent ?? 0) <= 14, "tightBookingWindow", "event within 2-14 days")
   add(Boolean(client.verified), "verifiedEmail", "verified email")
-  add(Boolean(input.messagingEngagement), "messagingEngagement", "message engagement")
-
-  if (guestCount != null && guestCount >= 1 && request.budget > 0) {
-    reasons.push("commercial basics present")
-  }
+  add(Boolean(input.messagingEngagement) || hasMessagingEvidence(request), "messagingEngagement", "message engagement")
 
   const threshold = getHighIntentThreshold()
 

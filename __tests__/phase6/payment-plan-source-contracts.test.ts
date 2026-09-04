@@ -16,14 +16,14 @@ describe("Pass 2 payment and amendment source contracts", () => {
     expect(reconciliation).toContain("not reconciled through legacy Payment")
   })
 
-  it("uses one server-side 42-day eligibility function for the flexible-payment window", () => {
+  it("uses one server-side 35-day eligibility function for the flexible-payment window", () => {
     const checkout = readSource("app/api/payments/checkout/route.ts")
     const validation = readSource("app/api/payments/validate/[proposalId]/route.ts")
     const rules = readSource("lib/payment-plan-rules.ts")
 
-    expect(rules).toContain("DEFAULT_FLEXIBLE_PAYMENT_WINDOW_DAYS = 42")
-    expect(rules).toContain("CHEFACHEF_FLEXIBLE_PAYMENT_WINDOW_DAYS = 42")
-    expect(rules).toContain(">= FLEXIBLE_PAYMENT_WINDOW_DAYS")
+    expect(rules).toContain("DEFAULT_FLEXIBLE_PAYMENT_WINDOW_DAYS = 35")
+    expect(rules).toContain("CHEFACHEF_FLEXIBLE_PAYMENT_WINDOW_DAYS = 35")
+    expect(rules).toContain("> FLEXIBLE_PAYMENT_WINDOW_DAYS")
     expect(rules).toContain("getPaymentEligibility")
     expect(checkout).toContain("paymentPlanService.createOrReusePlan")
     expect(validation).toContain("paymentPlanService.getEligibilityForProposal")

@@ -62,8 +62,8 @@ export const GUEST_AMENDMENT_STATUS = {
 
 export type PaymentPlanType = typeof PAYMENT_PLAN_TYPES[keyof typeof PAYMENT_PLAN_TYPES]
 
-export const DEFAULT_FLEXIBLE_PAYMENT_WINDOW_DAYS = 42
-export const CHEFACHEF_FLEXIBLE_PAYMENT_WINDOW_DAYS = 42
+export const DEFAULT_FLEXIBLE_PAYMENT_WINDOW_DAYS = 35
+export const CHEFACHEF_FLEXIBLE_PAYMENT_WINDOW_DAYS = 35
 export const FLEXIBLE_PAYMENT_WINDOW_DAYS = CHEFACHEF_FLEXIBLE_PAYMENT_WINDOW_DAYS
 export const BALANCE_DUE_DAYS_BEFORE_EVENT = 30
 export const BALANCE_RETRY_INTERVAL_DAYS = 3
@@ -159,7 +159,7 @@ export function getPaymentEligibility(input: {
   now?: Date
 }) {
   const anchorDate = getCommercialDeadlineAnchor(input)
-  const flexiblePaymentEligible = daysUntil(anchorDate, input.now ?? new Date()) >= FLEXIBLE_PAYMENT_WINDOW_DAYS
+  const flexiblePaymentEligible = daysUntil(anchorDate, input.now ?? new Date()) > FLEXIBLE_PAYMENT_WINDOW_DAYS
   const balanceDueAt = addDays(anchorDate, -BALANCE_DUE_DAYS_BEFORE_EVENT)
   const availablePlanTypes: PaymentPlanType[] = flexiblePaymentEligible
     ? [PAYMENT_PLAN_TYPES.DEPOSIT, PAYMENT_PLAN_TYPES.SPLIT_BILL, PAYMENT_PLAN_TYPES.FULL_PAYMENT]

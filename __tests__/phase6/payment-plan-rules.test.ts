@@ -9,18 +9,19 @@ import {
   sumMinorUnits,
   toMinorUnits,
 } from "@/lib/payment-plan-rules"
+import { getRequestUrgency } from "@/lib/request-priority"
 
 describe("Pass 2 payment plan rules", () => {
   const now = new Date("2026-08-13T12:00:00.000Z")
   const msPerDay = 24 * 60 * 60 * 1000
 
-  it("keeps the flexible-payment eligibility threshold at the client-confirmed 42 days", () => {
-    expect(FLEXIBLE_PAYMENT_WINDOW_DAYS).toBe(42)
+  it("keeps the flexible-payment eligibility threshold at the client-confirmed 35 days", () => {
+    expect(FLEXIBLE_PAYMENT_WINDOW_DAYS).toBe(35)
   })
 
-  it("offers deposit, split bill, and full payment from 6 weeks / 42 days onwards", () => {
+  it("offers deposit, split bill, and full payment when the event is more than 5 weeks away", () => {
     const result = getPaymentEligibility({
-      eventDate: new Date(now.getTime() + FLEXIBLE_PAYMENT_WINDOW_DAYS * msPerDay),
+      eventDate: new Date(now.getTime() + 36 * msPerDay),
       now,
     })
 
@@ -32,9 +33,9 @@ describe("Pass 2 payment plan rules", () => {
     ])
   })
 
-  it("makes full payment mandatory when the event is less than 6 weeks away", () => {
+  it("makes full payment mandatory when the event is 35 days or fewer away", () => {
     const result = getPaymentEligibility({
-      eventDate: new Date(now.getTime() + FLEXIBLE_PAYMENT_WINDOW_DAYS * msPerDay - 1),
+      eventDate: new Date(now.getTime() + FLEXIBLE_PAYMENT_WINDOW_DAYS * msPerDay),
       now,
     })
 
@@ -43,17 +44,44 @@ describe("Pass 2 payment plan rules", () => {
     expect(result.mandatoryPlanType).toBe(PAYMENT_PLAN_TYPES.FULL_PAYMENT)
   })
 
+  it("does not apply the old 6-week restriction at 36 days", () => {
+    const result = getPaymentEligibility({
+      eventDate: new Date(now.getTime() + 36 * msPerDay),
+      now,
+    })
+
+    expect(result.flexiblePaymentEligible).toBe(true)
+    expect(result.mandatoryPlanType).toBeNull()
+  })
+
+  it("keeps 35-day urgent classification aligned while last-minute remains 24-72 hours", () => {
+    expect(getRequestUrgency({
+      eventDate: new Date(now.getTime() + 35 * msPerDay),
+      now,
+    })).toMatchObject({ isUrgent: true, tier: "URGENT" })
+
+    expect(getRequestUrgency({
+      eventDate: new Date(now.getTime() + 36 * msPerDay),
+      now,
+    })).toMatchObject({ isUrgent: false, tier: "STANDARD" })
+
+    expect(getRequestUrgency({
+      eventDate: new Date(now.getTime() + 72 * 60 * 60 * 1000),
+      now,
+    })).toMatchObject({ isUrgent: true, tier: "LAST_MINUTE" })
+  })
+
   it("uses the earliest Multi-Day service date as the commercial anchor", () => {
     const result = getPaymentEligibility({
       eventDate: new Date("2026-11-01T12:00:00.000Z"),
       serviceDates: [
         new Date("2026-11-03T12:00:00.000Z"),
-        new Date(now.getTime() + FLEXIBLE_PAYMENT_WINDOW_DAYS * msPerDay),
+        new Date(now.getTime() + 36 * msPerDay),
       ],
       now,
     })
 
-    expect(result.eventAnchorDate.toISOString()).toBe("2026-09-24T12:00:00.000Z")
+    expect(result.eventAnchorDate.toISOString()).toBe("2026-09-18T12:00:00.000Z")
     expect(result.availablePlanTypes).toEqual([
       PAYMENT_PLAN_TYPES.DEPOSIT,
       PAYMENT_PLAN_TYPES.SPLIT_BILL,

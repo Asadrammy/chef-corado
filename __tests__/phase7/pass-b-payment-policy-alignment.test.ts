@@ -6,14 +6,14 @@ function readSource(relativePath: string) {
 }
 
 describe("Pass B latest payment policy alignment", () => {
-  it("does not leave the old 5-week eligibility ambiguity in active public or source contracts", () => {
+  it("uses the client-confirmed 5-week eligibility boundary in active public and source contracts", () => {
     const rules = readSource("lib/payment-plan-rules.ts")
     const faq = readSource("app/(public)/faq/page.tsx")
 
-    expect(rules).toContain("CHEFACHEF_FLEXIBLE_PAYMENT_WINDOW_DAYS = 42")
-    expect(faq).toContain("6 weeks / 42 days")
-    expect(faq).not.toContain("5 weeks")
-    expect(faq).not.toContain("5 weeks versus 6 weeks")
+    expect(rules).toContain("CHEFACHEF_FLEXIBLE_PAYMENT_WINDOW_DAYS = 35")
+    expect(faq).toContain("5 weeks / 35 days")
+    expect(faq).not.toContain(["6", "weeks", "/", "42", "days"].join(" "))
+    expect(faq).not.toContain(["5", "weeks", "versus", "6", "weeks"].join(" "))
   })
 
   it("keeps payment-plan recovery auditable and non-destructive", () => {

@@ -84,6 +84,47 @@ describe("final remediation implementation contracts", () => {
     expect(result.internalReasons.join(" ")).not.toMatch(/phone|whatsapp/i)
   })
 
+  it("uses only the client-provided high intent signals when later-stage evidence is loaded", () => {
+    const result = evaluateHighIntent({
+      now: new Date("2026-09-03T12:00:00.000Z"),
+      request: {
+        eventDate: "2026-09-12T18:00:00.000Z",
+        location: "SW1A 1AA London",
+        countryCode: "GB",
+        requestMode: "INSTANT",
+        cuisineTypes: JSON.stringify(["Italian"]),
+        dietaryRequirements: JSON.stringify(["Nut allergy"]),
+        serviceSpecificAnswers: JSON.stringify({ kitchen: "Domestic kitchen" }),
+        budget: 800,
+        guestCount: 8,
+        client: { verified: true, phoneVerified: true, whatsappVerified: true },
+        proposals: [
+          {
+            paymentPlan: {
+              planType: "SPLIT_BILL",
+              paidAmountMinor: 20000,
+              installments: [{ status: "PAID" }],
+            },
+            messages: [{ id: "message-1" }],
+          },
+        ],
+      },
+    })
+
+    expect(result.internalReasons).toEqual(expect.arrayContaining([
+      "payment activity",
+      "instant book path",
+      "dietary or allergy detail",
+      "service brief detail",
+      "specific cuisine selected",
+      "exact UK postcode",
+      "event within 2-14 days",
+      "verified email",
+      "message engagement",
+    ]))
+    expect(result.internalReasons.join(" ")).not.toMatch(/phone|whatsapp/i)
+  })
+
   it("uses a UK fallback geocoder when external geocoding is not configured", async () => {
     const google = process.env.GOOGLE_GEOCODING_API_KEY
     const mapbox = process.env.MAPBOX_GEOCODING_TOKEN

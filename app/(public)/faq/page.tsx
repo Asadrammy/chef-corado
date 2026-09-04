@@ -74,7 +74,7 @@ const faqItems = [
   {
     category: "Payments and cancellation",
     question: "What payment options are available to book a private chef?",
-    answer: "The application is Stripe-ready and supports checkout once valid Stripe credentials are configured. Bookings 6 weeks / 42 days or more before the earliest service date can use the approved 20% deposit and 80% later-payment policy where the configured payment provider supports that schedule. Bookings less than 6 weeks away require full payment.",
+    answer: "The application is Stripe-ready and supports checkout once valid Stripe credentials are configured. Bookings more than 5 weeks / 35 days before the earliest service date can use the approved 20% deposit and 80% later-payment policy where the configured payment provider supports that schedule. Bookings 5 weeks / 35 days or fewer away require full payment.",
   },
   {
     category: "Chef payouts",
