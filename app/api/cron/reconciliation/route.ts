@@ -11,6 +11,10 @@ export async function GET(request: NextRequest) {
   // Security: Only allow cron job or admin access
   const authHeader = request.headers.get('authorization')
   const cronAuth = process.env.CRON_SECRET
+
+  if (!cronAuth) {
+    return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 })
+  }
   
   // Check if it's a cron job or admin
   if (authHeader !== `Bearer ${cronAuth}`) {
