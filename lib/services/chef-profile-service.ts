@@ -1,4 +1,4 @@
-import { geocodeAddress } from "@/lib/geo"
+import { geocodeAddress, shouldPersistGeocodeResult } from "@/lib/geo"
 import { chefProfileRepository } from "@/lib/repositories/chef-profile-repository"
 import { prisma } from "@/lib/prisma"
 import { enforceUserModeration } from "@/lib/security/moderation-guard"
@@ -116,7 +116,8 @@ export const chefProfileService = {
       certifications: input.certifications,
     })
 
-    const coordinates = await geocodeAddress(input.location, input.baseCountryCode)
+    const geocodeResult = await geocodeAddress(input.location, input.baseCountryCode)
+    const coordinates = shouldPersistGeocodeResult(geocodeResult) ? geocodeResult : null
     await chefProfileRepository.createForUser(userId, {
       ...input,
       careerStage: normalizeChefCareerStage(input.careerStage, input.chefType) ?? null,
@@ -159,7 +160,8 @@ export const chefProfileService = {
         geocodingStatus: true,
       },
     })
-    const coordinates = await geocodeAddress(input.location, input.baseCountryCode)
+    const geocodeResult = await geocodeAddress(input.location, input.baseCountryCode)
+    const coordinates = shouldPersistGeocodeResult(geocodeResult) ? geocodeResult : null
     const locationUnchanged =
       existingProfile?.location === input.location &&
       existingProfile?.baseCountryCode === input.baseCountryCode

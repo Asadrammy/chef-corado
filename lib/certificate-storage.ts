@@ -113,6 +113,10 @@ export async function uploadCertificate(input: CertificateStorageUploadInput) {
     return uploadToCloudinary(input)
   }
 
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("DURABLE_CERTIFICATE_STORAGE_NOT_CONFIGURED")
+  }
+
   return uploadToLocalPrivateStorage(input)
 }
 

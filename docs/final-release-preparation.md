@@ -55,16 +55,11 @@ node scripts/reconcile-geocoding.cjs --target=all --limit=50 --execute --owner-a
 
 Approximate local UK fallback coordinates are for testing only. Production writes refuse approximate fallback coordinates unless the environment is non-production and `--allow-approximate` is provided.
 
-## Rue Recovery
+## Rue Account Decision
 
-Do not create another Rue account. Recovery requires:
+The client closed the old Rue recovery question on 7 September 2026. Use the current `rue@bearlyknows.com` Chef account as the canonical Rue QA account.
 
-1. Pre-2 September database backup or snapshot.
-2. Temporary isolated restore.
-3. Identification of the original Rue `User` and `ChefProfile`.
-4. Foreign-key map for proposals, request invitations, messages, menus, experiences, bookings, reviews, notifications, payments, payouts, and audit logs.
-5. Owner-approved targeted restoration plan.
-6. Dry-run report before any write.
+Do not create another Rue account, merge old/new Rue accounts, request a pre-2 September backup for Rue recovery, or run historical Rue restoration unless the client explicitly reopens that decision later.
 
 ## Browser QA Checklist
 

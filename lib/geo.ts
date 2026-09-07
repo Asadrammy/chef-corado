@@ -69,6 +69,19 @@ export function normalizeAddress(address: string, countryCode?: string): string 
   return [address, countryCode].filter(Boolean).join(", ").replace(/\s+/g, " ").trim()
 }
 
+export function isProductionGradeGeocodeResult(result: GeocodeResult | null | undefined) {
+  return Boolean(result && result.status === "VERIFIED")
+}
+
+export function shouldPersistGeocodeResult(result: GeocodeResult | null | undefined) {
+  if (!result) return false
+  if (process.env.NODE_ENV === "production") {
+    return isProductionGradeGeocodeResult(result)
+  }
+
+  return true
+}
+
 function getGoogleApiKey() {
   return process.env.GOOGLE_GEOCODING_API_KEY || process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
 }

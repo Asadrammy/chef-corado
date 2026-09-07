@@ -21,6 +21,7 @@ jest.mock("../../lib/prisma", () => ({
 
 jest.mock("../../lib/geo", () => ({
   geocodeAddress: (...args: unknown[]) => mockGeocodeAddress(...args),
+  shouldPersistGeocodeResult: (result: any) => result?.status === "VERIFIED",
 }))
 
 jest.mock("../../lib/security/moderation-guard", () => ({
@@ -127,6 +128,7 @@ describe("request editing service", () => {
       region: "London",
       formattedAddress: "London, UK",
       provider: "geocode",
+      status: "VERIFIED",
     })
   })
 

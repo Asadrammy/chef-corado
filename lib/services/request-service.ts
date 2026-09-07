@@ -1,4 +1,4 @@
-import { calculateDistance, geocodeAddress } from "@/lib/geo"
+import { calculateDistance, geocodeAddress, shouldPersistGeocodeResult } from "@/lib/geo"
 import {
   SERVICE_TYPE_REGISTRY_VERSION,
   calculateGuestComposition,
@@ -158,7 +158,7 @@ export const requestService = {
       eventDate: input.eventDate,
       location: input.location,
     })
-    const coordinates = input.latitude != null && input.longitude != null
+    const geocodeResult = input.latitude != null && input.longitude != null
       ? {
           latitude: input.latitude,
           longitude: input.longitude,
@@ -166,6 +166,7 @@ export const requestService = {
           status: "VERIFIED" as const,
         }
       : await geocodeAddress(input.location, input.country)
+    const coordinates = shouldPersistGeocodeResult(geocodeResult) ? geocodeResult : null
 
     let directChef: any = null
     if (input.targetChefId) {
@@ -493,7 +494,7 @@ export const requestService = {
       eventDate: input.eventDate,
       location: input.location,
     })
-    const coordinates = input.latitude != null && input.longitude != null
+    const geocodeResult = input.latitude != null && input.longitude != null
       ? {
           latitude: input.latitude,
           longitude: input.longitude,
@@ -501,6 +502,7 @@ export const requestService = {
           status: "VERIFIED" as const,
         }
       : await geocodeAddress(input.location, input.country)
+    const coordinates = shouldPersistGeocodeResult(geocodeResult) ? geocodeResult : null
 
     return prisma.request.update({
       where: {
@@ -681,7 +683,8 @@ export const requestService = {
       fallbackGuestCount: input.guestCount,
     })
     const currency = getCurrencyForCountry(input.country)
-    const coordinates = await geocodeAddress(input.location, input.country)
+    const geocodeResult = await geocodeAddress(input.location, input.country)
+    const coordinates = shouldPersistGeocodeResult(geocodeResult) ? geocodeResult : null
     const serviceConfig = getServiceTypeOption(input.serviceType)
     if (!serviceConfig?.enabled) {
       throw new Error("INVALID_SERVICE_TYPE")

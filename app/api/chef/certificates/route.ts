@@ -77,6 +77,13 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("Certificate upload failed", error)
+    if (error instanceof Error && error.message === "DURABLE_CERTIFICATE_STORAGE_NOT_CONFIGURED") {
+      return NextResponse.json(
+        { error: "Certificate storage is not configured. Please try again after secure file storage is enabled." },
+        { status: 503 }
+      )
+    }
+
     return NextResponse.json({ error: "Failed to upload certificate" }, { status: 500 })
   }
 }

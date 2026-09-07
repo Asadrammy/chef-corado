@@ -1,6 +1,6 @@
 /// <reference types="jest" />
 
-import { calculateDistance, filterChefsByRadius, geocodeAddress } from "@/lib/geo"
+import { calculateDistance, filterChefsByRadius, geocodeAddress, shouldPersistGeocodeResult } from "@/lib/geo"
 
 const originalEnv = process.env
 
@@ -107,5 +107,23 @@ describe("Phase 1 geocoding and radius matching", () => {
         25
       ).map((match) => match.id)
     ).toEqual(["near"])
+  })
+
+  it("does not allow approximate fallback coordinates to masquerade as production-grade locations", () => {
+    Object.assign(process.env, { NODE_ENV: "production" })
+
+    expect(shouldPersistGeocodeResult({
+      latitude: 51.5074,
+      longitude: -0.1278,
+      provider: "local-uk-fallback",
+      status: "APPROXIMATE",
+    })).toBe(false)
+
+    expect(shouldPersistGeocodeResult({
+      latitude: 51.5101,
+      longitude: -0.0837,
+      provider: "google",
+      status: "VERIFIED",
+    })).toBe(true)
   })
 })

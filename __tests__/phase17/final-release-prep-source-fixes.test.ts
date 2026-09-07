@@ -112,12 +112,28 @@ describe("final release preparation source fixes", () => {
 
   it("keeps geocoding reconciliation dry-run first and owner-gated for writes", () => {
     const script = read("scripts/reconcile-geocoding.cjs")
+    const geo = read("lib/geo.ts")
+    const chefProfileService = read("lib/services/chef-profile-service.ts")
+    const requestService = read("lib/services/request-service.ts")
 
     expect(script).toContain("mode: writeMode ? \"write\" : \"dry-run\"")
     expect(script).toContain("--owner-approved")
     expect(script).toContain("GOOGLE_GEOCODING_API_KEY")
     expect(script).toContain("Refusing geocoding writes without --owner-approved")
     expect(script).toContain("Refusing approximate production geocoding write")
+    expect(geo).toContain("shouldPersistGeocodeResult")
+    expect(geo).toContain('process.env.NODE_ENV === "production"')
+    expect(chefProfileService).toContain("shouldPersistGeocodeResult(geocodeResult)")
+    expect(requestService).toContain("shouldPersistGeocodeResult(geocodeResult)")
+  })
+
+  it("does not allow production certificate uploads to succeed into ephemeral storage", () => {
+    const storage = read("lib/certificate-storage.ts")
+    const route = read("app/api/chef/certificates/route.ts")
+
+    expect(storage).toContain("DURABLE_CERTIFICATE_STORAGE_NOT_CONFIGURED")
+    expect(route).toContain("Certificate storage is not configured")
+    expect(route).toContain("{ status: 503 }")
   })
 
   it("provides an internal no-PII eligibility diagnostic", () => {
