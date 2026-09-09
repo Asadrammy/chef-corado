@@ -20,7 +20,11 @@ jest.mock("@/lib/services/market-configuration-service", () => ({
   },
 }))
 
-import { evaluateChefRequestAccessForRecords, MAX_QUOTES_PER_REQUEST } from "@/lib/services/request-eligibility-service"
+import {
+  buildChefRequestVisibilityDiagnosticSummary,
+  evaluateChefRequestAccessForRecords,
+  MAX_QUOTES_PER_REQUEST,
+} from "@/lib/services/request-eligibility-service"
 
 const now = new Date("2026-09-02T12:00:00.000Z")
 
@@ -143,6 +147,57 @@ describe("request eligibility service", () => {
     expect(access.canPropose).toBe(true)
     expect(access.directRequest).toBe(true)
     expect(access.invited).toBe(true)
+  })
+
+  it("allows private dining specialties to satisfy meal service requests without experiences", async () => {
+    const access = await evaluateChefRequestAccessForRecords({
+      chef: chef({ specialties: JSON.stringify(["PRIVATE_DINING"]), experiences: [] }),
+      request: request({ serviceType: "THREE_COURSE_MEAL", cuisineTypes: JSON.stringify([]) }),
+      now,
+    })
+
+    expect(access.canView).toBe(true)
+    expect(access.canPropose).toBe(true)
+    expect(access.reasons).not.toContain("SERVICE_MISMATCH")
+  })
+
+  it("allows culinary instruction specialties to satisfy cooking class requests without experiences", async () => {
+    const access = await evaluateChefRequestAccessForRecords({
+      chef: chef({ specialties: JSON.stringify(["CULINARY_INSTRUCTION"]), experiences: [] }),
+      request: request({ serviceType: "COOKING_CLASS", cuisineTypes: JSON.stringify([]) }),
+      now,
+    })
+
+    expect(access.canView).toBe(true)
+    expect(access.reasons).not.toContain("SERVICE_MISMATCH")
+  })
+
+  it("does not treat menu cuisine as service capability", async () => {
+    const access = await evaluateChefRequestAccessForRecords({
+      chef: chef({
+        specialties: JSON.stringify(["MEAL_PREP"]),
+        menus: [{ cuisineType: "Italian", eventType: "Italian dinner" }],
+        experiences: [],
+      }),
+      request: request({ serviceType: "THREE_COURSE_MEAL", cuisineTypes: JSON.stringify(["Italian"]) }),
+      now,
+    })
+
+    expect(access.canView).toBe(false)
+    expect(access.reasons).toContain("SERVICE_MISMATCH")
+  })
+
+  it("builds safe no-PII visibility diagnostics for excluded requests", async () => {
+    const blockedChef = chef({ latitude: null, longitude: null, specialties: JSON.stringify(["PRIVATE_DINING"]) })
+    const blockedRequest = request({ latitude: null, longitude: null, serviceType: "THREE_COURSE_MEAL" })
+    const access = await evaluateChefRequestAccessForRecords({ chef: blockedChef, request: blockedRequest, now })
+    const diagnostic = buildChefRequestVisibilityDiagnosticSummary({ chef: blockedChef, request: blockedRequest, access })
+
+    expect(diagnostic.requestId).toBe("request-1")
+    expect(diagnostic.coordinates.chef).toBe(false)
+    expect(diagnostic.coordinates.request).toBe(false)
+    expect(diagnostic.service.blocked).toBe(false)
+    expect(JSON.stringify(diagnostic)).not.toContain("Chef Local")
   })
 
   it("releases expired direct requests to eligible local chefs after 48 hours", async () => {

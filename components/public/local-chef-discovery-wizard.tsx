@@ -143,6 +143,8 @@ export function LocalChefDiscoveryWizard({ initialLocation = "", initialCuisine 
       serviceTier: pricingTier,
       serviceSpecificAnswers,
       budget: budget.trim(),
+      budgetMode: "TOTAL_EVENT",
+      totalBudget: budget.trim(),
       fullTimeDetails,
       cuisinePreferences: selectedCuisines,
       dietaryRequirements: dietary.filter((item) => item !== "None"),

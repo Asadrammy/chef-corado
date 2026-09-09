@@ -69,12 +69,29 @@ interface ChefProfile {
 interface ApiEnvelope<T> {
   success: boolean
   data?: T
-  error?: {
+  error?: string | {
     code: string
     message: string
     details?: Array<{ field?: string; message: string }>
   }
+  details?: Array<{ field?: string; message: string }>
   needsProfile?: boolean
+}
+
+function getApiErrorMessage(payload: ApiEnvelope<unknown>, fallback: string) {
+  if (payload.details?.length) {
+    return payload.details.map((detail) => detail.message).join(", ")
+  }
+
+  if (typeof payload.error === "string") {
+    return payload.error
+  }
+
+  if (payload.error?.details?.length) {
+    return payload.error.details.map((detail) => detail.message).join(", ")
+  }
+
+  return payload.error?.message || fallback
 }
 
 type ProfileFormData = {
@@ -172,7 +189,7 @@ export default function ChefProfilePage() {
           setProfile(null)
           return
         }
-        throw new Error(payload.error?.message || "Failed to fetch profile")
+        throw new Error(getApiErrorMessage(payload, "Failed to fetch profile"))
       }
 
       if (!payload.data) {
@@ -213,7 +230,7 @@ export default function ChefProfilePage() {
         radius: parseFloat(formData.radius),
         baseCountryCode: formData.baseCountryCode,
         preferredCurrency: formData.preferredCurrency,
-        profileImage: formData.profileImage || undefined,
+        ...(formData.profileImage && formData.profileImage !== profile?.profileImage ? { profileImage: formData.profileImage } : {}),
         chefType: formData.chefType || undefined,
         careerStage: formData.careerStage || undefined,
         specialties: formData.specialties,
@@ -235,11 +252,7 @@ export default function ChefProfilePage() {
 
       if (!response.ok) {
         const payload = (await response.json()) as ApiEnvelope<ChefProfile>
-        if (payload.error?.details) {
-          setError(payload.error.details.map((d) => d.message).join(", "))
-        } else {
-          setError(payload.error?.message || "Failed to update profile")
-        }
+        setError(getApiErrorMessage(payload, profile ? "Failed to update profile" : "Failed to create profile"))
         return
       }
 

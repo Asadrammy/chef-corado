@@ -33,14 +33,16 @@ describe("Chef profile and admin approval Pass A contracts", () => {
   it("keeps pending chefs able to edit profile fields while validating image references", () => {
     const profilePage = read("app/dashboard/chef/profile/page.tsx")
     const profileRoute = read("app/api/chef/profile/route.ts")
+    const validation = read("lib/chef-profile-validation.ts")
 
     expect(profilePage).toContain("Upload profile photo")
     expect(profilePage).toContain("Chef career stage / background")
     expect(profilePage).toContain("Chef specialties")
     expect(profilePage).not.toContain("disabled={approvalStatus")
-    expect(profileRoute).toContain("imageReferenceSchema.optional()")
-    expect(profileRoute).toContain("careerStage: z.enum(CHEF_CAREER_STAGE_VALUES)")
-    expect(profileRoute).toContain("specialties: z.array(z.enum(CHEF_SPECIALTY_VALUES))")
+    expect(profileRoute).toContain("chefProfileSchema.parse(body)")
+    expect(validation).toContain("chefProfileImageReferenceSchema.optional()")
+    expect(validation).toContain("careerStage: z.enum(CHEF_CAREER_STAGE_VALUES)")
+    expect(validation).toContain("specialties: z.array(z.enum(CHEF_SPECIALTY_VALUES))")
   })
 
   it("uses a shared storage contract for profile/menu image uploads", () => {

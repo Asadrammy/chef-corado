@@ -292,6 +292,8 @@ export function RequestWizardForm({ mode = "create", chefId, initialDraftId, ini
       adultCount: nextData.adultCount,
       childrenUnder10: nextData.childrenUnder10,
       budget: nextData.budget,
+      budgetMode: "TOTAL_EVENT",
+      totalBudget: nextData.budget,
       details: nextData.details,
       stepIndex,
     }))

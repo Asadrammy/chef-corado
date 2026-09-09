@@ -25,6 +25,7 @@ import { eventQueueService } from "@/lib/services/event-queue-service"
 import { EARLY_ACCESS_WINDOW_MS, evaluateChefRequestAccessForRecords } from "@/lib/services/request-eligibility-service"
 import { DIRECT_REQUEST_EXCLUSIVITY_MS } from "@/lib/services/direct-request-access"
 import { getBlockingAvailabilityStatus, getChefDateAvailabilityStatuses } from "@/lib/services/default-availability"
+import { canonicalizeMultiDayBudgetInput } from "@/lib/multi-day-budget"
 
 const toDateKey = (date: Date | string) => new Date(date).toISOString().slice(0, 10)
 
@@ -672,7 +673,7 @@ export const requestService = {
       return {
         ...explicit,
         serviceTypeLabel: getServiceTypeLabel(explicit.serviceType),
-        budget: explicit.budget ?? input.defaultDailyBudget ?? null,
+        budget: input.budgetMode === "PER_DAY" ? explicit.budget ?? input.defaultDailyBudget ?? null : null,
         guestComposition: dayComposition,
       }
     })
@@ -694,10 +695,14 @@ export const requestService = {
       throw new Error("SERVICE_COUNTRY_NOT_SUPPORTED")
     }
 
-    const estimatedTotalBudget = input.budgetMode === "TOTAL_EVENT"
-      ? input.totalBudget ?? input.budget ?? 0
-      : mergedDateRequirements.reduce((sum, day) => sum + Number(day.budget ?? 0), 0)
-    const requestBudget = input.budget ?? estimatedTotalBudget
+    const canonicalBudget = canonicalizeMultiDayBudgetInput({
+      budgetMode: input.budgetMode,
+      budget: input.budget,
+      totalBudget: input.totalBudget,
+      defaultDailyBudget: input.defaultDailyBudget,
+      dateBudgets: mergedDateRequirements.map((day) => day.budget),
+    })
+    const requestBudget = canonicalBudget.budget
     const requestServiceSpecificAnswers = {
       ...(input.serviceSpecificAnswers ?? {}),
       dailyServiceTimes: input.dailyServiceTimes ?? "",
@@ -712,7 +717,7 @@ export const requestService = {
         dietaryRequirements: input.dietaryRequirements,
         adultCount: guestComposition.adultCount,
         childrenUnder10: guestComposition.childrenUnder10,
-        budget: input.defaultDailyBudget ?? input.totalBudget ?? input.budget ?? null,
+        budget: input.budgetMode === "PER_DAY" ? canonicalBudget.defaultDailyBudget : null,
       },
     }
 
@@ -758,8 +763,8 @@ export const requestService = {
           geocodingStatus: coordinates?.status ?? "UNAVAILABLE",
           budget: requestBudget,
           budgetMode: input.budgetMode,
-          totalBudget: input.budgetMode === "TOTAL_EVENT" ? requestBudget : estimatedTotalBudget,
-          defaultDailyBudget: input.budgetMode === "PER_DAY" ? input.defaultDailyBudget ?? null : null,
+          totalBudget: canonicalBudget.totalBudget,
+          defaultDailyBudget: canonicalBudget.defaultDailyBudget,
           details: input.details ?? null,
           serviceSpecificAnswers: JSON.stringify(requestServiceSpecificAnswers),
           multiDayDates: {
@@ -868,6 +873,14 @@ export const requestService = {
         })
       }
     }
+
+    await eventQueueService.emit({
+      eventType: "REQUEST_BROADER_ACCESS_NOTIFY",
+      payload: { requestId: created.id },
+      priority: 5,
+      nextRunAt: new Date(created.createdAt.getTime() + EARLY_ACCESS_WINDOW_MS),
+      dedupeKey: `REQUEST_BROADER_ACCESS_NOTIFY:${created.id}`,
+    })
 
     return created
   },

@@ -14,8 +14,9 @@ import { proposalService } from "@/lib/services/proposal-service"
 import { SmartMatchingService } from "@/lib/services/smart-matching-service"
 import { ChefRequestsMarketplace } from "@/components/chef-requests-marketplace"
 import { withRequestPhotoFallback } from "@/lib/request-photo-schema"
-import { evaluateChefRequestAccessForRecords } from "@/lib/services/request-eligibility-service"
+import { buildChefRequestVisibilityDiagnosticSummary, evaluateChefRequestAccessForRecords } from "@/lib/services/request-eligibility-service"
 import { Role } from "@/types"
+import { logger } from "@/lib/logger"
 
 export const metadata: Metadata = generateMeta({
   title: "Incoming Requests",
@@ -437,6 +438,7 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
       proposalService.listProposals(userId, Role.CHEF)
     ])
 
+    const excludedVisibilityDiagnostics: ReturnType<typeof buildChefRequestVisibilityDiagnosticSummary>[] = []
     const allOpenRequests = (await Promise.all(allRequests.map(async (request) => {
       const access = await evaluateChefRequestAccessForRecords({
         chef: chefProfile,
@@ -444,6 +446,11 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
       })
 
       if (!access.canView || request.proposals.some((proposal) => proposal.chefId === chefProfile.id)) {
+        excludedVisibilityDiagnostics.push(buildChefRequestVisibilityDiagnosticSummary({
+          chef: chefProfile,
+          request,
+          access,
+        }))
         return null
       }
 
@@ -479,6 +486,13 @@ export default async function ChefRequestsPage({ searchParams }: ChefRequestsPag
         broaderMatching: access.broaderAccess || distanceKm == null,
       })
     }))).filter(Boolean) as ChefRequestView[]
+
+    if (process.env.CHEFACHEF_REQUEST_VISIBILITY_DIAGNOSTICS === "true" && excludedVisibilityDiagnostics.length > 0) {
+      logger.info("[CHEF_REQUEST_VISIBILITY] Excluded request diagnostics", {
+        chefProfileId: chefProfile.id,
+        excluded: excludedVisibilityDiagnostics,
+      })
+    }
 
     const allRespondedRequests = proposalHistory.map((proposal) => buildChefRespondedRequestView(proposal, {
       distanceKm: proposal.request?.latitude != null && proposal.request?.longitude != null && chefProfile.latitude != null && chefProfile.longitude != null

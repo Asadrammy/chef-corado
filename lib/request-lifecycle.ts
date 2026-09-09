@@ -7,7 +7,7 @@ const LOCKED_PROPOSAL_STATUSES = new Set<string>([
 ])
 
 export function getClientRequestStatusLabel(proposalCount?: number | null) {
-  return proposalCount && proposalCount > 0 ? "Live" : "Awaiting Chef Proposals"
+  return proposalCount && proposalCount > 0 ? "Live / Proposals Received" : "Live / Awaiting Chef Proposals"
 }
 
 export function hasLockedRequestProposalStatus(proposals?: Array<{ status?: string | null }> | null) {

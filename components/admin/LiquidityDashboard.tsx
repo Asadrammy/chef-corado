@@ -255,7 +255,7 @@ export function LiquidityDashboard({ className }: LiquidityDashboardProps) {
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
                         <Badge variant={request.isHighlighted ? "default" : "secondary"}>
-                          {request.isHighlighted ? "Highlighted" : "Pending"}
+                          {request.isHighlighted ? "Highlighted" : "Live / Awaiting Chef Proposals"}
                         </Badge>
                         <span className="text-sm text-gray-500">
                           {formatDistanceToNow(new Date(request.createdAt), { addSuffix: true })}

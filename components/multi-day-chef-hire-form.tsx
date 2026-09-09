@@ -14,8 +14,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { COUNTRY_OPTIONS, CUISINE_TYPES, DIETARY_REQUIREMENTS, SERVICE_TYPE_OPTIONS, calculateGuestComposition, getServiceTypeLabel, type CountryCode } from "@/lib/request-options"
 import { getInactiveMarketMessage, getMarketConfig } from "@/lib/marketplace-rules"
+import {
+  calculateMultiDayBudgetTotal,
+  restoreMultiDayBudgetDraft,
+  toPositiveBudgetNumber,
+  type MultiDayBudgetMode,
+} from "@/lib/multi-day-budget"
 
-type BudgetMode = "PER_DAY" | "TOTAL_EVENT"
+type BudgetMode = MultiDayBudgetMode
 
 type DayRequirementState = {
   startTime: string
@@ -88,9 +94,8 @@ function toNumber(value: string, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-function toPositiveNumber(value: string) {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+function toPositiveNumber(value?: string | number | null) {
+  return toPositiveBudgetNumber(value) ?? undefined
 }
 
 function formatDateLabel(date: string) {
@@ -139,7 +144,7 @@ export function MultiDayChefHireForm({ initialDraftId }: { initialDraftId?: stri
   })
   const [rangeStart, setRangeStart] = React.useState("")
   const [rangeEnd, setRangeEnd] = React.useState("")
-  const [budgetMode, setBudgetMode] = React.useState<BudgetMode>("PER_DAY")
+  const [budgetMode, setBudgetMode] = React.useState<BudgetMode>("TOTAL_EVENT")
   const [totalBudget, setTotalBudget] = React.useState("")
   const [defaultDailyBudget, setDefaultDailyBudget] = React.useState("")
   const [defaultServiceType, setDefaultServiceType] = React.useState(SERVICE_TYPE_OPTIONS[0].id)
@@ -171,6 +176,9 @@ export function MultiDayChefHireForm({ initialDraftId }: { initialDraftId?: stri
         serviceType?: string
         serviceTier?: string
         budget?: string | number
+        budgetMode?: string
+        totalBudget?: string | number
+        defaultDailyBudget?: string | number
         adultCount?: number
         childrenUnder10?: number
         cuisinePreferences?: string[]
@@ -182,7 +190,10 @@ export function MultiDayChefHireForm({ initialDraftId }: { initialDraftId?: stri
       if (draft.eventTime) setDefaultStartTime(draft.eventTime)
       if (draft.serviceType && SERVICE_TYPE_OPTIONS.some((option) => option.id === draft.serviceType)) setDefaultServiceType(draft.serviceType)
       if (draft.serviceTier) setDefaultServiceTier(draft.serviceTier)
-      if (draft.budget != null) setDefaultDailyBudget(String(draft.budget))
+      const restoredBudget = restoreMultiDayBudgetDraft(draft)
+      setBudgetMode(restoredBudget.budgetMode)
+      setTotalBudget(restoredBudget.totalBudget)
+      setDefaultDailyBudget(restoredBudget.defaultDailyBudget)
       if (draft.adultCount != null) setDefaultAdults(String(draft.adultCount))
       if (draft.childrenUnder10 != null) setDefaultChildrenUnder10(String(draft.childrenUnder10))
       if (Array.isArray(draft.cuisinePreferences)) setDefaultCuisines(draft.cuisinePreferences.filter((item) => (CUISINE_TYPES as readonly string[]).includes(item)).slice(0, 3))
@@ -204,7 +215,7 @@ export function MultiDayChefHireForm({ initialDraftId }: { initialDraftId?: stri
               dietary: restoredDietary,
               adults: draft.adultCount != null ? String(draft.adultCount) : "2",
               childrenUnder10: draft.childrenUnder10 != null ? String(draft.childrenUnder10) : "0",
-              dailyBudget: draft.budget != null ? String(draft.budget) : "",
+              dailyBudget: restoredBudget.dateBudget,
             })
           }
           return next
@@ -273,9 +284,12 @@ export function MultiDayChefHireForm({ initialDraftId }: { initialDraftId?: stri
     setRequirements(Object.fromEntries(selectedDates.map((date) => [date, defaultRequirement])))
   }
 
-  const totalBudgetEstimate = budgetMode === "TOTAL_EVENT"
-    ? toPositiveNumber(totalBudget) ?? 0
-    : selectedDates.reduce((sum, date) => sum + (toPositiveNumber(getRequirement(date).budget) ?? toPositiveNumber(defaultDailyBudget) ?? 0), 0)
+  const totalBudgetEstimate = calculateMultiDayBudgetTotal({
+    budgetMode,
+    totalBudget,
+    defaultDailyBudget,
+    dateBudgets: selectedDates.map((date) => getRequirement(date).budget),
+  })
 
   const incompleteDates = selectedDates.filter((date) => {
     const day = getRequirement(date)

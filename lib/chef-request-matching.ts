@@ -1,6 +1,8 @@
 import { calculateDistance } from "@/lib/geo"
 import { prisma } from "@/lib/prisma"
 import { getBlockingAvailabilityStatus, getChefDateAvailabilityStatuses } from "@/lib/services/default-availability"
+import { decodeChefSpecialties, type ChefSpecialty } from "@/lib/chef-onboarding-options"
+import { getServiceTypeLabel } from "@/lib/request-options"
 
 export type ChefRequestMatchingCandidate = {
   id: string
@@ -87,7 +89,6 @@ function buildChefServiceText(chef: ChefRequestMatchingCandidate) {
     chef.chefType,
     chef.specialties,
     chef.certifications,
-    ...(chef.menus ?? []).flatMap((menu) => [menu.cuisineType, menu.eventType]),
     ...(chef.experiences ?? []).flatMap((experience) => [experience.serviceType, experience.cuisineType, experience.eventType]),
   ].filter(Boolean).join(" ").toLowerCase()
 }
@@ -138,6 +139,72 @@ async function hasAvailabilityConflict(chefId: string, dateKeys: string[]) {
   return Boolean(getBlockingAvailabilityStatus(statuses))
 }
 
+const serviceTypesBySpecialty: Record<ChefSpecialty, readonly string[]> = {
+  PRIVATE_DINING: [
+    "THREE_COURSE_MEAL",
+    "FOUR_FIVE_COURSE_MEAL",
+    "SIX_NINE_COURSE_MEAL",
+    "SHARING_PLATES",
+    "AFTERNOON_TEA",
+    "BRUNCH",
+  ],
+  EVENTS: [
+    "SHARING_PLATES",
+    "SHARING_BUFFET",
+    "CANAPES_AND_DRINKS",
+    "BARBECUE_BBQ",
+    "GRAZING_TABLE",
+    "KIDS_PARTY",
+    "AFTERNOON_TEA",
+  ],
+  MEAL_PREP: [
+    "DELIVERY_PLATTER",
+  ],
+  CULINARY_INSTRUCTION: [
+    "COOKING_CLASS",
+  ],
+  PASTRY: [
+    "AFTERNOON_TEA",
+    "KIDS_PARTY",
+    "GRAZING_TABLE",
+    "DELIVERY_PLATTER",
+  ],
+}
+
+function normalizeCapabilityText(value?: string | null) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+}
+
+function getChefServiceCapabilitySet(chef: ChefRequestMatchingCandidate) {
+  const specialties = decodeChefSpecialties(chef.specialties, chef.chefType)
+  const capabilities = new Set<string>()
+
+  for (const specialty of specialties) {
+    for (const serviceType of serviceTypesBySpecialty[specialty]) {
+      capabilities.add(serviceType)
+    }
+  }
+
+  return capabilities
+}
+
+function chefHasServiceCapability(chef: ChefRequestMatchingCandidate, serviceType: string, chefServiceText: string) {
+  const serviceLabel = getServiceTypeLabel(serviceType)
+  const normalizedServiceId = normalizeCapabilityText(serviceType)
+  const normalizedServiceLabel = normalizeCapabilityText(serviceLabel)
+  const normalizedChefServiceText = normalizeCapabilityText(chefServiceText)
+  const capabilities = getChefServiceCapabilitySet(chef)
+
+  return capabilities.has(serviceType) ||
+    (chef.experiences ?? []).some((experience) => experience.serviceType === serviceType) ||
+    normalizedChefServiceText.includes(normalizedServiceId) ||
+    normalizedChefServiceText.includes(normalizedServiceLabel)
+}
+
 export async function evaluateChefRequestMatch(
   request: ChefRequestMatchingRequest,
   chef: ChefRequestMatchingCandidate & { baseCountryCode?: string | null },
@@ -184,12 +251,10 @@ export async function evaluateChefRequestMatch(
   if (requestedServiceTypes.length > 0 && (chefExperiences.length > 0 || chefServiceText)) {
     const hasServiceMatch = request.requestMode === "MULTI_DAY"
       ? requestedServiceTypes.every((serviceType) =>
-          chefExperiences.some((experience) => experience.serviceType === serviceType) ||
-          chefServiceText.includes(serviceType.toLowerCase().replaceAll("_", " "))
+          chefHasServiceCapability(chef, serviceType, chefServiceText)
         )
       : requestedServiceTypes.some((serviceType) =>
-          chefExperiences.some((experience) => experience.serviceType === serviceType) ||
-          chefServiceText.includes(serviceType.toLowerCase().replaceAll("_", " "))
+          chefHasServiceCapability(chef, serviceType, chefServiceText)
         )
 
     if (!hasServiceMatch) {

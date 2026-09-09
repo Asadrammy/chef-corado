@@ -1,7 +1,6 @@
 import { Resend } from 'resend'
 import { shouldSendNotification, type NotificationTopic } from '@/lib/notification-preferences'
 import { formatCurrency } from '@/lib/currency'
-import { APPROVED_PUBLIC_CONTACT } from '@/lib/marketplace-rules'
 import {
   type MultiDayDateLike,
   type ProposalLineItemLike,
@@ -12,6 +11,8 @@ import {
 } from '@/lib/multi-day-display'
 
 let resend: Resend | null = null
+
+export const PLATFORM_NOTIFICATION_SENDER = "ChefaChef <notifications@chefachef.co.uk>"
 
 // Initialize Resend only when needed and API key is available
 function getResendClient(): Resend | null {
@@ -38,7 +39,7 @@ export async function sendEmail({ to, subject, html, from }: EmailData) {
 
   try {
     const { data, error } = await client.emails.send({
-      from: from || process.env.RESEND_FROM_EMAIL || APPROVED_PUBLIC_CONTACT.email,
+      from: from || process.env.RESEND_FROM_EMAIL || PLATFORM_NOTIFICATION_SENDER,
       to: Array.isArray(to) ? to : [to],
       subject,
       html,

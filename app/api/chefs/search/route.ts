@@ -19,6 +19,26 @@ function splitParam(value: string | null) {
     .filter(Boolean)
 }
 
+function specialtyValuesForServiceType(serviceType: string) {
+  const serviceToSpecialties: Record<string, string[]> = {
+    THREE_COURSE_MEAL: ["PRIVATE_DINING"],
+    FOUR_FIVE_COURSE_MEAL: ["PRIVATE_DINING"],
+    SIX_NINE_COURSE_MEAL: ["PRIVATE_DINING"],
+    SHARING_PLATES: ["PRIVATE_DINING", "EVENTS"],
+    SHARING_BUFFET: ["EVENTS"],
+    CANAPES_AND_DRINKS: ["EVENTS"],
+    BARBECUE_BBQ: ["EVENTS"],
+    BRUNCH: ["PRIVATE_DINING"],
+    GRAZING_TABLE: ["EVENTS", "PASTRY"],
+    COOKING_CLASS: ["CULINARY_INSTRUCTION"],
+    AFTERNOON_TEA: ["PRIVATE_DINING", "EVENTS", "PASTRY"],
+    KIDS_PARTY: ["EVENTS", "PASTRY"],
+    DELIVERY_PLATTER: ["MEAL_PREP", "PASTRY"],
+  }
+
+  return serviceToSpecialties[serviceType] ?? []
+}
+
 function compareNullableNumber(a: number | null | undefined, b: number | null | undefined, direction: "asc" | "desc") {
   const aValid = typeof a === "number"
   const bValid = typeof b === "number"
@@ -113,10 +133,12 @@ export async function GET(request: NextRequest) {
     }
 
     if (serviceType) {
+      const specialtyValues = specialtyValuesForServiceType(serviceType)
       where.AND.push({
         OR: [
           { experiences: { some: { serviceType } } },
           { specialties: { contains: serviceType.replaceAll("_", " "), mode: "insensitive" } },
+          ...specialtyValues.map((specialty) => ({ specialties: { contains: specialty, mode: "insensitive" } })),
           { bio: { contains: serviceType.replaceAll("_", " "), mode: "insensitive" } },
         ],
       })

@@ -39,7 +39,9 @@ describe("Phase 2 Multi-Day source contracts", () => {
   })
 
   it("collects structured per-date requirements and explicit budget mode", () => {
-    expect(formSource).toContain("type BudgetMode = \"PER_DAY\" | \"TOTAL_EVENT\"")
+    expect(formSource).toContain("type BudgetMode = MultiDayBudgetMode")
+    expect(formSource).toContain("restoreMultiDayBudgetDraft")
+    expect(formSource).toContain("calculateMultiDayBudgetTotal")
     expect(formSource).toContain("type DayRequirementState")
     expect(formSource).toContain("dateRequirements")
     expect(formSource).toContain("budgetMode")

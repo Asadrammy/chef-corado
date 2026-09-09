@@ -45,6 +45,47 @@ export type ChefRequestAccessResult = {
   reasons: ChefRequestAccessReason[]
 }
 
+export type ChefRequestVisibilityDiagnosticSummary = {
+  requestId: string
+  canView: boolean
+  canPropose: boolean
+  reasons: ChefRequestAccessReason[]
+  coordinates: {
+    chef: boolean
+    request: boolean
+    distanceKm: number | null
+  }
+  country: {
+    chef: string | null
+    request: string | null
+    match: boolean
+  }
+  service: {
+    blocked: boolean
+  }
+  cuisine: {
+    blocked: boolean
+  }
+  availability: {
+    blocked: boolean
+  }
+  direct: {
+    active: boolean
+    invited: boolean
+    restricted: boolean
+  }
+  earlyAccess: {
+    active: boolean
+    localOnlyBlocked: boolean
+  }
+  proposal: {
+    quoteCount: number
+    quoteLimit: number
+    capReached: boolean
+    alreadyResponded: boolean
+  }
+}
+
 type ChefForEligibility = ChefRequestMatchingCandidate & {
   isApproved?: boolean | null
   isBanned?: boolean | null
@@ -94,6 +135,55 @@ function pushReasons(target: ChefRequestAccessReason[], reasons: string[]) {
     if (!target.includes(reason as ChefRequestAccessReason)) {
       target.push(reason as ChefRequestAccessReason)
     }
+  }
+}
+
+export function buildChefRequestVisibilityDiagnosticSummary(input: {
+  chef: ChefForEligibility
+  request: RequestForEligibility
+  access: ChefRequestAccessResult
+}): ChefRequestVisibilityDiagnosticSummary {
+  const { chef, request, access } = input
+
+  return {
+    requestId: request.id,
+    canView: access.canView,
+    canPropose: access.canPropose,
+    reasons: access.reasons,
+    coordinates: {
+      chef: chef.latitude != null && chef.longitude != null,
+      request: request.latitude != null && request.longitude != null,
+      distanceKm: access.distanceKm,
+    },
+    country: {
+      chef: chef.baseCountryCode ?? null,
+      request: request.countryCode ?? null,
+      match: !request.countryCode || !chef.baseCountryCode || request.countryCode === chef.baseCountryCode,
+    },
+    service: {
+      blocked: access.reasons.includes("SERVICE_MISMATCH"),
+    },
+    cuisine: {
+      blocked: access.reasons.includes("CUISINE_MISMATCH"),
+    },
+    availability: {
+      blocked: access.reasons.includes("AVAILABILITY_CONFLICT"),
+    },
+    direct: {
+      active: access.directRequest,
+      invited: access.invited,
+      restricted: access.reasons.includes("DIRECT_REQUEST_RESTRICTED") || access.reasons.includes("DIRECT_REQUEST_LOCAL_RELEASE_ONLY"),
+    },
+    earlyAccess: {
+      active: access.earlyAccess,
+      localOnlyBlocked: access.reasons.includes("EARLY_ACCESS_LOCAL_ONLY"),
+    },
+    proposal: {
+      quoteCount: access.quoteCount,
+      quoteLimit: access.quoteLimit,
+      capReached: access.reasons.includes("QUOTE_CAP_REACHED"),
+      alreadyResponded: access.reasons.includes("DUPLICATE_PROPOSAL"),
+    },
   }
 }
 

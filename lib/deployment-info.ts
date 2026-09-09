@@ -7,6 +7,10 @@ function configuredNumber(value?: string | null) {
   return Number.isFinite(Number(value))
 }
 
+function normalizedEmailSetting(value?: string | null) {
+  return (value ?? "").trim().toLowerCase()
+}
+
 export function getDeploymentInfo() {
   return {
     appVersion: process.env.npm_package_version || "0.5.0",
@@ -29,6 +33,7 @@ export function getSafeRuntimeConfigStatus() {
     present(process.env.CLOUDINARY_API_KEY) &&
     present(process.env.CLOUDINARY_API_SECRET)
   const resend = present(process.env.RESEND_API_KEY) && present(process.env.RESEND_FROM_EMAIL)
+  const resendFromEmailExpected = normalizedEmailSetting(process.env.RESEND_FROM_EMAIL).includes("notifications@chefachef.co.uk")
   const redis =
     present(process.env.REDIS_URL) ||
     (present(process.env.UPSTASH_REDIS_REST_URL) && present(process.env.UPSTASH_REDIS_REST_TOKEN))
@@ -41,6 +46,7 @@ export function getSafeRuntimeConfigStatus() {
     cloudinary,
     imageStorageProvider: process.env.IMAGE_STORAGE_PROVIDER || null,
     resend,
+    resendFromEmailExpected,
     googleGeocoding: present(process.env.GOOGLE_GEOCODING_API_KEY) || present(process.env.GOOGLE_MAPS_API_KEY),
     redis,
     stripeSecret: present(process.env.STRIPE_SECRET_KEY),
